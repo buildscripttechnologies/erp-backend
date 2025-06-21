@@ -24,6 +24,12 @@ const userSchema = new mongoose.Schema(
     },
     isVerified: { type: Boolean, default: false },
     twoStepEnabled: { type: Boolean, default: false },
+    isDeleted: { type: Boolean, default: false },
+    status: {
+      type: String,
+      enum: ["Active", "Inactive", "Suspended"],
+      default: "Active",
+    },
   },
   { timestamps: true }
 );

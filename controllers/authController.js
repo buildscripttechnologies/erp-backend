@@ -24,12 +24,10 @@ exports.register = async (req, res) => {
     });
 
     await generateAndSendOtp(email, "signup");
-    res
-      .status(201)
-      .json({
-        status: 201,
-        message: "User registered. OTP sent for verification.",
-      });
+    res.status(201).json({
+      status: 201,
+      message: "User registered. OTP sent for verification.",
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -90,7 +88,7 @@ exports.resetPassword = async (req, res) => {
 exports.changePassword = async (req, res) => {
   const { email, otp, newPassword } = req.body;
   try {
-    const otpRecord = await OtpToken.findOne({ email, otp, purpose: "reset" });
+    const otpRecord = await OtpToken.findOne({ email, otp });
     if (!otpRecord || otpRecord.expiresAt < new Date()) {
       return res
         .status(400)
