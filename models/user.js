@@ -2,9 +2,11 @@ const mongoose = require("mongoose");
 
 const userSchema = new mongoose.Schema(
   {
-    username: { type: String, required: true },
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
+    fullName: { type: String },
+    username: { type: String },
+    email: { type: String },
+    mobile: { type: String },
+    password: { type: String },
     userType: {
       type: String,
       enum: [
@@ -27,7 +29,7 @@ const userSchema = new mongoose.Schema(
     isDeleted: { type: Boolean, default: false },
     status: {
       type: String,
-      enum: ["Active", "Inactive", "Suspended"],
+      enum: ["Active", "Inactive"],
       default: "Active",
     },
   },

@@ -8,7 +8,8 @@ const generateToken = require("../utils/generateToken");
 const generateAndSendOtp = require("../utils/generateAndSendOtp");
 
 exports.register = async (req, res) => {
-  const { username, email, password, userType, userGroup } = req.body;
+  const { fullName, username, mobile, email, password, userType, userGroup } =
+    req.body;
   try {
     const existing = await User.findOne({ email });
     if (existing)
@@ -16,7 +17,9 @@ exports.register = async (req, res) => {
 
     const hash = await bcrypt.hash(password, 10);
     const user = await User.create({
+      fullName,
       username,
+      mobile,
       email,
       password: hash,
       userType,
@@ -45,6 +48,17 @@ exports.login = async (req, res) => {
       return res
         .status(401)
         .json({ status: 401, message: "Invalid credentials" });
+
+    if (user.status === "Inactive") {
+      return res
+        .status(403)
+        .json({ status: 403, message: "Account is inactive" });
+    }
+    if (user.isDeleted) {
+      return res
+        .status(403)
+        .json({ status: 403, message: "Account is deleted" });
+    }
 
     if (!user.isVerified) {
       await generateAndSendOtp(email, "verification");
