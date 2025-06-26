@@ -10,7 +10,7 @@ const {
 const checkRole = require("../middlewares/checkRole");
 const router = express.Router();
 
-router.get("/all-roles", auth, getAllRoles);
+router.get("/all-roles", getAllRoles);
 router.get("/get-role/:roleId", auth, getRole);
 router.post("/add-role", auth, checkRole(["Admin"]), addRole);
 router.patch("/update-role/:roleId", auth, checkRole(["Admin"]), updateRole);
