@@ -20,6 +20,15 @@ const generateBulkSkuCodes = async (count) => {
   );
 };
 
+const resolveUOM = async (uom) => {
+  if (!uom) return null;
+  // If it's already a valid ObjectId
+  if (/^[0-9a-fA-F]{24}$/.test(uom)) return uom;
+  // Else, lookup by unit name
+  const unit = await UOM.findOne({ unitName: uom.trim() });
+  return unit?._id || null;
+};
+
 // @desc    Get all raw materials (with optional pagination & search)
 exports.getAllRawMaterials = async (req, res) => {
   try {
@@ -67,6 +76,7 @@ exports.getAllRawMaterials = async (req, res) => {
       totalResults: total,
       totalPages: Math.ceil(total / limit),
       currentPage: Number(page),
+      limit: Number(limit),
       rawMaterials,
     });
   } catch (err) {
@@ -87,7 +97,7 @@ exports.createRawMaterial = async (req, res) => {
 
 exports.addMultipleRawMaterials = async (req, res) => {
   try {
-    let rawMaterials = req.body;
+    let rawMaterials = JSON.parse(req.body.rawMaterials); // Must be stringified JSON from frontend
 
     if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
       return res.status(400).json({
@@ -95,20 +105,43 @@ exports.addMultipleRawMaterials = async (req, res) => {
         message: "Request body must be a non-empty array.",
       });
     }
-    const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
-    rawMaterials = rawMaterials.map((rm, index) => {
-      if (typeof rm !== "object" || Array.isArray(rm)) {
-        throw new Error("Each raw material must be an object.");
+
+    // Map files to raw material by index
+    const fileMap = {};
+    req.files.forEach((file) => {
+      const match = file.originalname.match(/__index_(\d+)__/);
+      if (match) {
+        const index = parseInt(match[1], 10);
+        if (!fileMap[index]) fileMap[index] = [];
+        fileMap[index].push({
+          fileName: file.originalname.replace(/__index_\d+__/, ""),
+          fileUrl: `/uploads/rm_attachments/${file.filename}`,
+        });
       }
-      return {
-        ...rm,
-        skuCode: skuCodes[index],
-        createdBy: req.user._id, // Set createdBy to the authenticated user
-      };
     });
 
-    const inserted = await RawMaterial.insertMany(rawMaterials, {
-      ordered: false, // continues on error for individual documents
+    // Generate SKU codes
+    const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
+
+    // Normalize data and resolve UOM
+    const mappedRMs = await Promise.all(
+      rawMaterials.map(async (rm, index) => {
+        const purchaseUOM = await resolveUOM(rm.purchaseUOM);
+        const stockUOM = await resolveUOM(rm.stockUOM);
+
+        return {
+          ...rm,
+          skuCode: skuCodes[index],
+          createdBy: req.user._id,
+          purchaseUOM,
+          stockUOM,
+          attachments: fileMap[index] || [],
+        };
+      })
+    );
+
+    const inserted = await RawMaterial.insertMany(mappedRMs, {
+      ordered: false,
     });
 
     res.status(201).json({

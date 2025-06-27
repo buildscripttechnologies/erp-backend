@@ -12,6 +12,7 @@ const {
 } = require("../controllers/rawMaterialController");
 const checkRole = require("../middlewares/checkRole");
 const upload = require("../middlewares/upload");
+const uploadFile = require("../middlewares/uploadFile");
 
 const router = express.Router();
 
@@ -22,15 +23,12 @@ router.post(
   "/add-many-rm",
   auth,
   checkRole(["Admin"]),
+  uploadFile.array("attachments"),
   addMultipleRawMaterials
 );
-router.patch("/update-rm/:rmId", auth, checkRole(["Admin"]), updateRawMaterial);
-router.delete(
-  "/delete-rm/:rmId",
-  auth,
-  checkRole(["Admin"]),
-  deleteRawMaterial
-);
+router.patch("/update-rm/:id", auth, checkRole(["Admin"]), updateRawMaterial);
+
+router.delete("/delete-rm/:id", auth, checkRole(["Admin"]), deleteRawMaterial);
 
 router.get("/sample-excel", auth, downloadRawMaterialSample);
 router.post(
