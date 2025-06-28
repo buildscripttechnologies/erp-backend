@@ -9,6 +9,7 @@ const {
   deleteRawMaterial,
   downloadRawMaterialSample,
   uploadExcelRawMaterials,
+  editRawMaterial,
 } = require("../controllers/rawMaterialController");
 const checkRole = require("../middlewares/checkRole");
 const upload = require("../middlewares/upload");
@@ -27,6 +28,13 @@ router.post(
   addMultipleRawMaterials
 );
 router.patch("/update-rm/:id", auth, checkRole(["Admin"]), updateRawMaterial);
+router.patch(
+  "/edit-rm/:id",
+  auth,
+  checkRole(["Admin"]),
+  uploadFile.array("attachments"),
+  editRawMaterial
+);
 
 router.delete("/delete-rm/:id", auth, checkRole(["Admin"]), deleteRawMaterial);
 

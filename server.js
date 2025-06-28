@@ -14,6 +14,11 @@ const rmsRoutes = require("./routes/rawMaterialRoutes");
 
 app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+// Serve static files from the "public" directory
+app.use(express.static("public"));
+// Serve static files from the "uploads" directory
+app.use("/uploads", express.static("uploads"));
 
 app.get("/", (req, res) => {
   res.send("Welcome to the ERP Backend!");

@@ -106,6 +106,8 @@ exports.addMultipleRawMaterials = async (req, res) => {
       });
     }
 
+    console.log("Received raw materials:", rawMaterials);
+
     // Map files to raw material by index
     const fileMap = {};
     req.files.forEach((file) => {
@@ -120,6 +122,8 @@ exports.addMultipleRawMaterials = async (req, res) => {
       }
     });
 
+    console.log("File map:", fileMap);
+
     // Generate SKU codes
     const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
 
@@ -131,6 +135,8 @@ exports.addMultipleRawMaterials = async (req, res) => {
 
         return {
           ...rm,
+          qualityInspectionNeeded:
+            rm.qualityInspectionNeeded === "Required" ? true : false,
           skuCode: skuCodes[index],
           createdBy: req.user._id,
           purchaseUOM,
@@ -143,6 +149,9 @@ exports.addMultipleRawMaterials = async (req, res) => {
     const inserted = await RawMaterial.insertMany(mappedRMs, {
       ordered: false,
     });
+
+    console.log("inserted: ", inserted);
+    console.log("Total inserted count: ", inserted.length);
 
     res.status(201).json({
       status: 201,
@@ -170,6 +179,66 @@ exports.updateRawMaterial = async (req, res) => {
     res.status(200).json({ status: 200, data: updated });
   } catch (err) {
     res.status(400).json({ status: 400, message: err.message });
+  }
+};
+
+exports.editRawMaterial = async (req, res) => {
+  try {
+    const parsed = JSON.parse(req.body.data);
+    const { deletedAttachments = [], ...updateFields } = parsed;
+
+    console.log("deletedAttachments: ", deletedAttachments);
+
+    const rm = await RawMaterial.findById(req.params.id);
+    if (!rm) {
+      return res.status(404).json({ message: "Raw material not found" });
+    }
+
+    console.log("Parsed: ", parsed);
+
+    // Remove deleted attachments
+    rm.attachments = rm.attachments.filter(
+      (att) => !deletedAttachments.includes(att._id.toString())
+    );
+
+    console.log("Remaining Attachments: ", rm.attachments);
+
+    // ✅ Resolve new UOMs
+    const purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
+    const stockUOM = await resolveUOM(updateFields.stockUOM);
+
+    // ✅ Assign resolved UOMs to updateFields
+    updateFields.purchaseUOM = purchaseUOM;
+    updateFields.stockUOM = stockUOM;
+    updateFields.createdBy = req.user._id;
+
+    // Add new uploaded attachments
+    if (req.files?.length) {
+      const newFiles = req.files.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `/uploads/rm_attachments/${file.filename}`,
+      }));
+      console.log("New Files: ", newFiles);
+
+      rm.attachments.push(...newFiles);
+      console.log("Updated Attachments: ", rm.attachments);
+    }
+
+    console.log("Update Fields: ", updateFields);
+
+    // ✅ Update other fields
+    Object.assign(rm, updateFields);
+
+    await rm.save();
+
+    console.log("Updated Raw Material: ", rm);
+
+    res.status(200).json({
+      message: "Raw material updated",
+      data: rm,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
   }
 };
 
