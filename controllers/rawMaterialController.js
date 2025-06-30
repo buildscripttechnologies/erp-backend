@@ -213,7 +213,6 @@ exports.addMultipleRawMaterials = async (req, res) => {
       fileMap[index].push({
         fileName: cleanedFileName,
         fileUrl: result.secure_url,
-        cloudinaryPublicId: result.public_id,
       });
     });
 
@@ -372,7 +371,6 @@ exports.editRawMaterial = async (req, res) => {
         return {
           fileName: file.originalname,
           fileUrl: result.secure_url,
-          cloudinaryPublicId: result.public_id,
         };
       });
 
@@ -381,7 +379,6 @@ exports.editRawMaterial = async (req, res) => {
       const newAttachments = uploadedFiles.map((file, index) => ({
         fileName: req.files[index].originalname,
         fileUrl: file.secure_url,
-        cloudinaryPublicId: file.public_id,
       }));
 
       rm.attachments.push(...newAttachments);
