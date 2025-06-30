@@ -12,8 +12,9 @@ const {
   editRawMaterial,
 } = require("../controllers/rawMaterialController");
 const checkRole = require("../middlewares/checkRole");
-const upload = require("../middlewares/upload");
+// const upload = require("../middlewares/upload");
 const uploadFile = require("../middlewares/uploadFile");
+const upload = require("../utils/multer");
 
 const router = express.Router();
 
@@ -32,7 +33,7 @@ router.patch(
   "/edit-rm/:id",
   auth,
   checkRole(["Admin"]),
-  uploadFile.array("attachments"),
+  upload.array("attachments"),
   editRawMaterial
 );
 

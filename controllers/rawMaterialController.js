@@ -1,6 +1,9 @@
 const RawMaterial = require("../models/RawMaterial");
 const XLSX = require("xlsx");
 const UOM = require("../models/UOM");
+const cloudinary = require("../utils/cloudinary");
+
+const baseurl = "http://localhost:5000";
 
 const generateBulkSkuCodes = async (count) => {
   const allSkus = await RawMaterial.find({}, { skuCode: 1 }).lean();
@@ -182,62 +185,117 @@ exports.updateRawMaterial = async (req, res) => {
   }
 };
 
+// exports.editRawMaterial = async (req, res) => {
+//   try {
+//     const parsed = JSON.parse(req.body.data);
+//     const { deletedAttachments = [], ...updateFields } = parsed;
+
+//     console.log("deletedAttachments: ", deletedAttachments);
+
+//     const rm = await RawMaterial.findById(req.params.id);
+//     if (!rm) {
+//       return res.status(404).json({ message: "Raw material not found" });
+//     }
+
+//     console.log("Parsed: ", parsed);
+
+//     // Remove deleted attachments
+//     rm.attachments = rm.attachments.filter(
+//       (att) => !deletedAttachments.includes(att._id.toString())
+//     );
+
+//     console.log("Remaining Attachments: ", rm.attachments);
+
+//     // ✅ Resolve new UOMs
+//     const purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
+//     const stockUOM = await resolveUOM(updateFields.stockUOM);
+
+//     // ✅ Assign resolved UOMs to updateFields
+//     updateFields.purchaseUOM = purchaseUOM;
+//     updateFields.stockUOM = stockUOM;
+//     updateFields.createdBy = req.user._id;
+
+//     // Add new uploaded attachments
+//     if (req.files?.length) {
+//       const newFiles = req.files.map((file) => ({
+//         fileName: file.originalname,
+//         fileUrl: `${baseurl}/uploads/rm_attachments/${file.filename}`,
+//       }));
+//       console.log("New Files: ", newFiles);
+
+//       rm.attachments.push(...newFiles);
+//       console.log("Updated Attachments: ", rm.attachments);
+//     }
+
+//     console.log("Update Fields: ", updateFields);
+
+//     // ✅ Update other fields
+//     Object.assign(rm, updateFields);
+
+//     await rm.save();
+
+//     console.log("Updated Raw Material: ", rm);
+
+//     res.status(200).json({
+//       message: "Raw material updated",
+//       data: rm,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ message: err.message });
+//   }
+// };
+
 exports.editRawMaterial = async (req, res) => {
   try {
     const parsed = JSON.parse(req.body.data);
     const { deletedAttachments = [], ...updateFields } = parsed;
 
-    console.log("deletedAttachments: ", deletedAttachments);
-
     const rm = await RawMaterial.findById(req.params.id);
-    if (!rm) {
-      return res.status(404).json({ message: "Raw material not found" });
-    }
-
-    console.log("Parsed: ", parsed);
+    if (!rm) return res.status(404).json({ message: "Raw material not found" });
 
     // Remove deleted attachments
     rm.attachments = rm.attachments.filter(
       (att) => !deletedAttachments.includes(att._id.toString())
     );
-
-    console.log("Remaining Attachments: ", rm.attachments);
-
-    // ✅ Resolve new UOMs
+    // ✅ Resolve UOMs
     const purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
     const stockUOM = await resolveUOM(updateFields.stockUOM);
-
-    // ✅ Assign resolved UOMs to updateFields
     updateFields.purchaseUOM = purchaseUOM;
     updateFields.stockUOM = stockUOM;
     updateFields.createdBy = req.user._id;
 
-    // Add new uploaded attachments
+    // 🔼 Upload new files to Cloudinary
     if (req.files?.length) {
-      const newFiles = req.files.map((file) => ({
-        fileName: file.originalname,
-        fileUrl: `/uploads/rm_attachments/${file.filename}`,
-      }));
-      console.log("New Files: ", newFiles);
+      const uploadPromises = req.files.map((file) =>
+        cloudinary.uploader.upload(file.path, {
+          folder: "rm_attachments",
+          resource_type: "raw",
+          use_filename: true,
+          unique_filename: false,
+        })
+      );
 
-      rm.attachments.push(...newFiles);
-      console.log("Updated Attachments: ", rm.attachments);
+      const uploadedFiles = await Promise.all(uploadPromises);
+
+      const newAttachments = uploadedFiles.map((file, index) => ({
+        fileName: req.files[index].originalname,
+        fileUrl: file.secure_url,
+        cloudinaryPublicId: file.public_id,
+      }));
+
+      rm.attachments.push(...newAttachments);
     }
 
-    console.log("Update Fields: ", updateFields);
-
-    // ✅ Update other fields
+    // ✅ Apply other field updates
     Object.assign(rm, updateFields);
-
     await rm.save();
-
-    console.log("Updated Raw Material: ", rm);
 
     res.status(200).json({
       message: "Raw material updated",
       data: rm,
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: err.message });
   }
 };
