@@ -25,7 +25,7 @@ router.post(
   "/add-many-rm",
   auth,
   checkRole(["Admin"]),
-  uploadFile.array("attachments"),
+  upload.array("attachments"),
   addMultipleRawMaterials
 );
 router.patch("/update-rm/:id", auth, checkRole(["Admin"]), updateRawMaterial);

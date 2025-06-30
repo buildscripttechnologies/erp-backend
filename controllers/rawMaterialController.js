@@ -2,6 +2,7 @@ const RawMaterial = require("../models/RawMaterial");
 const XLSX = require("xlsx");
 const UOM = require("../models/UOM");
 const cloudinary = require("../utils/cloudinary");
+const fs = require("fs");
 
 const baseurl = "http://localhost:5000";
 
@@ -98,9 +99,84 @@ exports.createRawMaterial = async (req, res) => {
   }
 };
 
+// exports.addMultipleRawMaterials = async (req, res) => {
+//   try {
+//     let rawMaterials = JSON.parse(req.body.rawMaterials); // Must be stringified JSON from frontend
+
+//     if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
+//       return res.status(400).json({
+//         status: 400,
+//         message: "Request body must be a non-empty array.",
+//       });
+//     }
+
+//     console.log("Received raw materials:", rawMaterials);
+
+//     // Map files to raw material by index
+//     const fileMap = {};
+//     req.files.forEach((file) => {
+//       const match = file.originalname.match(/__index_(\d+)__/);
+//       if (match) {
+//         const index = parseInt(match[1], 10);
+//         if (!fileMap[index]) fileMap[index] = [];
+//         fileMap[index].push({
+//           fileName: file.originalname.replace(/__index_\d+__/, ""),
+//           fileUrl: `/uploads/rm_attachments/${file.filename}`,
+//         });
+//       }
+//     });
+
+//     console.log("File map:", fileMap);
+
+//     // Generate SKU codes
+//     const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
+
+//     // Normalize data and resolve UOM
+//     const mappedRMs = await Promise.all(
+//       rawMaterials.map(async (rm, index) => {
+//         const purchaseUOM = await resolveUOM(rm.purchaseUOM);
+//         const stockUOM = await resolveUOM(rm.stockUOM);
+
+//         return {
+//           ...rm,
+//           qualityInspectionNeeded:
+//             rm.qualityInspectionNeeded === "Required" ? true : false,
+//           skuCode: skuCodes[index],
+//           createdBy: req.user._id,
+//           purchaseUOM,
+//           stockUOM,
+//           attachments: fileMap[index] || [],
+//         };
+//       })
+//     );
+
+//     const inserted = await RawMaterial.insertMany(mappedRMs, {
+//       ordered: false,
+//     });
+
+//     console.log("inserted: ", inserted);
+//     console.log("Total inserted count: ", inserted.length);
+
+//     res.status(201).json({
+//       status: 201,
+//       message: "Raw materials added successfully.",
+//       insertedCount: inserted.length,
+//       data: inserted,
+//     });
+//   } catch (err) {
+//     res.status(500).json({
+//       status: 500,
+//       message: "Bulk insert failed.",
+//       error: err.message,
+//     });
+//   }
+// };
+
+// @desc    Update raw material by ID
+
 exports.addMultipleRawMaterials = async (req, res) => {
   try {
-    let rawMaterials = JSON.parse(req.body.rawMaterials); // Must be stringified JSON from frontend
+    let rawMaterials = JSON.parse(req.body.rawMaterials);
 
     if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
       return res.status(400).json({
@@ -111,19 +187,37 @@ exports.addMultipleRawMaterials = async (req, res) => {
 
     console.log("Received raw materials:", rawMaterials);
 
-    // Map files to raw material by index
+    // Group files by index and upload to Cloudinary
     const fileMap = {};
-    req.files.forEach((file) => {
+
+    const uploadPromises = req.files.map(async (file) => {
       const match = file.originalname.match(/__index_(\d+)__/);
-      if (match) {
-        const index = parseInt(match[1], 10);
-        if (!fileMap[index]) fileMap[index] = [];
-        fileMap[index].push({
-          fileName: file.originalname.replace(/__index_\d+__/, ""),
-          fileUrl: `/uploads/rm_attachments/${file.filename}`,
-        });
-      }
+      if (!match) return;
+
+      const index = parseInt(match[1], 10);
+      const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
+
+      const result = await cloudinary.uploader.upload(file.path, {
+        folder: "rm_attachments",
+        resource_type: "raw",
+        type: "upload",
+        use_filename: true,
+        unique_filename: false,
+      });
+
+      // Clean up local file
+      fs.unlinkSync(file.path);
+
+      if (!fileMap[index]) fileMap[index] = [];
+
+      fileMap[index].push({
+        fileName: cleanedFileName,
+        fileUrl: result.secure_url,
+        cloudinaryPublicId: result.public_id,
+      });
     });
+
+    await Promise.all(uploadPromises);
 
     console.log("File map:", fileMap);
 
@@ -138,8 +232,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
 
         return {
           ...rm,
-          qualityInspectionNeeded:
-            rm.qualityInspectionNeeded === "Required" ? true : false,
+          qualityInspectionNeeded: rm.qualityInspectionNeeded === "Required",
           skuCode: skuCodes[index],
           createdBy: req.user._id,
           purchaseUOM,
@@ -153,8 +246,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
       ordered: false,
     });
 
-    console.log("inserted: ", inserted);
-    console.log("Total inserted count: ", inserted.length);
+    console.log("Inserted:", inserted.length);
 
     res.status(201).json({
       status: 201,
@@ -163,6 +255,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
       data: inserted,
     });
   } catch (err) {
+    console.error("Bulk upload error:", err);
     res.status(500).json({
       status: 500,
       message: "Bulk insert failed.",
@@ -171,7 +264,6 @@ exports.addMultipleRawMaterials = async (req, res) => {
   }
 };
 
-// @desc    Update raw material by ID
 exports.updateRawMaterial = async (req, res) => {
   try {
     const { id } = req.params;
@@ -266,14 +358,23 @@ exports.editRawMaterial = async (req, res) => {
 
     // 🔼 Upload new files to Cloudinary
     if (req.files?.length) {
-      const uploadPromises = req.files.map((file) =>
-        cloudinary.uploader.upload(file.path, {
+      const uploadPromises = req.files.map(async (file) => {
+        const result = await cloudinary.uploader.upload(file.path, {
           folder: "rm_attachments",
           resource_type: "raw",
           use_filename: true,
           unique_filename: false,
-        })
-      );
+        });
+
+        // ✅ Delete temp file after upload
+        fs.unlinkSync(file.path);
+
+        return {
+          fileName: file.originalname,
+          fileUrl: result.secure_url,
+          cloudinaryPublicId: result.public_id,
+        };
+      });
 
       const uploadedFiles = await Promise.all(uploadPromises);
 
