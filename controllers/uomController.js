@@ -52,18 +52,30 @@ exports.createBulkUOMs = async (req, res) => {
 // Get all UOMs
 exports.getAllUOMs = async (req, res) => {
   try {
-    const uoms = await UOM.find().sort({ createdAt: -1 });
-    res.status(200).json({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const [uoms, total] = await Promise.all([
+      UOM.find()
+        .populate("createdBy")
+        .sort({ createdAt: -1 }) // optional: newest first
+        .skip(skip)
+        .limit(limit),
+      UOM.countDocuments(),
+    ]);
+
+    return res.status(200).json({
       status: 200,
-      message: "Fetched UOM list.",
+      totalResults: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      limit,
       data: uoms,
     });
-  } catch (error) {
-    res.status(500).json({
-      status: 500,
-      message: "Failed to fetch UOMs.",
-      error: error.message,
-    });
+  } catch (err) {
+    console.error("Error fetching UOMs:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
 
