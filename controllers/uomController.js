@@ -34,6 +34,7 @@ exports.createBulkUOMs = async (req, res) => {
       uoms.map((u) => ({
         unitName: u.unitName,
         unitDescription: u.unitDescription,
+
         createdBy: createdBy,
       }))
     );
@@ -55,14 +56,27 @@ exports.getAllUOMs = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+    const { status = true } = req.query;
+
+    let filter = {};
+    if (status === "true" || status === true) {
+      filter.status = true;
+    } else if (status === "false" || status === false) {
+      filter.status = false;
+    } else if (status == "all") {
+      filter = {};
+    }
 
     const [uoms, total] = await Promise.all([
-      UOM.find()
-        .populate("createdBy")
-        .sort({ createdAt: -1 }) // optional: newest first
+      UOM.find(filter)
+        .populate({
+          path: "createdBy",
+          select: "_id username fullName",
+        })
+        .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit),
-      UOM.countDocuments(),
+      UOM.countDocuments(filter),
     ]);
 
     return res.status(200).json({

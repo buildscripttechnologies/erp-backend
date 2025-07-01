@@ -13,6 +13,10 @@ const uomSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    status: {
+      type: Boolean,
+      default: true,
+    },
   },
   {
     timestamps: true, // handles createdAt and updatedAt
