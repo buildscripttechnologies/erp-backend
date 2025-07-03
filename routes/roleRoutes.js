@@ -13,7 +13,7 @@ const router = express.Router();
 router.get("/all-roles", getAllRoles);
 router.get("/get-role/:roleId", auth, getRole);
 router.post("/add-role", auth, checkRole(["Admin"]), addRole);
-router.patch("/update-role/:roleId", auth, checkRole(["Admin"]), updateRole);
-router.delete("/delete-role/:roleId", auth, checkRole(["Admin"]), deleteRole);
+router.patch("/update-role/:id", auth, checkRole(["Admin"]), updateRole);
+router.delete("/delete-role/:id", auth, checkRole(["Admin"]), deleteRole);
 
 module.exports = router;

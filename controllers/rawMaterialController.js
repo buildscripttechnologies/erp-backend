@@ -37,6 +37,7 @@ const resolveUOM = async (uom) => {
 exports.getAllRawMaterials = async (req, res) => {
   try {
     const { page = 1, limit = 20, search = "" } = req.query;
+    // console.log("req.query", req.query);
 
     const query = {
       itemName: { $regex: search, $options: "i" },

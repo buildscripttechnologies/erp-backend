@@ -37,9 +37,14 @@ exports.register = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  const { identifier, password } = req.body;
+  let user;
   try {
-    const user = await User.findOne({ email });
+    if (identifier.includes("@")) {
+      user = await User.findOne({ email: identifier });
+    } else {
+      user = await User.findOne({ username: identifier });
+    }
     if (!user)
       return res.status(404).json({ status: 404, message: "User not found" });
 
@@ -61,24 +66,42 @@ exports.login = async (req, res) => {
     }
 
     if (!user.isVerified) {
-      await generateAndSendOtp(email, "verification");
-      return res
-        .status(403)
-        .json({ status: 403, message: "Account not verified. OTP sent." });
+      await generateAndSendOtp(user.email, "verification");
+      return res.status(203).json({
+        status: 203,
+        message: "Account not verified. OTP sent.",
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+        },
+      });
     }
 
     if (user.twoStepEnabled) {
-      await generateAndSendOtp(email, "2fa");
-      return res
-        .status(206)
-        .json({ status: 206, message: "OTP sent for 2FA", requiresOtp: true });
+      await generateAndSendOtp(user.email, "2fa");
+      return res.status(206).json({
+        status: 206,
+        message: "OTP sent for 2FA",
+        requiresOtp: true,
+        user: {
+          id: user._id,
+          username: user.username,
+          email: user.email,
+        },
+      });
     }
 
     const token = generateToken(user);
     res.json({
       status: 200,
       token,
-      user: { id: user._id, username: user.username, userType: user.userType },
+      user: {
+        id: user._id,
+        username: user.username,
+        userType: user.userType,
+        fullName: user.fullName,
+      },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

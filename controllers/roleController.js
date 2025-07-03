@@ -2,6 +2,7 @@ const Role = require("../models/Role");
 
 const addRole = async (req, res) => {
   let role = req.body;
+
   try {
     const existingRole = await Role.findOne({ name: role.name });
     if (existingRole) {
@@ -9,6 +10,7 @@ const addRole = async (req, res) => {
         .status(400)
         .json({ status: 400, message: "Role already exists" });
     }
+    role.createdBy = req.user._id;
     role = await Role.create(role);
     res.status(201).json({
       status: 201,
@@ -20,7 +22,7 @@ const addRole = async (req, res) => {
 };
 
 const updateRole = async (req, res) => {
-  const { roleId } = req.params;
+  const roleId = req.params.id;
   try {
     let role = await Role.findById(roleId);
     if (!role) {
@@ -37,7 +39,7 @@ const updateRole = async (req, res) => {
 };
 
 const deleteRole = async (req, res) => {
-  const { roleId } = req.params;
+  const roleId = req.params.id;
   try {
     const role = await Role.findById(roleId);
     if (!role) {
@@ -75,19 +77,46 @@ const getRole = async (req, res) => {
 
 const getAllRoles = async (req, res) => {
   try {
-    const roles = await Role.find({ isActive: true });
-    res.status(200).json({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const { status = "true" } = req.query;
+
+    // Build filter object
+    let filter = {};
+    if (status === "true" || status === true) {
+      filter.isActive = true;
+    } else if (status === "false" || status === false) {
+      filter.isActive = false;
+    } // else no filter (all roles)
+
+    // Parallel fetch and count
+    const [roles, total] = await Promise.all([
+      Role.find(filter)
+        .populate({
+          path: "createdBy", // optional
+          select: "_id username fullName",
+        })
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      Role.countDocuments(filter),
+    ]);
+
+    return res.status(200).json({
       status: 200,
-      roles: roles.map((role) => ({
-        id: role._id,
-        name: role.name,
-        permissions: role.permissions,
-      })),
+      totalResults: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      limit,
+      roles: roles,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    console.error("Error fetching roles:", err);
+    return res.status(500).json({ message: "Server error" });
   }
 };
+
 module.exports = {
   addRole,
   updateRole,

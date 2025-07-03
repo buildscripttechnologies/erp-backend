@@ -83,6 +83,8 @@ const getAllUsers = async (req, res) => {
   try {
     let { page = 1, limit = 10, search = "", userType, status } = req.query;
 
+    // console.log("req.query", req.query);
+
     page = parseInt(page);
     limit = parseInt(limit);
 
