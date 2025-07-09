@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const rawMaterialSchema = new mongoose.Schema(
+const sfgSchema = new mongoose.Schema(
   {
     skuCode: {
       type: String,
@@ -17,10 +17,6 @@ const rawMaterialSchema = new mongoose.Schema(
     hsnOrSac: {
       type: String,
     },
-    type: {
-      type: String,
-      enum: ["RM"],
-    },
     qualityInspectionNeeded: {
       type: Boolean,
       default: false,
@@ -29,11 +25,11 @@ const rawMaterialSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Location",
     },
-    baseQty: {
+    basePrice: {
       type: Number,
       default: 0,
     },
-    pkgQty: {
+    gst: {
       type: Number,
       default: 0,
     },
@@ -41,42 +37,47 @@ const rawMaterialSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
-    purchaseUOM: {
+    type: {
+      type: String,
+      enum: ["SFG"],
+    },
+    UOM: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
     },
-    gst: {
-      type: Number,
-      default: 0,
-    },
-    stockQty: {
-      type: Number,
-      default: 0,
-    },
-    stockUOM: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "UOM",
-    },
-    attachments: [
-      {
-        fileName: String,
-        fileUrl: String,
-      },
-    ],
     status: {
       type: String,
       enum: ["Active", "Inactive"],
       default: "Active",
     },
+    file: [
+      {
+        fileName: String,
+        fileUrl: String,
+      },
+    ],
+    rm: [
+      {
+        rmid: { type: mongoose.Schema.Types.ObjectId, ref: "RawMaterial" },
+        qty: Number,
+      },
+    ],
+    sfg: [
+      {
+        sfgid: { type: mongoose.Schema.Types.ObjectId, ref: "SFG" },
+        qty: Number,
+      },
+    ],
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
   },
   {
-    timestamps: true, // automatically handles createdAt and updatedAt
+    timestamps: true,
   }
 );
 
-const RawMaterial = mongoose.model("RawMaterial", rawMaterialSchema);
-module.exports = RawMaterial;
+const SFG = mongoose.model("SFG", sfgSchema);
+
+module.exports = SFG;

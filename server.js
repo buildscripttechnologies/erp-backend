@@ -11,6 +11,11 @@ const userRoutes = require("./routes/userRoutes");
 const roleRoutes = require("./routes/roleRoutes");
 const uomRoutes = require("./routes/uomRoutes");
 const rmsRoutes = require("./routes/rawMaterialRoutes");
+const locationRoutes = require("./routes/locationRoutes");
+const sfgsRoutes = require("./routes/sfgRoutes");
+const fgRoutes = require("./routes/fgRoutes");
+const vendorRoutes = require("./routes/vendorRoutes");
+const customerRoutes = require("./routes/customerRoutes");
 
 app.use(cors());
 app.use(express.json());
@@ -30,6 +35,11 @@ app.use("/api/users", userRoutes);
 app.use("/api/roles", roleRoutes);
 app.use("/api/uoms", uomRoutes);
 app.use("/api/rms", rmsRoutes);
+app.use("/api/locations", locationRoutes);
+app.use("/api/sfgs", sfgsRoutes);
+app.use("/api/fgs", fgRoutes);
+app.use("/api/vendors", vendorRoutes);
+app.use("/api/customers", customerRoutes);
 
 app.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);

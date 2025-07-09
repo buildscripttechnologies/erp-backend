@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-const rawMaterialSchema = new mongoose.Schema(
+const fgSchema = new mongoose.Schema(
   {
     skuCode: {
       type: String,
@@ -17,10 +17,6 @@ const rawMaterialSchema = new mongoose.Schema(
     hsnOrSac: {
       type: String,
     },
-    type: {
-      type: String,
-      enum: ["RM"],
-    },
     qualityInspectionNeeded: {
       type: Boolean,
       default: false,
@@ -29,54 +25,51 @@ const rawMaterialSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Location",
     },
-    baseQty: {
-      type: Number,
-      default: 0,
-    },
-    pkgQty: {
-      type: Number,
-      default: 0,
-    },
-    moq: {
-      type: Number,
-      default: 1,
-    },
-    purchaseUOM: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "UOM",
-    },
     gst: {
       type: Number,
       default: 0,
     },
-    stockQty: {
-      type: Number,
-      default: 0,
+    type: {
+      type: String,
+      enum: ["FG"],
     },
-    stockUOM: {
+    UOM: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
     },
-    attachments: [
-      {
-        fileName: String,
-        fileUrl: String,
-      },
-    ],
     status: {
       type: String,
       enum: ["Active", "Inactive"],
       default: "Active",
     },
+    file: [
+      {
+        fileName: String,
+        fileUrl: String,
+      },
+    ],
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    rm: [
+      {
+        rmid: { type: mongoose.Schema.Types.ObjectId, ref: "RawMaterial" },
+        qty: Number,
+      },
+    ],
+    sfg: [
+      {
+        sfgid: { type: mongoose.Schema.Types.ObjectId, ref: "SFG" },
+        qty: Number,
+      },
+    ],
   },
   {
-    timestamps: true, // automatically handles createdAt and updatedAt
+    timestamps: true,
   }
 );
 
-const RawMaterial = mongoose.model("RawMaterial", rawMaterialSchema);
-module.exports = RawMaterial;
+const FG = mongoose.model("FG", fgSchema);
+
+module.exports = FG;

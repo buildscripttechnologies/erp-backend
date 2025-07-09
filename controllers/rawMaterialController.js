@@ -3,6 +3,8 @@ const XLSX = require("xlsx");
 const UOM = require("../models/UOM");
 const cloudinary = require("../utils/cloudinary");
 const fs = require("fs");
+const { resolveUOM, resolveLocation } = require("../utils/resolve");
+const Location = require("../models/Location");
 
 const baseurl = "http://localhost:5000";
 
@@ -24,15 +26,6 @@ const generateBulkSkuCodes = async (count) => {
   );
 };
 
-const resolveUOM = async (uom) => {
-  if (!uom) return null;
-  // If it's already a valid ObjectId
-  if (/^[0-9a-fA-F]{24}$/.test(uom)) return uom;
-  // Else, lookup by unit name
-  const unit = await UOM.findOne({ unitName: uom.trim() });
-  return unit?._id || null;
-};
-
 // @desc    Get all raw materials (with optional pagination & search)
 exports.getAllRawMaterials = async (req, res) => {
   try {
@@ -45,7 +38,7 @@ exports.getAllRawMaterials = async (req, res) => {
 
     const total = await RawMaterial.countDocuments(query);
     let rawMaterials = await RawMaterial.find(query)
-      .populate("purchaseUOM stockUOM createdBy")
+      .populate("purchaseUOM stockUOM createdBy location")
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
@@ -60,7 +53,7 @@ exports.getAllRawMaterials = async (req, res) => {
       hsnOrSac: rm.hsnOrSac,
       type: rm.type,
       qualityInspectionNeeded: rm.qualityInspectionNeeded,
-      location: rm.location,
+      location: rm.location?.locationId || null,
       baseQty: rm.baseQty,
       pkgQty: rm.pkgQty,
       moq: rm.moq,
@@ -100,81 +93,6 @@ exports.createRawMaterial = async (req, res) => {
   }
 };
 
-// exports.addMultipleRawMaterials = async (req, res) => {
-//   try {
-//     let rawMaterials = JSON.parse(req.body.rawMaterials); // Must be stringified JSON from frontend
-
-//     if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
-//       return res.status(400).json({
-//         status: 400,
-//         message: "Request body must be a non-empty array.",
-//       });
-//     }
-
-//     console.log("Received raw materials:", rawMaterials);
-
-//     // Map files to raw material by index
-//     const fileMap = {};
-//     req.files.forEach((file) => {
-//       const match = file.originalname.match(/__index_(\d+)__/);
-//       if (match) {
-//         const index = parseInt(match[1], 10);
-//         if (!fileMap[index]) fileMap[index] = [];
-//         fileMap[index].push({
-//           fileName: file.originalname.replace(/__index_\d+__/, ""),
-//           fileUrl: `/uploads/rm_attachments/${file.filename}`,
-//         });
-//       }
-//     });
-
-//     console.log("File map:", fileMap);
-
-//     // Generate SKU codes
-//     const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
-
-//     // Normalize data and resolve UOM
-//     const mappedRMs = await Promise.all(
-//       rawMaterials.map(async (rm, index) => {
-//         const purchaseUOM = await resolveUOM(rm.purchaseUOM);
-//         const stockUOM = await resolveUOM(rm.stockUOM);
-
-//         return {
-//           ...rm,
-//           qualityInspectionNeeded:
-//             rm.qualityInspectionNeeded === "Required" ? true : false,
-//           skuCode: skuCodes[index],
-//           createdBy: req.user._id,
-//           purchaseUOM,
-//           stockUOM,
-//           attachments: fileMap[index] || [],
-//         };
-//       })
-//     );
-
-//     const inserted = await RawMaterial.insertMany(mappedRMs, {
-//       ordered: false,
-//     });
-
-//     console.log("inserted: ", inserted);
-//     console.log("Total inserted count: ", inserted.length);
-
-//     res.status(201).json({
-//       status: 201,
-//       message: "Raw materials added successfully.",
-//       insertedCount: inserted.length,
-//       data: inserted,
-//     });
-//   } catch (err) {
-//     res.status(500).json({
-//       status: 500,
-//       message: "Bulk insert failed.",
-//       error: err.message,
-//     });
-//   }
-// };
-
-// @desc    Update raw material by ID
-
 exports.addMultipleRawMaterials = async (req, res) => {
   try {
     let rawMaterials = JSON.parse(req.body.rawMaterials);
@@ -206,6 +124,8 @@ exports.addMultipleRawMaterials = async (req, res) => {
         unique_filename: false,
       });
 
+      console.log("Result", result);
+
       // Clean up local file
       fs.unlinkSync(file.path);
 
@@ -229,6 +149,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
       rawMaterials.map(async (rm, index) => {
         const purchaseUOM = await resolveUOM(rm.purchaseUOM);
         const stockUOM = await resolveUOM(rm.stockUOM);
+        const location = await resolveLocation(rm.location);
 
         return {
           ...rm,
@@ -237,6 +158,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
           createdBy: req.user._id,
           purchaseUOM,
           stockUOM,
+          location,
           attachments: fileMap[index] || [],
         };
       })
@@ -277,66 +199,6 @@ exports.updateRawMaterial = async (req, res) => {
   }
 };
 
-// exports.editRawMaterial = async (req, res) => {
-//   try {
-//     const parsed = JSON.parse(req.body.data);
-//     const { deletedAttachments = [], ...updateFields } = parsed;
-
-//     console.log("deletedAttachments: ", deletedAttachments);
-
-//     const rm = await RawMaterial.findById(req.params.id);
-//     if (!rm) {
-//       return res.status(404).json({ message: "Raw material not found" });
-//     }
-
-//     console.log("Parsed: ", parsed);
-
-//     // Remove deleted attachments
-//     rm.attachments = rm.attachments.filter(
-//       (att) => !deletedAttachments.includes(att._id.toString())
-//     );
-
-//     console.log("Remaining Attachments: ", rm.attachments);
-
-//     // ✅ Resolve new UOMs
-//     const purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
-//     const stockUOM = await resolveUOM(updateFields.stockUOM);
-
-//     // ✅ Assign resolved UOMs to updateFields
-//     updateFields.purchaseUOM = purchaseUOM;
-//     updateFields.stockUOM = stockUOM;
-//     updateFields.createdBy = req.user._id;
-
-//     // Add new uploaded attachments
-//     if (req.files?.length) {
-//       const newFiles = req.files.map((file) => ({
-//         fileName: file.originalname,
-//         fileUrl: `${baseurl}/uploads/rm_attachments/${file.filename}`,
-//       }));
-//       console.log("New Files: ", newFiles);
-
-//       rm.attachments.push(...newFiles);
-//       console.log("Updated Attachments: ", rm.attachments);
-//     }
-
-//     console.log("Update Fields: ", updateFields);
-
-//     // ✅ Update other fields
-//     Object.assign(rm, updateFields);
-
-//     await rm.save();
-
-//     console.log("Updated Raw Material: ", rm);
-
-//     res.status(200).json({
-//       message: "Raw material updated",
-//       data: rm,
-//     });
-//   } catch (err) {
-//     res.status(500).json({ message: err.message });
-//   }
-// };
-
 exports.editRawMaterial = async (req, res) => {
   try {
     const parsed = JSON.parse(req.body.data);
@@ -352,9 +214,11 @@ exports.editRawMaterial = async (req, res) => {
     // ✅ Resolve UOMs
     const purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
     const stockUOM = await resolveUOM(updateFields.stockUOM);
+    const location = await resolveLocation(updateFields.location);
     updateFields.purchaseUOM = purchaseUOM;
     updateFields.stockUOM = stockUOM;
     updateFields.createdBy = req.user._id;
+    updateFields.location = location;
 
     // 🔼 Upload new files to Cloudinary
     if (req.files?.length) {
@@ -366,8 +230,10 @@ exports.editRawMaterial = async (req, res) => {
           unique_filename: false,
         });
 
-        // ✅ Delete temp file after upload
-        fs.unlinkSync(file.path);
+        console.log("Result", result.secure_url);
+
+        // // ✅ Delete temp file after upload
+        // fs.unlinkSync(file.path);
 
         return {
           fileName: file.originalname,
@@ -379,8 +245,9 @@ exports.editRawMaterial = async (req, res) => {
 
       const newAttachments = uploadedFiles.map((file, index) => ({
         fileName: req.files[index].originalname,
-        fileUrl: file.secure_url,
+        fileUrl: file.fileUrl,
       }));
+      console.log("new Att", newAttachments);
 
       rm.attachments.push(...newAttachments);
     }
@@ -436,7 +303,7 @@ exports.downloadRawMaterialSample = async (req, res) => {
         "HSN/SAC": "12345",
         Type: "RM",
         "Quality Inspection": "Required/Not Required",
-        Location: "sample location",
+        Location: "ABC12",
         "Base Qty": "10",
         "Pkg Qty": "5",
         MOQ: "1",
@@ -487,8 +354,14 @@ exports.uploadExcelRawMaterials = async (req, res) => {
 
     // UOM Mapping
     const uoms = await UOM.find();
+
     const uomMap = Object.fromEntries(
       uoms.map((u) => [u.unitName.trim().toLowerCase(), u._id])
+    );
+
+    const locations = await Location.find();
+    const locMap = Object.fromEntries(
+      locations.map((l) => [l.locationId.trim().toUpperCase(), l._id])
     );
 
     // Generate SKUs
@@ -500,6 +373,11 @@ exports.uploadExcelRawMaterials = async (req, res) => {
         const cleaned = uomStr.trim().toLowerCase();
         return uomMap[cleaned] || null;
       };
+      const getLocId = (loc) => {
+        if (!loc) return null;
+        const cleaned = loc.trim().toUpperCase();
+        return locMap[cleaned] || null;
+      };
 
       return {
         skuCode: skuCodes[index],
@@ -509,7 +387,7 @@ exports.uploadExcelRawMaterials = async (req, res) => {
         type: row["Type"]?.trim() || "",
         qualityInspectionNeeded:
           row["Quality Inspection"]?.trim().toLowerCase() === "required",
-        location: row["Location"]?.trim() || "",
+        location: getLocId(row["Location"]),
         baseQty: Number(row["Base Qty"] || 0),
         pkgQty: Number(row["Pkg Qty"] || 0),
         moq: Number(row["MOQ"] || 0),

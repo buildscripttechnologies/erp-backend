@@ -2,6 +2,6 @@
 const multer = require("multer");
 
 const storage = multer.memoryStorage(); // file stored in memory
-const upload = multer({ storage });
+const uploadExcel = multer({ storage });
 
-module.exports = upload;
+module.exports = uploadExcel;

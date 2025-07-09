@@ -12,15 +12,18 @@ const {
   editRawMaterial,
 } = require("../controllers/rawMaterialController");
 const checkRole = require("../middlewares/checkRole");
-// const upload = require("../middlewares/upload");
+const uploadExcel = require("../middlewares/upload");
 const uploadFile = require("../middlewares/uploadFile");
 const upload = require("../utils/multer");
 
 const router = express.Router();
 
 router.get("/rm", auth, getAllRawMaterials);
+
 router.get("/rm/:rmId", auth, getRawMaterialById);
+
 router.post("/add-rm", auth, checkRole(["Admin"]), createRawMaterial);
+
 router.post(
   "/add-many-rm",
   auth,
@@ -28,7 +31,9 @@ router.post(
   upload.array("attachments"),
   addMultipleRawMaterials
 );
+
 router.patch("/update-rm/:id", auth, checkRole(["Admin"]), updateRawMaterial);
+
 router.patch(
   "/edit-rm/:id",
   auth,
@@ -40,10 +45,11 @@ router.patch(
 router.delete("/delete-rm/:id", auth, checkRole(["Admin"]), deleteRawMaterial);
 
 router.get("/sample-excel", auth, downloadRawMaterialSample);
+
 router.post(
   "/upload-rm-excel",
   auth,
-  upload.single("file"),
+  uploadExcel.single("file"),
   uploadExcelRawMaterials
 );
 
