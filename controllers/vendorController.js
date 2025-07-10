@@ -1,6 +1,23 @@
 const Vendor = require("../models/Vendor");
 const { resolveUOM } = require("../utils/resolve");
 
+const generateBulkSkuCodes = async (count) => {
+  const allVend = await Vendor.find({}, { venderCode: 1 }).lean();
+  let maxNumber = 0;
+
+  allVend.forEach((item) => {
+    const match = item.venderCode?.match(/VEND-(\d+)/);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > maxNumber) maxNumber = num;
+    }
+  });
+
+  return Array.from(
+    { length: count },
+    (_, i) => `VEND-${(maxNumber + i + 1).toString().padStart(3, "0")}`
+  );
+};
 // CREATE SINGLE VENDOR
 exports.addVendor = async (req, res) => {
   try {
@@ -38,6 +55,7 @@ exports.addVendor = async (req, res) => {
 exports.addMultipleVendors = async (req, res) => {
   try {
     const vendors = req.body.vendors;
+    console.log("vendors", vendors);
 
     if (!Array.isArray(vendors) || vendors.length === 0) {
       return res
@@ -45,10 +63,12 @@ exports.addMultipleVendors = async (req, res) => {
         .json({ status: 400, message: "Request must include vendors array" });
     }
 
+    const venderCodes = await generateBulkSkuCodes(vendors.length);
+
     const resolvedVendors = await Promise.all(
-      vendors.map(async (vendor) => {
+      vendors.map(async (vendor, i) => {
         const resolvedRM = await Promise.all(
-          (vendor.rm || []).map(async (item) => {
+          (vendor?.rm || []).map(async (item) => {
             return {
               ...item,
               uom: await resolveUOM(item.uom),
@@ -59,6 +79,7 @@ exports.addMultipleVendors = async (req, res) => {
         return {
           ...vendor,
           createdBy: req.user._id,
+          venderCode: venderCodes[i],
           rm: resolvedRM,
         };
       })

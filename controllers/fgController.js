@@ -180,7 +180,7 @@ exports.getAllFGs = async (req, res) => {
           location: sfg.location?.locationId || null,
           type: sfg.type,
           moq: sfg.moq,
-          unitName: sfg.UOM?.unitName || null,
+          uom: sfg.UOM?.unitName || null,
           qualityInspectionNeeded: sfg.qualityInspectionNeeded,
           qty: sfgRef.qty,
           rm: (sfg.rm || []).map((r) => ({
@@ -206,7 +206,7 @@ exports.getAllFGs = async (req, res) => {
               location: nestedSFG.location?.locationId || null,
               type: nestedSFG.type,
               moq: nestedSFG.moq,
-              unitName: nestedSFG.UOM?.unitName || null,
+              uom: nestedSFG.UOM?.unitName || null,
               qualityInspectionNeeded: nestedSFG.qualityInspectionNeeded,
               qty: nested.qty,
               rm: (nestedSFG.rm || []).map((r) => ({
