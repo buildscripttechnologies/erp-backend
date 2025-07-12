@@ -30,8 +30,6 @@ const generateBulkSkuCodes = async (count) => {
 exports.getAllRawMaterials = async (req, res) => {
   try {
     const { page = 1, limit = 20, search = "" } = req.query;
-    // console.log("req.query", req.query);
-
     const query = {
       itemName: { $regex: search, $options: "i" },
     };
@@ -42,8 +40,6 @@ exports.getAllRawMaterials = async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
-
-    // console.log("Raw Materials:", rawMaterials);
 
     rawMaterials = rawMaterials.map((rm) => ({
       id: rm._id,
@@ -104,8 +100,6 @@ exports.addMultipleRawMaterials = async (req, res) => {
       });
     }
 
-    console.log("Received raw materials:", rawMaterials);
-
     // Group files by index and upload to Cloudinary
     const fileMap = {};
 
@@ -124,8 +118,6 @@ exports.addMultipleRawMaterials = async (req, res) => {
         unique_filename: false,
       });
 
-      console.log("Result", result);
-
       // Clean up local file
       fs.unlinkSync(file.path);
 
@@ -138,8 +130,6 @@ exports.addMultipleRawMaterials = async (req, res) => {
     });
 
     await Promise.all(uploadPromises);
-
-    console.log("File map:", fileMap);
 
     // Generate SKU codes
     const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
@@ -167,8 +157,6 @@ exports.addMultipleRawMaterials = async (req, res) => {
     const inserted = await RawMaterial.insertMany(mappedRMs, {
       ordered: false,
     });
-
-    console.log("Inserted:", inserted.length);
 
     res.status(201).json({
       status: 201,

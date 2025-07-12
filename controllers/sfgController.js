@@ -313,7 +313,7 @@ exports.updateSFGWithFiles = async (req, res) => {
   try {
     const parsed = JSON.parse(req.body.data);
 
-    console.log("parsed", parsed);
+    
 
     const { deletedFiles = [], ...updateFields } = parsed;
 

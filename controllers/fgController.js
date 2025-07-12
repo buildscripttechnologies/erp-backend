@@ -134,7 +134,6 @@ exports.getAllFGs = async (req, res) => {
       .skip(skip)
       .limit(Number(limit));
 
-    console.log("fgs", fgs);
 
     // Format for frontend
     const formatted = fgs.map((fg) => ({

@@ -48,7 +48,7 @@ const vendorSchema = mongoose.Schema(
         },
         item: {
           type: mongoose.Schema.Types.ObjectId,
-          refPath: "rm.type",
+          refPath: "type",
         },
         deliveryDays: Number,
         moq: Number,
