@@ -37,7 +37,7 @@ exports.getAllRawMaterials = async (req, res) => {
     const total = await RawMaterial.countDocuments(query);
     let rawMaterials = await RawMaterial.find(query)
       .populate("purchaseUOM stockUOM createdBy location")
-      .sort({ createdAt: -1 })
+      .sort({ skuCode: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
 

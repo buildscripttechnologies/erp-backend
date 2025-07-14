@@ -173,7 +173,7 @@ exports.getAllSFGs = async (req, res) => {
       })
       .populate("UOM", "unitName")
       .populate("createdBy", "fullName userType")
-      .sort({ createdAt: -1 })
+      .sort({ skuCode: -1 })
       .skip(skip)
       .limit(Number(limit));
 

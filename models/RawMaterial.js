@@ -20,6 +20,7 @@ const rawMaterialSchema = new mongoose.Schema(
     type: {
       type: String,
       enum: ["RM"],
+      default: "RM",
     },
     qualityInspectionNeeded: {
       type: Boolean,

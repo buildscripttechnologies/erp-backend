@@ -1,5 +1,23 @@
 const Customer = require("../models/Customer");
 
+const generateBulkCustomerCodes = async (count) => {
+  const allCust = await Customer.find({}, { customerCode: 1 }).lean();
+  let maxNumber = 0;
+
+  allCust.forEach((item) => {
+    const match = item.customerCode?.match(/CUST-(\d+)/);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > maxNumber) maxNumber = num;
+    }
+  });
+
+  return Array.from(
+    { length: count },
+    (_, i) => `CUST-${(maxNumber + i + 1).toString().padStart(3, "0")}`
+  );
+};
+
 // Add single customer
 exports.addCustomer = async (req, res) => {
   try {
@@ -33,8 +51,11 @@ exports.addMultipleCustomers = async (req, res) => {
       });
     }
 
-    const preparedCustomers = customers.map((customer) => ({
+    const custCodes = await generateBulkCustomerCodes(customers.length);
+
+    const preparedCustomers = customers.map((customer, i) => ({
       ...customer,
+      customerCode: custCodes[i],
       createdBy: req.user._id,
     }));
 
@@ -77,7 +98,7 @@ exports.getAllCustomers = async (req, res) => {
     const total = await Customer.countDocuments(filter);
     const customers = await Customer.find(filter)
       .populate("createdBy", "fullName userType")
-      .sort({ createdAt: -1 })
+      .sort({ customerCode: -1 })
       .skip(skip)
       .limit(Number(limit));
 
@@ -127,7 +148,66 @@ exports.updateCustomer = async (req, res) => {
   }
 };
 
-// Delete customer by ID
+exports.updateContactOrDeliveryStatus = async (req, res) => {
+  try {
+    const { customerId, entryId, type } = req.params;
+    const { isActive } = req.body;
+
+    const customer = await Customer.findById(customerId);
+    if (!customer) {
+      return res
+        .status(404)
+        .json({ status: 404, message: "Customer not found" });
+    }
+
+    let updated = false;
+
+    if (type === "contact") {
+      const contact = customer.contactPersons.find(
+        (p) => p._id.toString() === entryId
+      );
+      if (contact) {
+        contact.isActive = isActive;
+        updated = true;
+      }
+    } else if (type === "delivery") {
+      const delivery = customer.deliveryLocations.find(
+        (d) => d._id.toString() === entryId
+      );
+      if (delivery) {
+        delivery.isActive = isActive;
+        updated = true;
+      }
+    } else {
+      return res.status(400).json({ status: 400, message: "Invalid type" });
+    }
+
+    if (!updated) {
+      return res.status(404).json({
+        status: 404,
+        message: "Entry not found in specified section",
+      });
+    }
+
+    await customer.save();
+
+    res.status(200).json({
+      status: 200,
+      message: `${
+        type === "contact" ? "Contact person" : "Delivery location"
+      } status updated successfully`,
+      data: customer,
+    });
+  } catch (err) {
+    console.error("Status Update Error:", err);
+    res.status(500).json({
+      status: 500,
+      message: "Failed to update status",
+      error: err.message,
+    });
+  }
+};
+
 exports.deleteCustomer = async (req, res) => {
   try {
     const { id } = req.params;

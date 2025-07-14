@@ -36,6 +36,7 @@ const customerSchema = new mongoose.Schema(
         phone: String,
         email: String,
         information: String,
+        isActive: { type: Boolean, default: true },
       },
     ],
 

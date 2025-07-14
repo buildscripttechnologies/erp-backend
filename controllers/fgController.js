@@ -130,10 +130,9 @@ exports.getAllFGs = async (req, res) => {
         select: "locationId",
       })
       .populate("createdBy", "fullName userType")
-      .sort({ createdAt: -1 })
+      .sort({ skuCode: -1 })
       .skip(skip)
       .limit(Number(limit));
-
 
     // Format for frontend
     const formatted = fgs.map((fg) => ({

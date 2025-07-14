@@ -1,7 +1,12 @@
 const Vendor = require("../models/Vendor");
 const { resolveUOM } = require("../utils/resolve");
+const SFG = require("../models/SFG");
+const FG = require("../models/FG");
+const UOM = require("../models/UOM");
+const User = require("../models/user");
+const RawMaterial = require("../models/RawMaterial");
 
-const generateBulkSkuCodes = async (count) => {
+const generateBulkVendorCodes = async (count) => {
   const allVend = await Vendor.find({}, { venderCode: 1 }).lean();
   let maxNumber = 0;
 
@@ -63,7 +68,7 @@ exports.addMultipleVendors = async (req, res) => {
         .json({ status: 400, message: "Request must include vendors array" });
     }
 
-    const venderCodes = await generateBulkSkuCodes(vendors.length);
+    const venderCodes = await generateBulkVendorCodes(vendors.length);
 
     const resolvedVendors = await Promise.all(
       vendors.map(async (vendor, i) => {
@@ -101,7 +106,6 @@ exports.addMultipleVendors = async (req, res) => {
   }
 };
 
-// GET ALL VENDORS
 exports.getAllVendors = async (req, res) => {
   try {
     const { page = 1, limit = 10, status = "", search = "" } = req.query;
@@ -109,29 +113,63 @@ exports.getAllVendors = async (req, res) => {
 
     let filter = {};
 
-    // Search by vendorName or venderCode
     if (search) {
       const regex = new RegExp(search, "i");
       filter.$or = [{ vendorName: regex }, { venderCode: regex }];
     }
 
-    // Status-based filtering
     if (status === "active") filter.isActive = true;
     else if (status === "inactive") filter.isActive = false;
-    // "all" skips filtering isActive
 
     const total = await Vendor.countDocuments(filter);
 
-    const vendors = await Vendor.find(filter)
+    let vendors = await Vendor.find(filter)
       .populate("createdBy", "fullName userType")
-      .populate({
-        path: "rm.item",
-        select: "skuCode itemName description hsnOrSac type stockUOM UOM",
-      }) // Dynamically populate either RawMaterial or SFG
       .populate("rm.uom", "unitName")
-      .sort({ createdAt: -1 })
+      .sort({ venderCode: -1 })
       .skip(skip)
-      .limit(Number(limit));
+      .limit(Number(limit))
+      .lean();
+
+    for (const vendor of vendors) {
+      for (const rmEntry of vendor.rm) {
+        if (!rmEntry?.item || !rmEntry?.type) continue;
+
+        let model = null;
+        let selectFields = "";
+        let populateFields = [];
+
+        switch (rmEntry.type) {
+          case "RawMaterial":
+            model = RawMaterial;
+            selectFields =
+              "skuCode itemName description hsnOrSac type stockUOM status";
+            populateFields = [{ path: "stockUOM", select: "unitName" }];
+            break;
+          case "SFG":
+            model = SFG;
+            selectFields =
+              "skuCode itemName description hsnOrSac type UOM status";
+            populateFields = [{ path: "UOM", select: "unitName" }];
+            break;
+          case "FG":
+            model = FG;
+            selectFields =
+              "skuCode itemName description hsnOrSac type UOM status";
+            populateFields = [{ path: "UOM", select: "unitName" }];
+            break;
+        }
+
+        if (!model) continue;
+
+        const rmItem = await model
+          .findById(rmEntry.item)
+          .select(selectFields)
+          .populate(populateFields);
+
+        rmEntry.item = rmItem || null;
+      }
+    }
 
     res.status(200).json({
       status: 200,

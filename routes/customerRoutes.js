@@ -5,6 +5,7 @@ const {
   getAllCustomers,
   updateCustomer,
   deleteCustomer,
+  updateContactOrDeliveryStatus,
 } = require("../controllers/customerController");
 
 const router = express.Router();
@@ -14,6 +15,11 @@ router.post("/add-many", auth, addMultipleCustomers);
 router.get("/get-all", auth, getAllCustomers);
 
 router.patch("/update/:id", auth, updateCustomer);
+router.patch(
+  "/update-status/:customerId/:type/:entryId",
+  auth,
+  updateContactOrDeliveryStatus
+);
 
 router.delete("/delete/:id", auth, deleteCustomer);
 
