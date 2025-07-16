@@ -210,6 +210,9 @@ exports.getAllSFGs = async (req, res) => {
         stockUOM: r.rmid?.stockUOM?.unitName,
         qualityInspectionNeeded: r.rmid?.qualityInspectionNeeded,
         qty: r.qty,
+        height: r.height,
+        width: r.width,
+        depth: r.depth,
       })),
       sfg: sfg.sfg.map((sub) => {
         const nested = sub.sfgid || {};
@@ -225,6 +228,9 @@ exports.getAllSFGs = async (req, res) => {
           uom: nested.UOM?.unitName || null,
           qualityInspectionNeeded: nested.qualityInspectionNeeded,
           qty: sub.qty,
+          height: sub.height,
+          width: sub.width,
+          depth: sub.depth,
           rm: (nested.rm || []).map((r) => ({
             id: r.rmid?._id || r.rmid,
             skuCode: r.rmid?.skuCode,
@@ -236,6 +242,9 @@ exports.getAllSFGs = async (req, res) => {
             stockUOM: r.rmid?.stockUOM?.unitName,
             qualityInspectionNeeded: r.rmid?.qualityInspectionNeeded,
             qty: r.qty,
+            height: r.height,
+            width: r.width,
+            depth: r.depth,
           })),
         };
       }),
@@ -312,8 +321,6 @@ exports.updateSFG = async (req, res) => {
 exports.updateSFGWithFiles = async (req, res) => {
   try {
     const parsed = JSON.parse(req.body.data);
-
-    
 
     const { deletedFiles = [], ...updateFields } = parsed;
 
