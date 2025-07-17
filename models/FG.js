@@ -56,12 +56,18 @@ const fgSchema = new mongoose.Schema(
       {
         rmid: { type: mongoose.Schema.Types.ObjectId, ref: "RawMaterial" },
         qty: Number,
+        height: Number,
+        width: Number,
+        depth: Number,
       },
     ],
     sfg: [
       {
         sfgid: { type: mongoose.Schema.Types.ObjectId, ref: "SFG" },
         qty: Number,
+        height: Number,
+        width: Number,
+        depth: Number,
       },
     ],
   },

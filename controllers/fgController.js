@@ -166,6 +166,9 @@ exports.getAllFGs = async (req, res) => {
         qualityInspectionNeeded: r.rmid?.qualityInspectionNeeded,
         stockUOM: r.rmid?.stockUOM?.unitName || null,
         qty: r.qty,
+        height: r.height,
+        width: r.width,
+        depth: r.depth,
       })),
       sfg: fg.sfg.map((sfgRef) => {
         const sfg = sfgRef.sfgid || {};
@@ -181,6 +184,9 @@ exports.getAllFGs = async (req, res) => {
           uom: sfg.UOM?.unitName || null,
           qualityInspectionNeeded: sfg.qualityInspectionNeeded,
           qty: sfgRef.qty,
+          height: sfgRef.height,
+          width: sfgRef.width,
+          depth: sfgRef.depth,
           rm: (sfg.rm || []).map((r) => ({
             id: r.rmid?._id || r.rmid,
             skuCode: r.rmid?.skuCode,
@@ -192,6 +198,9 @@ exports.getAllFGs = async (req, res) => {
             qualityInspectionNeeded: r.rmid?.qualityInspectionNeeded,
             stockUOM: r.rmid?.stockUOM?.unitName || null,
             qty: r.qty,
+            height: r.height,
+            width: r.width,
+            depth: r.depth,
           })),
           sfg: (sfg.sfg || []).map((nested) => {
             const nestedSFG = nested.sfgid || {};
@@ -207,6 +216,9 @@ exports.getAllFGs = async (req, res) => {
               uom: nestedSFG.UOM?.unitName || null,
               qualityInspectionNeeded: nestedSFG.qualityInspectionNeeded,
               qty: nested.qty,
+              height: nested.height,
+              width: nested.width,
+              depth: nested.depth,
               rm: (nestedSFG.rm || []).map((r) => ({
                 id: r.rmid?._id || r.rmid,
                 skuCode: r.rmid?.skuCode,
@@ -218,6 +230,9 @@ exports.getAllFGs = async (req, res) => {
                 qualityInspectionNeeded: r.rmid?.qualityInspectionNeeded,
                 stockUOM: r.rmid?.stockUOM?.unitName || null,
                 qty: r.qty,
+                height: r.height,
+                width: r.width,
+                depth: r.depth,
               })),
             };
           }),
@@ -254,6 +269,8 @@ exports.addMultipleFGs = async (req, res) => {
         message: "Request body must be a non-empty array.",
       });
     }
+
+    console.log("add fgs", fgs[0].rm, fgs[0].sfg);
 
     const fileMap = {};
 
@@ -298,7 +315,11 @@ exports.addMultipleFGs = async (req, res) => {
       })
     );
 
+    console.log("mapped", mappedFGs[0].rm, mappedFGs[0].sfg);
+
     const inserted = await FG.insertMany(mappedFGs, { ordered: false });
+
+    console.log("inserted", inserted);
 
     res.status(201).json({
       status: 201,
