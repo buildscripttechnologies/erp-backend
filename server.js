@@ -16,6 +16,7 @@ const sfgsRoutes = require("./routes/sfgRoutes");
 const fgRoutes = require("./routes/fgRoutes");
 const vendorRoutes = require("./routes/vendorRoutes");
 const customerRoutes = require("./routes/customerRoutes");
+const bomRoutes = require("./routes/bomRoutes");
 
 app.use(cors());
 app.use(express.json());
@@ -40,6 +41,7 @@ app.use("/api/sfgs", sfgsRoutes);
 app.use("/api/fgs", fgRoutes);
 app.use("/api/vendors", vendorRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/boms", bomRoutes);
 
 app.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);

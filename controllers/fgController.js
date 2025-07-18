@@ -1,27 +1,10 @@
 const FG = require("../models/FG");
+const { generateBulkFgSkuCodes } = require("../utils/codeGenerator");
 const { resolveUOM, resolveLocation } = require("../utils/resolve");
 const cloudinary = require("cloudinary").v2;
 const fs = require("fs");
 
 // start implementing populate location logic, in all controller
-
-const generateBulkFgSkuCodes = async (count) => {
-  const all = await FG.find({}, { skuCode: 1 }).lean();
-  let max = 0;
-
-  all.forEach((item) => {
-    const match = item.skuCode?.match(/FG-(\d+)/);
-    if (match) {
-      const num = parseInt(match[1]);
-      if (num > max) max = num;
-    }
-  });
-
-  return Array.from(
-    { length: count },
-    (_, i) => `FG-${(max + i + 1).toString().padStart(3, "0")}`
-  );
-};
 
 exports.getAllFGs = async (req, res) => {
   try {

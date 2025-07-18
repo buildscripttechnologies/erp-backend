@@ -1,22 +1,5 @@
 const Customer = require("../models/Customer");
-
-const generateBulkCustomerCodes = async (count) => {
-  const allCust = await Customer.find({}, { customerCode: 1 }).lean();
-  let maxNumber = 0;
-
-  allCust.forEach((item) => {
-    const match = item.customerCode?.match(/CUST-(\d+)/);
-    if (match) {
-      const num = parseInt(match[1]);
-      if (num > maxNumber) maxNumber = num;
-    }
-  });
-
-  return Array.from(
-    { length: count },
-    (_, i) => `CUST-${(maxNumber + i + 1).toString().padStart(3, "0")}`
-  );
-};
+const { generateBulkCustomerCodes } = require("../utils/codeGenerator");
 
 // Add single customer
 exports.addCustomer = async (req, res) => {
