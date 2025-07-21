@@ -1,4 +1,7 @@
 const mongoose = require("mongoose");
+const softDeletePlugin = require("../utils/softDeletePlugin");
+
+const applySoftDelete = require("../plugins/mongooseDeletePlugin");
 
 const bomSchema = new mongoose.Schema(
   {
@@ -50,13 +53,13 @@ const bomSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
+
+applySoftDelete(bomSchema);
 
 const BOM = mongoose.model("BOM", bomSchema);
 

@@ -34,7 +34,7 @@ const deleteUser = async (req, res) => {
   const { userId } = req.params;
 
   try {
-    const user = await User.findById(userId);
+    const user = await User.delete({ _id: userId });
     if (!user) {
       return res.status(404).json({ status: 404, message: "User not found" });
     }

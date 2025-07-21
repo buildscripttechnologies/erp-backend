@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
+const softDeletePlugin = require("../utils/softDeletePlugin");
 
+const applySoftDelete = require("../plugins/mongooseDeletePlugin");
 const vendorSchema = mongoose.Schema(
   {
     venderCode: String,
@@ -66,9 +68,13 @@ const vendorSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
+
+applySoftDelete(vendorSchema);
 
 const Vendor = mongoose.model("Vendor", vendorSchema);
 module.exports = Vendor;

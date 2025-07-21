@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
+const softDeletePlugin = require("../utils/softDeletePlugin");
 
+const applySoftDelete = require('../plugins/mongooseDeletePlugin');
 const fgSchema = new mongoose.Schema(
   {
     skuCode: {
@@ -70,12 +72,15 @@ const fgSchema = new mongoose.Schema(
         depth: Number,
       },
     ],
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   {
     timestamps: true,
   }
 );
 
+applySoftDelete(fgSchema);
 const FG = mongoose.model("FG", fgSchema);
 
 module.exports = FG;

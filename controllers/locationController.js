@@ -153,7 +153,7 @@ exports.deleteLocation = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const deleted = await Location.findByIdAndDelete(id);
+    const deleted = await Location.delete({ _id: id });
     if (!deleted) {
       return res.status(404).json({ message: "Location not found" });
     }

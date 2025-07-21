@@ -259,7 +259,7 @@ exports.editRawMaterial = async (req, res) => {
 exports.deleteRawMaterial = async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await RawMaterial.findByIdAndDelete(id);
+    const deleted = await RawMaterial.delete({ _id: id });
     if (!deleted) return res.status(404).json({ message: "Not found" });
     res.status(200).json({ status: 200, message: "Deleted successfully" });
   } catch (err) {

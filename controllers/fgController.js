@@ -404,7 +404,7 @@ exports.updateFGWithFiles = async (req, res) => {
 exports.deleteFG = async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await FG.findByIdAndDelete(id);
+    const deleted = await FG.delete({ _id: id });
 
     if (!deleted) {
       return res.status(404).json({ status: 404, message: "FG not found" });

@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
+const softDeletePlugin = require("../utils/softDeletePlugin");
 
+const applySoftDelete = require("../plugins/mongooseDeletePlugin");
 const rawMaterialSchema = new mongoose.Schema(
   {
     skuCode: {
@@ -77,11 +79,15 @@ const rawMaterialSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   {
     timestamps: true, // automatically handles createdAt and updatedAt
   }
 );
+
+applySoftDelete(rawMaterialSchema);
 
 const RawMaterial = mongoose.model("RawMaterial", rawMaterialSchema);
 module.exports = RawMaterial;

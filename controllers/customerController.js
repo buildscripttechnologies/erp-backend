@@ -69,7 +69,6 @@ exports.getAllCustomers = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     const filter = {};
-
     if (search) {
       const regex = new RegExp(search, "i");
       filter.$or = [{ customerName: regex }, { customerCode: regex }];
@@ -191,10 +190,35 @@ exports.updateContactOrDeliveryStatus = async (req, res) => {
   }
 };
 
+// exports.deleteCustomer = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const deleted = await Customer.findByIdAndDelete(id);
+
+//     if (!deleted) {
+//       return res
+//         .status(404)
+//         .json({ status: 404, message: "Customer not found" });
+//     }
+
+//     res.status(200).json({
+//       status: 200,
+//       message: "Customer deleted successfully",
+//     });
+//   } catch (err) {
+//     res.status(500).json({
+//       status: 500,
+//       message: "Failed to delete customer",
+//       error: err.message,
+//     });
+//   }
+// };
+
 exports.deleteCustomer = async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await Customer.findByIdAndDelete(id);
+
+    const deleted = await Customer.delete({ _id: id }); // soft delete
 
     if (!deleted) {
       return res
@@ -204,12 +228,12 @@ exports.deleteCustomer = async (req, res) => {
 
     res.status(200).json({
       status: 200,
-      message: "Customer deleted successfully",
+      message: "Customer soft-deleted successfully",
     });
   } catch (err) {
     res.status(500).json({
       status: 500,
-      message: "Failed to delete customer",
+      message: "Failed to soft-delete customer",
       error: err.message,
     });
   }

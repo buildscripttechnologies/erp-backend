@@ -140,7 +140,7 @@ exports.updateUOM = async (req, res) => {
 // Delete UOM
 exports.deleteUOM = async (req, res) => {
   try {
-    const deleted = await UOM.findByIdAndDelete(req.params.id);
+    const deleted = await UOM.delete({ _id: req.params.id });
     if (!deleted) {
       return res.status(404).json({ status: 404, message: "UOM not found." });
     }

@@ -164,11 +164,7 @@ exports.editBom = async (req, res) => {
 exports.deleteBom = async (req, res) => {
   try {
     const { id } = req.params;
-    const deleted = await BOM.findByIdAndUpdate(
-      id,
-      { isActive: false },
-      { new: true }
-    );
+    const deleted = await BOM.delete({ _id: id });
     if (!deleted)
       return res.status(404).json({ success: false, message: "BOM not found" });
     res.status(200).json({ success: true, message: "BOM soft-deleted" });

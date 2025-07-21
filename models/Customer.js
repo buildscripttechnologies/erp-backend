@@ -1,5 +1,7 @@
 const mongoose = require("mongoose");
+const softDeletePlugin = require("../utils/softDeletePlugin");
 
+const applySoftDelete = require('../plugins/mongooseDeletePlugin');
 const customerSchema = new mongoose.Schema(
   {
     customerCode: String,
@@ -58,8 +60,12 @@ const customerSchema = new mongoose.Schema(
         },
       },
     ],
+    isDeleted: { type: Boolean, default: false },
+    deletedAt: { type: Date, default: null },
   },
   { timestamps: true }
 );
+
+applySoftDelete(customerSchema);
 
 module.exports = mongoose.model("Customer", customerSchema);
