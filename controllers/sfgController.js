@@ -2,6 +2,7 @@ const SFG = require("../models/SFG");
 const cloudinary = require("../utils/cloudinary");
 const fs = require("fs");
 const { resolveUOM, resolveLocation } = require("../utils/resolve");
+const path = require("path");
 
 const generateBulkSkuCodes = async (count) => {
   const allSkus = await SFG.find({}, { skuCode: 1 }).lean();
@@ -35,31 +36,24 @@ exports.addMultipleSFGs = async (req, res) => {
     // Map files by index from file naming convention
     const fileMap = {};
 
-    const uploadPromises = req.files.map(async (file) => {
+    req.files.forEach((file) => {
       const match = file.originalname.match(/__index_(\d+)__/);
       if (!match) return;
 
       const index = parseInt(match[1], 10);
       const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
 
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "sfg_attachments",
-        resource_type: "raw",
-        type: "upload",
-        use_filename: true,
-        unique_filename: false,
-      });
-
-      fs.unlinkSync(file.path); // remove temp
+      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+        req.uploadType
+      }/${file.filename}`;
 
       if (!fileMap[index]) fileMap[index] = [];
+
       fileMap[index].push({
         fileName: cleanedFileName,
-        fileUrl: result.secure_url,
+        fileUrl,
       });
     });
-
-    await Promise.all(uploadPromises);
 
     const skuCodes = await generateBulkSkuCodes(sfgs.length);
 
@@ -339,28 +333,25 @@ exports.updateSFGWithFiles = async (req, res) => {
     updateFields.createdBy = req.user._id;
     updateFields.location = location;
 
-    // 🔼 Upload new files to Cloudinary (if any)
+    // 📂 Handle new file uploads using multer
+    // ✅ Handle new file uploads (from Multer)
     if (req.files?.length) {
-      const uploadPromises = req.files.map(async (file) => {
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: "sfg_attachments",
-          resource_type: "raw",
-          use_filename: true,
-          unique_filename: false,
-        });
+      const uploadedFiles = req.files.map((file) => {
+        const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+          req.uploadType
+        }/${file.filename}`;
+        const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
 
-        fs.unlinkSync(file.path); // Clean temp
+        console.log("fileurl", fileUrl);
 
         return {
-          fileName: file.originalname,
-          fileUrl: result.secure_url,
+          fileName: cleanedFileName,
+          fileUrl,
         };
       });
 
-      const uploadedFiles = await Promise.all(uploadPromises);
-      sfg.file.push(...uploadedFiles); // Add new files to existing list
+      sfg.file.push(...uploadedFiles);
     }
-
     // 🛠️ Assign all other fields
     Object.assign(sfg, updateFields);
 

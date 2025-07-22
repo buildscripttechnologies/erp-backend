@@ -12,15 +12,15 @@ const userSchema = new mongoose.Schema(
     password: { type: String },
     userType: {
       type: String,
-      enum: [
-        "Admin",
-        "Sales Executive",
-        "Purchase Manager",
-        "Planning Manager",
-        "Store Manager",
-        "Production Manager",
-        "Dispatch Manager",
-      ],
+      // enum: [
+      //   "Admin",
+      //   "Sales Executive",
+      //   "Purchase Manager",
+      //   "Planning Manager",
+      //   "Store Manager",
+      //   "Production Manager",
+      //   "Dispatch Manager",
+      // ],
       default: "Sales Executive",
     },
     userGroup: {

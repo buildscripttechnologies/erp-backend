@@ -8,8 +8,15 @@ const generateToken = require("../utils/generateToken");
 const generateAndSendOtp = require("../utils/generateAndSendOtp");
 
 exports.register = async (req, res) => {
-  const { fullName, username, mobile, email, password, userType, userGroup } =
-    req.body;
+  const {
+    fullName,
+    username,
+    mobile,
+    email,
+    password,
+    userType = "Sales Executive",
+    userGroup,
+  } = req.body;
   try {
     const existing = await User.findOne({ email });
     if (existing)

@@ -7,13 +7,27 @@ const {
   updateSFGWithFiles,
   deleteSFG,
 } = require("../controllers/sfgController");
-const upload = require("../utils/multer");
+// const upload = require("../utils/multer");
 const auth = require("../middlewares/authMiddleware");
+const uploadFile = require("../middlewares/uploadFile");
+const setUploadType = require("../middlewares/setUploadType");
 
-router.post("/add-many", auth, upload.array("files"), addMultipleSFGs);
+router.post(
+  "/add-many",
+  auth,
+  setUploadType("sfg_attachments"),
+  uploadFile.array("files"),
+  addMultipleSFGs
+);
 router.get("/get-all", auth, getAllSFGs);
 router.patch("/update/:id", auth, updateSFG);
-router.patch("/edit/:id", auth, upload.array("files"), updateSFGWithFiles);
+router.patch(
+  "/edit/:id",
+  auth,
+  setUploadType("sfg_attachments"),
+  uploadFile.array("files"),
+  updateSFGWithFiles
+);
 router.delete("/delete/:id", auth, deleteSFG);
 
 module.exports = router;

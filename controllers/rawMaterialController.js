@@ -101,36 +101,26 @@ exports.addMultipleRawMaterials = async (req, res) => {
       });
     }
 
-    // Group files by index and upload to Cloudinary
+    // Group files by index
     const fileMap = {};
-
-    const uploadPromises = req.files.map(async (file) => {
+    req.files.forEach((file) => {
       const match = file.originalname.match(/__index_(\d+)__/);
       if (!match) return;
 
       const index = parseInt(match[1], 10);
       const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
 
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "rm_attachments",
-        resource_type: "raw",
-        type: "upload",
-        use_filename: true,
-        unique_filename: false,
-      });
-
-      // Clean up local file
-      fs.unlinkSync(file.path);
+      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+        req.uploadType
+      }/${file.filename}`;
 
       if (!fileMap[index]) fileMap[index] = [];
 
       fileMap[index].push({
         fileName: cleanedFileName,
-        fileUrl: result.secure_url,
+        fileUrl,
       });
     });
-
-    await Promise.all(uploadPromises);
 
     // Generate SKU codes
     const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
@@ -196,49 +186,37 @@ exports.editRawMaterial = async (req, res) => {
     const rm = await RawMaterial.findById(req.params.id);
     if (!rm) return res.status(404).json({ message: "Raw material not found" });
 
-    // Remove deleted attachments
+    // ✅ Remove deleted attachments
     rm.attachments = rm.attachments.filter(
-      (att) => !deletedAttachments.includes(att._id.toString())
+      (att) => !deletedAttachments.includes(att._id?.toString())
     );
-    // ✅ Resolve UOMs
+
+    // ✅ Resolve UOMs and location
     const purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
     const stockUOM = await resolveUOM(updateFields.stockUOM);
     const location = await resolveLocation(updateFields.location);
     updateFields.purchaseUOM = purchaseUOM;
     updateFields.stockUOM = stockUOM;
-    updateFields.createdBy = req.user._id;
     updateFields.location = location;
+    updateFields.createdBy = req.user._id;
 
-    // 🔼 Upload new files to Cloudinary
+    // ✅ Handle new file uploads (from Multer)
     if (req.files?.length) {
-      const uploadPromises = req.files.map(async (file) => {
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: "rm_attachments",
-          resource_type: "raw",
-          use_filename: true,
-          unique_filename: false,
-        });
+      const uploadedFiles = req.files.map((file) => {
+        const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+          req.uploadType
+        }/${file.filename}`;
+        const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
 
-        console.log("Result", result.secure_url);
-
-        // // ✅ Delete temp file after upload
-        // fs.unlinkSync(file.path);
+        console.log("fileurl", fileUrl);
 
         return {
-          fileName: file.originalname,
-          fileUrl: result.secure_url,
+          fileName: cleanedFileName,
+          fileUrl,
         };
       });
 
-      const uploadedFiles = await Promise.all(uploadPromises);
-
-      const newAttachments = uploadedFiles.map((file, index) => ({
-        fileName: req.files[index].originalname,
-        fileUrl: file.fileUrl,
-      }));
-      console.log("new Att", newAttachments);
-
-      rm.attachments.push(...newAttachments);
+      rm.attachments.push(...uploadedFiles);
     }
 
     // ✅ Apply other field updates

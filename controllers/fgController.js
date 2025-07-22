@@ -257,29 +257,24 @@ exports.addMultipleFGs = async (req, res) => {
 
     const fileMap = {};
 
-    const uploadPromises = req.files.map(async (file) => {
+    // Map files by index from filename convention
+    req.files.forEach((file) => {
       const match = file.originalname.match(/__index_(\d+)__/);
       if (!match) return;
       const index = parseInt(match[1], 10);
       const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
 
-      const result = await cloudinary.uploader.upload(file.path, {
-        folder: "fg_attachments",
-        resource_type: "raw",
-        use_filename: true,
-        unique_filename: false,
-      });
-
-      fs.unlinkSync(file.path);
+      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+        req.uploadType
+      }/${file.filename}`;
 
       if (!fileMap[index]) fileMap[index] = [];
       fileMap[index].push({
         fileName: cleanedFileName,
-        fileUrl: result.secure_url,
+        fileUrl: fileUrl,
       });
     });
 
-    await Promise.all(uploadPromises);
     const skuCodes = await generateBulkFgSkuCodes(fgs.length);
 
     const mappedFGs = await Promise.all(
@@ -357,28 +352,25 @@ exports.updateFGWithFiles = async (req, res) => {
     const fg = await FG.findById(req.params.id);
     if (!fg) return res.status(404).json({ message: "FG not found" });
 
+    // Remove deleted files
     fg.file = fg.file.filter(
       (file) => !deletedFiles.includes(file._id?.toString())
     );
 
+    // Handle new uploads
     if (req.files?.length) {
-      const uploadPromises = req.files.map(async (file) => {
-        const result = await cloudinary.uploader.upload(file.path, {
-          folder: "fg_attachments",
-          resource_type: "raw",
-          use_filename: true,
-          unique_filename: false,
-        });
-
-        fs.unlinkSync(file.path);
+      const uploadedFiles = req.files.map((file) => {
+        const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+          req.uploadType
+        }/${file.filename}`;
+        const cleanedFileName = file.originalname.replace(/__index_\d+__/, ""); // optional cleanup
 
         return {
-          fileName: file.originalname,
-          fileUrl: result.secure_url,
+          fileName: cleanedFileName,
+          fileUrl,
         };
       });
 
-      const uploadedFiles = await Promise.all(uploadPromises);
       fg.file.push(...uploadedFiles);
     }
 

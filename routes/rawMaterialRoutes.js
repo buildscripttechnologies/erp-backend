@@ -15,6 +15,7 @@ const checkRole = require("../middlewares/checkRole");
 const uploadExcel = require("../middlewares/upload");
 const uploadFile = require("../middlewares/uploadFile");
 const upload = require("../utils/multer");
+const setUploadType = require("../middlewares/setUploadType");
 
 const router = express.Router();
 
@@ -28,7 +29,8 @@ router.post(
   "/add-many-rm",
   auth,
   checkRole(["Admin"]),
-  upload.array("attachments"),
+  setUploadType("rm_attachments"),
+  uploadFile.array("attachments"),
   addMultipleRawMaterials
 );
 
@@ -38,7 +40,8 @@ router.patch(
   "/edit-rm/:id",
   auth,
   checkRole(["Admin"]),
-  upload.array("attachments"),
+  setUploadType("rm_attachments"),
+  uploadFile.array("attachments"),
   editRawMaterial
 );
 
