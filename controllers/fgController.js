@@ -1,7 +1,7 @@
 const FG = require("../models/FG");
 const { generateBulkFgSkuCodes } = require("../utils/codeGenerator");
 const { resolveUOM, resolveLocation } = require("../utils/resolve");
-const cloudinary = require("cloudinary").v2;
+
 const fs = require("fs");
 
 // start implementing populate location logic, in all controller

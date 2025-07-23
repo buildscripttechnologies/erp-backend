@@ -1,4 +1,5 @@
 // utils/generateAndSendOtp.js
+require('dotenv').config({ path: '../.env' });
 const OtpToken = require('../models/OtpToken');
 const sendEmail = require('./sendEmail');
 

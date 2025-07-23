@@ -1,5 +1,5 @@
 const SFG = require("../models/SFG");
-const cloudinary = require("../utils/cloudinary");
+
 const fs = require("fs");
 const { resolveUOM, resolveLocation } = require("../utils/resolve");
 const path = require("path");

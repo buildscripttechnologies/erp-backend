@@ -1,7 +1,7 @@
 const RawMaterial = require("../models/RawMaterial");
 const XLSX = require("xlsx");
 const UOM = require("../models/UOM");
-const cloudinary = require("../utils/cloudinary");
+
 const fs = require("fs");
 const { resolveUOM, resolveLocation } = require("../utils/resolve");
 const Location = require("../models/Location");
