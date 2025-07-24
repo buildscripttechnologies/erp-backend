@@ -88,7 +88,7 @@ const getAllUsers = async (req, res) => {
     page = parseInt(page);
     limit = parseInt(limit);
 
-    const filter = { isDeleted: false };
+    const filter = {};
 
     // Add filters if present
     if (userType) filter.userType = userType;

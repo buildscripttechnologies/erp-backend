@@ -68,7 +68,7 @@ const vendorSchema = mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-    isDeleted: { type: Boolean, default: false },
+
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

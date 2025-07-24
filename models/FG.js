@@ -72,7 +72,7 @@ const fgSchema = new mongoose.Schema(
         depth: Number,
       },
     ],
-    isDeleted: { type: Boolean, default: false },
+    
     deletedAt: { type: Date, default: null },
   },
   {

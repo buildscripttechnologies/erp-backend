@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
-const softDeletePlugin = require("../utils/softDeletePlugin");
+// const softDeletePlugin = require("../utils/softDeletePlugin");
 
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
 
-const bomSchema = new mongoose.Schema(
+const somSchema = new mongoose.Schema(
   {
     partyName: {
       type: mongoose.Schema.Types.ObjectId,
@@ -11,15 +11,13 @@ const bomSchema = new mongoose.Schema(
     },
     orderQty: {
       type: Number,
+      default: 1,
     },
-    productName: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "FG",
+    product: {
+      pId: { type: mongoose.Schema.Types.ObjectId, ref: "FG" },
+      name: String,
     },
     sampleNo: {
-      type: String,
-    },
-    bomNo: {
       type: String,
     },
     date: {
@@ -59,8 +57,8 @@ const bomSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-applySoftDelete(bomSchema);
+applySoftDelete(somSchema);
 
-const BOM = mongoose.model("BOM", bomSchema);
+const Sample = mongoose.model("Sample", somSchema);
 
-module.exports = BOM;
+module.exports = Sample;

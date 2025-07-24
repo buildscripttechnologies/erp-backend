@@ -16,7 +16,7 @@ const locationSchema = new mongoose.Schema(
       default: true,
     },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    isDeleted: { type: Boolean, default: false },
+   
     deletedAt: { type: Date, default: null },
   },
 

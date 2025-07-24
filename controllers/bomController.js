@@ -167,7 +167,9 @@ exports.deleteBom = async (req, res) => {
     const deleted = await BOM.delete({ _id: id });
     if (!deleted)
       return res.status(404).json({ success: false, message: "BOM not found" });
-    res.status(200).json({ success: true, message: "BOM soft-deleted" });
+    res
+      .status(200)
+      .json({ status: 200, success: true, message: "BOM soft-deleted" });
   } catch (err) {
     console.error("Delete BOM Error:", err);
     res.status(500).json({ success: false, message: "Failed to delete BOM" });

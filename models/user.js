@@ -29,13 +29,13 @@ const userSchema = new mongoose.Schema(
     },
     isVerified: { type: Boolean, default: false },
     twoStepEnabled: { type: Boolean, default: false },
-    isDeleted: { type: Boolean, default: false },
+    
     status: {
       type: String,
       enum: ["Active", "Inactive"],
       default: "Active",
     },
-    isDeleted: { type: Boolean, default: false },
+    
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

@@ -1,6 +1,7 @@
 const BOM = require("../models/BOM");
 const Customer = require("../models/Customer");
 const FG = require("../models/FG");
+const Sample = require("../models/Sample");
 
 exports.generateBulkFgSkuCodes = async (count) => {
   const all = await FG.find({}, { skuCode: 1 }).lean();
@@ -54,7 +55,7 @@ exports.generateNextBomNo = async () => {
 };
 
 exports.generateNextSampleNo = async () => {
-  const allBOMs = await BOM.find({}, { sampleNo: 1 }).lean();
+  const allBOMs = await Sample.find({}, { sampleNo: 1 }).lean();
   let max = 0;
 
   allBOMs.forEach((bom) => {
