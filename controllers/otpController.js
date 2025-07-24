@@ -43,6 +43,12 @@ exports.verifyOtp = async (req, res) => {
       status: 200,
       message: "Email verified successfully",
       token: authToken,
+      user: {
+        id: user._id,
+        username: user.username,
+        fullName: user.fullName,
+        userType: user.userType,
+      },
     });
   }
 
@@ -54,6 +60,12 @@ exports.verifyOtp = async (req, res) => {
       status: 200,
       message: "Email verified successfully",
       token: authToken,
+      user: {
+        id: user._id,
+        username: user.username,
+        fullName: user.fullName,
+        userType: user.userType,
+      },
     });
   }
 
@@ -61,8 +73,14 @@ exports.verifyOtp = async (req, res) => {
     const authToken = generateToken(user);
     return res.json({
       status: 200,
+      message: "Success",
       token: authToken,
-      user: { id: user._id, name: user.name, role: user.role },
+      user: {
+        id: user._id,
+        username: user.username,
+        fullName: user.fullName,
+        userType: user.userType,
+      },
     });
   }
 
