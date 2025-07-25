@@ -1,5 +1,7 @@
 const User = require("../models/user");
 
+const bcrypt = require("bcryptjs");
+
 const updateUser = async (req, res) => {
   const { userId } = req.params;
 
@@ -8,22 +10,20 @@ const updateUser = async (req, res) => {
     if (!user) {
       return res.status(404).json({ status: 404, message: "User not found" });
     }
+
+    // 🔐 If password exists in the body, hash it before saving
+    if (req.body.password) {
+      const salt = await bcrypt.genSalt(10);
+      const hashedPassword = await bcrypt.hash(req.body.password, salt);
+      req.body.password = hashedPassword;
+    }
+
     user = await User.findByIdAndUpdate(userId, req.body, { new: true });
+
     res.status(200).json({
       status: 200,
       message: "User updated successfully",
-      //   user: {
-      //     id: user._id,
-      //     fullName: user.fullName,
-      //     username: user.username,
-      //     email: user.email,
-      //     mobile: user.mobile,
-      //     userType: user.userType,
-      //     userGroup: user.userGroup,
-      //     isVerified: user.isVerified,
-      //     twoStepEnabled: user.twoStepEnabled,
-      //     status: user.status,
-      //   },
+      user, // Optional: you can send selective fields as needed
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
