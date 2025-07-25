@@ -8,9 +8,8 @@ const {
 
 exports.addSample = async (req, res) => {
   try {
-    const { partyName, orderQty, productName, productDetails, date } = req.body;
-
-    console.log("req.body", req.body);
+    const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
+    const { partyName, orderQty, productName, productDetails, date } = parsed;
 
     let customer = await Customer.findOne({ customerName: partyName });
 
@@ -25,9 +24,9 @@ exports.addSample = async (req, res) => {
 
     let fg = await FG.findOne({ itemName: productName });
 
-    // const bomNo = await generateNextBomNo();
     const sampleNo = await generateNextSampleNo();
     let pDetails;
+
     if (fg) {
       pDetails = fg.rm?.map((c) => ({
         itemId: c.rmid,
@@ -50,11 +49,19 @@ exports.addSample = async (req, res) => {
         })),
       ];
     }
+
     const resolvedProductDetails = productDetails?.length
       ? productDetails
       : pDetails;
 
-    console.log("resolved", resolvedProductDetails);
+    // ✅ Just map uploaded files directly
+    const attachments =
+      req.files?.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `${req.protocol}://${req.get("host")}/uploads/${
+          req.uploadType
+        }/${file.filename}`,
+      })) || [];
 
     const newSample = await Sample.create({
       partyName: customer._id,
@@ -63,10 +70,9 @@ exports.addSample = async (req, res) => {
       sampleNo,
       date,
       productDetails: resolvedProductDetails,
+      file: attachments, // ✅ direct file array
       createdBy: req.user?._id,
     });
-
-    console.log("data", newSample);
 
     res.status(201).json({ success: true, data: newSample });
   } catch (err) {
@@ -108,6 +114,85 @@ exports.updateSample = async (req, res) => {
   }
 };
 
+const fs = require("fs");
+const path = require("path");
+
+exports.updateSampleWithFiles = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Parse form data if multipart
+    const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
+    const {
+      partyName,
+      orderQty,
+      productName,
+      productDetails = [],
+      deletedFiles = [],
+    } = parsed;
+
+    const sample = await Sample.findById(id);
+    if (!sample)
+      return res
+        .status(404)
+        .json({ success: false, message: "Sample not found" });
+
+    const customer = await Customer.findOne({ customerName: partyName });
+    const fg = await FG.findOne({ itemName: productName });
+
+    // 🗑 Remove deleted files from existing attachments
+    const updatedAttachments = sample.attachments.filter((file) => {
+      const shouldDelete = deletedFiles.includes(file.fileUrl);
+      if (shouldDelete) {
+        // Attempt to delete file from disk (optional, requires correct path)
+        const filePath = path.join(
+          __dirname,
+          "../uploads",
+          req.uploadType || "",
+          path.basename(file.fileUrl)
+        );
+        if (fs.existsSync(filePath)) {
+          fs.unlink(filePath, (err) => {
+            if (err) console.error("File deletion failed:", err.message);
+          });
+        }
+      }
+      return !shouldDelete;
+    });
+
+    // 📥 Add new files
+    const newAttachments =
+      req.files?.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `${req.protocol}://${req.get("host")}/uploads/${
+          req.uploadType
+        }/${file.filename}`,
+      })) || [];
+
+    const finalAttachments = [...updatedAttachments, ...newAttachments];
+
+    // 🔄 Update the sample
+    const updatedSample = await Sample.findByIdAndUpdate(
+      id,
+      {
+        partyName: customer?._id || sample.partyName,
+        orderQty,
+        product: { pId: fg?._id || null, name: productName },
+        productDetails,
+        attachments: finalAttachments,
+      },
+      { new: true }
+    );
+
+    res.status(200).json({ success: true, data: updatedSample });
+  } catch (err) {
+    console.error("Update Sample Error:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to update Sample" });
+  }
+};
+
 exports.getAllSamples = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -116,7 +201,7 @@ exports.getAllSamples = async (req, res) => {
 
     const totalResults = await Sample.countDocuments();
 
-    const samples = await Sample.find({ isDeleted: false })
+    const samples = await Sample.find()
       .populate("partyName", "customerName")
       .populate("product.name", "itemName skuCode ")
       .populate("productDetails.itemId")
@@ -139,6 +224,7 @@ exports.getAllSamples = async (req, res) => {
       createdAt: s.createdAt,
       updatedAt: s.updatedAt,
       createdBy: s.createdBy,
+      file: s.file,
       productDetails: s.productDetails.map((pd) => ({
         _id: pd._id,
         itemId: pd.itemId?._id || null,

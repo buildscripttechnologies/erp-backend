@@ -2,12 +2,28 @@ const express = require("express");
 const router = express.Router();
 const sampleController = require("../controllers/sampleController");
 const auth = require("../middlewares/authMiddleware");
+const setUploadType = require("../middlewares/setUploadType");
+const uploadFile = require("../middlewares/uploadFile");
 
 // Add Sample
-router.post("/add", auth, sampleController.addSample);
+router.post(
+  "/add",
+  auth,
+  setUploadType("sample_attachments"),
+  uploadFile.array("files"),
+  sampleController.addSample
+);
 
 // Update Sample
-router.patch("/update/:id", auth, sampleController.updateSample);
+router.patch(
+  "/update/:id",
+  auth,
+  setUploadType("sample_attachments"),
+  uploadFile.array("files"),
+  sampleController.updateSampleWithFiles
+);
+
+router.patch("/edit/:id", auth, sampleController.updateSample);
 
 // router.patch("/edit/:id", auth, bomController.editBom);
 

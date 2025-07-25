@@ -51,7 +51,13 @@ const somSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
-   
+    file: [
+      {
+        fileName: String,
+        fileUrl: String,
+      },
+    ],
+
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

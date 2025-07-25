@@ -75,7 +75,12 @@ exports.addManyLocations = async (req, res) => {
 
 exports.getAllLocations = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", isActive = "true" } = req.query;
+    const {
+      page = 1,
+      limit = 10000,
+      search = "",
+      isActive = "true",
+    } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const searchRegex = new RegExp(search, "i");
