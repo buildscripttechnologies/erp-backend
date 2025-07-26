@@ -110,7 +110,7 @@ const getAllUsers = async (req, res) => {
 
     // Fetch paginated users
     const users = await User.find(filter)
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 

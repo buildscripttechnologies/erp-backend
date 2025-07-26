@@ -58,6 +58,7 @@ exports.getAllRawMaterials = async (req, res) => {
       gst: rm.gst,
       stockQty: rm.stockQty,
       stockUOM: rm.stockUOM ? rm.stockUOM.unitName : null,
+      totalRate: rm.totalRate,
       attachments: rm.attachments,
       status: rm.status,
       createdBy: rm.createdBy?.userType ? rm.createdBy.userType : "",
@@ -93,6 +94,7 @@ exports.createRawMaterial = async (req, res) => {
 exports.addMultipleRawMaterials = async (req, res) => {
   try {
     let rawMaterials = JSON.parse(req.body.rawMaterials);
+    console.log("rawmaterials", rawMaterials);
 
     if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
       return res.status(400).json({

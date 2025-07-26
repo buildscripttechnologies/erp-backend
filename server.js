@@ -25,7 +25,14 @@ app.use(express.urlencoded({ extended: true }));
 // Serve static files from the "public" directory
 app.use(express.static("public"));
 // Serve static files from the "uploads" directory
-app.use("/uploads", express.static("uploads"));
+app.use(
+  "/uploads",
+  express.static("uploads", {
+    setHeaders: (res, path) => {
+      res.setHeader("Access-Control-Allow-Origin", "*"); // Or restrict to your frontend origin
+    },
+  })
+);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the ERP Backend!");

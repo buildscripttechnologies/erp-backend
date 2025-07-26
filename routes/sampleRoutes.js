@@ -25,8 +25,6 @@ router.patch(
 
 router.patch("/edit/:id", auth, sampleController.updateSample);
 
-// router.patch("/edit/:id", auth, bomController.editBom);
-
 // Delete Sample (soft delete)
 router.delete("/delete/:id", sampleController.deleteSample);
 

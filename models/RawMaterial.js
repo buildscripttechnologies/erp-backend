@@ -50,11 +50,10 @@ const rawMaterialSchema = new mongoose.Schema(
     },
     rate: {
       type: Number,
-      default: 0,
     },
+    totalRate: Number,
     gst: {
       type: Number,
-      default: 0,
     },
     stockQty: {
       type: Number,
@@ -79,7 +78,7 @@ const rawMaterialSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-    
+
     deletedAt: { type: Date, default: null },
   },
   {

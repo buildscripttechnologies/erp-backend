@@ -190,7 +190,7 @@ exports.getAllBoms = async (req, res) => {
       .populate("productName", "itemName skuCode ")
       .populate("productDetails.itemId")
       .populate("createdBy", "username fullName userType")
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .lean();

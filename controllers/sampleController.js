@@ -121,7 +121,7 @@ exports.updateSampleWithFiles = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Parse form data if multipart
+    // Parse JSON from multipart/form-data
     const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
     const {
       partyName,
@@ -131,60 +131,51 @@ exports.updateSampleWithFiles = async (req, res) => {
       deletedFiles = [],
     } = parsed;
 
+    console.log("deletedFiles", deletedFiles);
+
     const sample = await Sample.findById(id);
     if (!sample)
       return res
         .status(404)
         .json({ success: false, message: "Sample not found" });
 
+    // 🧹 Remove files marked for deletion by _id
+    const deletedIds = deletedFiles.map((f) => f._id.toString());
+
+    sample.file = sample.file.filter(
+      (file) => !deletedIds.includes(file._id.toString())
+    );
+
+    // console.log("files", sample.file);
+
+    // 🔎 Resolve customer and FG references
     const customer = await Customer.findOne({ customerName: partyName });
     const fg = await FG.findOne({ itemName: productName });
 
-    // 🗑 Remove deleted files from existing attachments
-    const updatedAttachments = sample.attachments.filter((file) => {
-      const shouldDelete = deletedFiles.includes(file.fileUrl);
-      if (shouldDelete) {
-        // Attempt to delete file from disk (optional, requires correct path)
-        const filePath = path.join(
-          __dirname,
-          "../uploads",
-          req.uploadType || "",
-          path.basename(file.fileUrl)
-        );
-        if (fs.existsSync(filePath)) {
-          fs.unlink(filePath, (err) => {
-            if (err) console.error("File deletion failed:", err.message);
-          });
-        }
-      }
-      return !shouldDelete;
-    });
-
-    // 📥 Add new files
-    const newAttachments =
-      req.files?.map((file) => ({
+    // 📂 Handle new file uploads if any
+    if (req.files?.length) {
+      const uploadedFiles = req.files.map((file) => ({
         fileName: file.originalname,
         fileUrl: `${req.protocol}://${req.get("host")}/uploads/${
           req.uploadType
         }/${file.filename}`,
-      })) || [];
+      }));
+      sample.file.push(...uploadedFiles);
+    }
 
-    const finalAttachments = [...updatedAttachments, ...newAttachments];
+    // 📝 Update fields
+    sample.partyName = customer?._id || sample.partyName;
+    sample.orderQty = orderQty;
+    sample.product = { pId: fg?._id || null, name: productName };
+    sample.productDetails = productDetails;
 
-    // 🔄 Update the sample
-    const updatedSample = await Sample.findByIdAndUpdate(
-      id,
-      {
-        partyName: customer?._id || sample.partyName,
-        orderQty,
-        product: { pId: fg?._id || null, name: productName },
-        productDetails,
-        attachments: finalAttachments,
-      },
-      { new: true }
-    );
+    await sample.save();
 
-    res.status(200).json({ success: true, data: updatedSample });
+    res.status(200).json({
+      success: true,
+      message: "Sample updated successfully",
+      data: sample,
+    });
   } catch (err) {
     console.error("Update Sample Error:", err);
     res
@@ -206,7 +197,7 @@ exports.getAllSamples = async (req, res) => {
       .populate("product.name", "itemName skuCode ")
       .populate("productDetails.itemId")
       .populate("createdBy", "username fullName userType")
-      .sort({ createdAt: -1 })
+      .sort({ createdAt: -1, _id: -1 })
       .skip(skip)
       .limit(limit)
       .lean();
