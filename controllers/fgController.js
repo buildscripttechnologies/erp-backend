@@ -263,8 +263,9 @@ exports.addMultipleFGs = async (req, res) => {
       if (!match) return;
       const index = parseInt(match[1], 10);
       const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
-
-      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+      const protocol =
+        process.env.NODE_ENV === "production" ? "https" : req.protocol;
+      const fileUrl = `${protocol}://${req.get("host")}/uploads/${
         req.uploadType
       }/${file.filename}`;
 
@@ -360,7 +361,9 @@ exports.updateFGWithFiles = async (req, res) => {
     // Handle new uploads
     if (req.files?.length) {
       const uploadedFiles = req.files.map((file) => {
-        const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+        const protocol =
+          process.env.NODE_ENV === "production" ? "https" : req.protocol;
+        const fileUrl = `${protocol}://${req.get("host")}/uploads/${
           req.uploadType
         }/${file.filename}`;
         const cleanedFileName = file.originalname.replace(/__index_\d+__/, ""); // optional cleanup
@@ -369,6 +372,7 @@ exports.updateFGWithFiles = async (req, res) => {
           fileName: cleanedFileName,
           fileUrl,
         };
+        s;
       });
 
       fg.file.push(...uploadedFiles);

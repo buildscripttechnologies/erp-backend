@@ -34,7 +34,8 @@ app.use(
   })
 );
 
-app.set("trust proxy", true);
+app.set('trust proxy', true);
+
 
 app.get("/", (req, res) => {
   res.send("Welcome to the ERP Backend!");

@@ -54,13 +54,15 @@ exports.addSample = async (req, res) => {
       ? productDetails
       : pDetails;
 
+    const protocol =
+      process.env.NODE_ENV === "production" ? "https" : req.protocol;
     // ✅ Just map uploaded files directly
     const attachments =
       req.files?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${req.protocol}://${req.get("host")}/uploads/${
-          req.uploadType
-        }/${file.filename}`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+          file.filename
+        }`,
       })) || [];
 
     const newSample = await Sample.create({
@@ -152,13 +154,15 @@ exports.updateSampleWithFiles = async (req, res) => {
     const customer = await Customer.findOne({ customerName: partyName });
     const fg = await FG.findOne({ itemName: productName });
 
+    const protocol =
+      process.env.NODE_ENV === "production" ? "https" : req.protocol;
     // 📂 Handle new file uploads if any
     if (req.files?.length) {
       const uploadedFiles = req.files.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${req.protocol}://${req.get("host")}/uploads/${
-          req.uploadType
-        }/${file.filename}`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+          file.filename
+        }`,
       }));
       sample.file.push(...uploadedFiles);
     }

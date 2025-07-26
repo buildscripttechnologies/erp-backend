@@ -35,7 +35,8 @@ exports.addMultipleSFGs = async (req, res) => {
 
     // Map files by index from file naming convention
     const fileMap = {};
-
+    const protocol =
+      process.env.NODE_ENV === "production" ? "https" : req.protocol;
     req.files.forEach((file) => {
       const match = file.originalname.match(/__index_(\d+)__/);
       if (!match) return;
@@ -43,7 +44,7 @@ exports.addMultipleSFGs = async (req, res) => {
       const index = parseInt(match[1], 10);
       const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
 
-      const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+      const fileUrl = `${protocol}://${req.get("host")}/uploads/${
         req.uploadType
       }/${file.filename}`;
 
@@ -335,9 +336,11 @@ exports.updateSFGWithFiles = async (req, res) => {
 
     // 📂 Handle new file uploads using multer
     // ✅ Handle new file uploads (from Multer)
+    const protocol =
+      process.env.NODE_ENV === "production" ? "https" : req.protocol;
     if (req.files?.length) {
       const uploadedFiles = req.files.map((file) => {
-        const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${
+        const fileUrl = `${protocol}://${req.get("host")}/uploads/${
           req.uploadType
         }/${file.filename}`;
         const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
