@@ -4,7 +4,8 @@ const fs = require("fs");
 require("dotenv").config(); // make sure this is called if not already
 
 // Read upload directory from environment
-const baseUploadPath = process.env.UPLOAD_DIR || path.join(__dirname, "../uploads");
+const baseUploadPath =
+  process.env.UPLOAD_DIR || path.join(__dirname, "../uploads");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {

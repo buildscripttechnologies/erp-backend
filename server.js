@@ -22,10 +22,10 @@ const sampleRoutes = require("./routes/sampleRoutes");
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, "uploads");
 
-
 app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+
 // Serve static files from the "public" directory
 app.use(express.static("public"));
 // Serve static files from the "uploads" directory
@@ -38,8 +38,7 @@ app.use(
   })
 );
 
-app.set('trust proxy', true);
-
+app.set("trust proxy", true);
 
 app.get("/", (req, res) => {
   res.send("Welcome to the ERP Backend!");
