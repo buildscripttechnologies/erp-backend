@@ -10,13 +10,14 @@ const {
   deleteFG,
 } = require("../controllers/fgController");
 const setUploadType = require("../middlewares/setUploadType");
-const uploadFile = require("../middlewares/uploadFile");
+const { uploadFile,compressUploadedFiles } = require("../middlewares/uploadFile");
 
 router.post(
   "/add-many",
   auth,
   setUploadType("fg_attachments"),
   uploadFile.array("files"),
+  compressUploadedFiles,
   addMultipleFGs
 );
 router.get("/get-all", auth, getAllFGs);
@@ -26,6 +27,7 @@ router.patch(
   auth,
   setUploadType("fg_attachments"),
   uploadFile.array("files"),
+  compressUploadedFiles,
   updateFGWithFiles
 );
 router.delete("/delete/:id", auth, deleteFG);

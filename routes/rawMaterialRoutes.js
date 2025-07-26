@@ -13,9 +13,13 @@ const {
 } = require("../controllers/rawMaterialController");
 const checkRole = require("../middlewares/checkRole");
 const uploadExcel = require("../middlewares/upload");
-const uploadFile = require("../middlewares/uploadFile");
-const upload = require("../utils/multer");
+// const uploadFile = require("../middlewares/uploadFile");
+// const upload = require("../utils/multer");
 const setUploadType = require("../middlewares/setUploadType");
+const {
+  uploadFile,
+  compressUploadedFiles,
+} = require("../middlewares/uploadFile");
 
 const router = express.Router();
 
@@ -30,7 +34,8 @@ router.post(
   auth,
   checkRole(["Admin"]),
   setUploadType("rm_attachments"),
-  uploadFile.array("attachments"),
+  uploadFile.array("attachments", 10),
+  compressUploadedFiles,
   addMultipleRawMaterials
 );
 
@@ -42,6 +47,7 @@ router.patch(
   checkRole(["Admin"]),
   setUploadType("rm_attachments"),
   uploadFile.array("attachments"),
+  compressUploadedFiles,
   editRawMaterial
 );
 

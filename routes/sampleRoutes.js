@@ -3,7 +3,7 @@ const router = express.Router();
 const sampleController = require("../controllers/sampleController");
 const auth = require("../middlewares/authMiddleware");
 const setUploadType = require("../middlewares/setUploadType");
-const uploadFile = require("../middlewares/uploadFile");
+const { uploadFile,compressUploadedFiles } = require("../middlewares/uploadFile");
 
 // Add Sample
 router.post(
@@ -11,6 +11,7 @@ router.post(
   auth,
   setUploadType("sample_attachments"),
   uploadFile.array("files"),
+  compressUploadedFiles,
   sampleController.addSample
 );
 
@@ -20,6 +21,7 @@ router.patch(
   auth,
   setUploadType("sample_attachments"),
   uploadFile.array("files"),
+  compressUploadedFiles,
   sampleController.updateSampleWithFiles
 );
 

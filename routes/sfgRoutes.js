@@ -9,7 +9,10 @@ const {
 } = require("../controllers/sfgController");
 // const upload = require("../utils/multer");
 const auth = require("../middlewares/authMiddleware");
-const uploadFile = require("../middlewares/uploadFile");
+const {
+  uploadFile,
+  compressUploadedFiles,
+} = require("../middlewares/uploadFile");
 const setUploadType = require("../middlewares/setUploadType");
 
 router.post(
@@ -17,6 +20,7 @@ router.post(
   auth,
   setUploadType("sfg_attachments"),
   uploadFile.array("files"),
+  compressUploadedFiles,
   addMultipleSFGs
 );
 router.get("/get-all", auth, getAllSFGs);
@@ -26,6 +30,7 @@ router.patch(
   auth,
   setUploadType("sfg_attachments"),
   uploadFile.array("files"),
+  compressUploadedFiles,
   updateSFGWithFiles
 );
 router.delete("/delete/:id", auth, deleteSFG);
