@@ -2,6 +2,7 @@ const express = require("express");
 const app = express();
 const cors = require("cors");
 const connectDB = require("./config/db");
+const path = require("path");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
 
@@ -19,6 +20,9 @@ const customerRoutes = require("./routes/customerRoutes");
 const bomRoutes = require("./routes/bomRoutes");
 const sampleRoutes = require("./routes/sampleRoutes");
 
+const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, "uploads");
+
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -27,9 +31,9 @@ app.use(express.static("public"));
 // Serve static files from the "uploads" directory
 app.use(
   "/uploads",
-  express.static("uploads", {
+  express.static(uploadDir, {
     setHeaders: (res, path) => {
-      res.setHeader("Access-Control-Allow-Origin", "*"); // Or restrict to your frontend origin
+      res.setHeader("Access-Control-Allow-Origin", "*"); // You can replace * with your frontend origin
     },
   })
 );
