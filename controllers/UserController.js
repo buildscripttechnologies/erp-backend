@@ -170,6 +170,7 @@ const updatePermission = async (req, res) => {
     }
 
     res.json({
+      status: 200,
       message: "User permissions updated successfully",
       user: updatedUser,
     });

@@ -48,6 +48,7 @@ exports.verifyOtp = async (req, res) => {
         username: user.username,
         fullName: user.fullName,
         userType: user.userType,
+        permissions: user.permissions,
       },
     });
   }
@@ -65,6 +66,7 @@ exports.verifyOtp = async (req, res) => {
         username: user.username,
         fullName: user.fullName,
         userType: user.userType,
+        permissions: user.permissions,
       },
     });
   }
@@ -80,6 +82,7 @@ exports.verifyOtp = async (req, res) => {
         username: user.username,
         fullName: user.fullName,
         userType: user.userType,
+        permissions: user.permissions,
       },
     });
   }

@@ -6,14 +6,30 @@ const {
   deleteVendor,
   addMultipleVendors,
 } = require("../controllers/vendorController");
+const checkPermission = require("../middlewares/checkPermission");
 const router = express.Router();
 
-router.post("/add-many", auth, addMultipleVendors);
+router.post(
+  "/add-many",
+  auth,
+  checkPermission("Vendor", "write"),
+  addMultipleVendors
+);
 
-router.get("/get-all", auth, getAllVendors);
+router.get("/get-all", auth, checkPermission("Vendor", "read"), getAllVendors);
 
-router.patch("/update/:id", auth, updateVendor);
+router.patch(
+  "/update/:id",
+  auth,
+  checkPermission("Vendor", "update"),
+  updateVendor
+);
 
-router.delete("/delete/:id", auth, deleteVendor);
+router.delete(
+  "/delete/:id",
+  auth,
+  checkPermission("Vendor", "delete"),
+  deleteVendor
+);
 
 module.exports = router;

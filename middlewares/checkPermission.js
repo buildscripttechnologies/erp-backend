@@ -5,7 +5,7 @@ const checkPermission = (module, action) => {
     const user = req.user;
 
     if (!user) {
-      return res.status(403).json({ message: "Access denied: No user found" });
+      return res.json({ status: 403, message: "Access denied: No user found" });
     }
 
     // Admins have full access
@@ -14,24 +14,26 @@ const checkPermission = (module, action) => {
     }
 
     if (!user.permissions) {
-      return res
-        .status(403)
-        .json({ message: "Access denied: No permissions set" });
+      return res.json({
+        status: 403,
+        message: "Access denied: No permissions set",
+      });
     }
 
     const permission = user.permissions.find((p) => p.module === module);
 
     if (!permission) {
-      return res.status(403).json({ message: `Access denied to ${module}` });
+      return res.json({ status: 403, message: `Access denied to ${module}` });
     }
 
     if (
       !permission.actions.includes(action) &&
       !permission.actions.includes("*")
     ) {
-      return res
-        .status(403)
-        .json({ message: `Action "${action}" not allowed on ${module}` });
+      return res.json({
+        status: 403,
+        message: `Action "${action}" not allowed on ${module}`,
+      });
     }
 
     next();
