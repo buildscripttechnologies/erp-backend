@@ -3,6 +3,7 @@ const {
   updateUser,
   deleteUser,
   getAllUsers,
+  updatePermission,
 } = require("../controllers/UserController");
 const express = require("express");
 const router = express.Router();
@@ -14,6 +15,12 @@ router.get("/user/:userId", auth, checkRole(["Admin"]), getUser);
 router.get("/all-users", auth, checkRole(["Admin"]), getAllUsers);
 // Update user details (Admin or self)
 router.patch("/update-user/:userId", auth, checkRole(["Admin"]), updateUser);
+router.patch(
+  "/update-user-permission/:id",
+  auth,
+  checkRole(["Admin"]),
+  updatePermission
+);
 // Delete a user (Admin only)
 router.delete("/delete-user/:userId", auth, checkRole(["Admin"]), deleteUser);
 

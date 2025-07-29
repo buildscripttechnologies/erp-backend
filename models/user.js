@@ -29,13 +29,20 @@ const userSchema = new mongoose.Schema(
     },
     isVerified: { type: Boolean, default: false },
     twoStepEnabled: { type: Boolean, default: false },
-    
+
     status: {
       type: String,
       enum: ["Active", "Inactive"],
       default: "Active",
     },
-    
+
+    permissions: [
+      {
+        module: { type: String, required: true }, // e.g. 'RawMaterial'
+        actions: [String], // optional: ['read', 'create', 'update', 'delete']
+      },
+    ],
+
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

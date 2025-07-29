@@ -3,7 +3,10 @@ const router = express.Router();
 const sampleController = require("../controllers/sampleController");
 const auth = require("../middlewares/authMiddleware");
 const setUploadType = require("../middlewares/setUploadType");
-const { uploadFile,compressUploadedFiles } = require("../middlewares/uploadFile");
+const {
+  uploadFile,
+  compressUploadedFiles,
+} = require("../middlewares/uploadFile");
 
 // Add Sample
 router.post(
