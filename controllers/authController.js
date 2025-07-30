@@ -66,7 +66,7 @@ exports.login = async (req, res) => {
         .status(403)
         .json({ status: 403, message: "Account is inactive" });
     }
-    if (user.isDeleted) {
+    if (user.deleted) {
       return res
         .status(403)
         .json({ status: 403, message: "Account is deleted" });
@@ -81,6 +81,7 @@ exports.login = async (req, res) => {
           id: user._id,
           username: user.username,
           email: user.email,
+          permissions: user.permissions,
         },
       });
     }
@@ -95,6 +96,7 @@ exports.login = async (req, res) => {
           id: user._id,
           username: user.username,
           email: user.email,
+          permissions: user.permissions,
         },
       });
     }
@@ -108,6 +110,7 @@ exports.login = async (req, res) => {
         username: user.username,
         userType: user.userType,
         fullName: user.fullName,
+        permissions: user.permissions,
       },
     });
   } catch (err) {

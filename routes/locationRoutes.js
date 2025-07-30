@@ -2,20 +2,46 @@ const express = require("express");
 const router = express.Router();
 const locationController = require("../controllers/locationController");
 const auth = require("../middlewares/authMiddleware");
+const checkPermission = require("../middlewares/checkPermission");
 
 // Create a new location
-router.post("/add-location", auth, locationController.createLocation);
+router.post(
+  "/add-location",
+  auth,
+  checkPermission("Location", "write"),
+  locationController.createLocation
+);
 
 // Add Bulk Locations
-router.post("/add-many", auth, locationController.addManyLocations);
+router.post(
+  "/add-many",
+  auth,
+  checkPermission("Location", "write"),
+  locationController.addManyLocations
+);
 
 // Get all locations with pagination, search, and isActive filter
-router.get("/get-all", auth, locationController.getAllLocations);
+router.get(
+  "/get-all",
+  auth,
+  checkPermission("Location", "read"),
+  locationController.getAllLocations
+);
 
 // Update a location
-router.patch("/update-location/:id", auth, locationController.updateLocation);
+router.patch(
+  "/update-location/:id",
+  auth,
+  checkPermission("Location", "update"),
+  locationController.updateLocation
+);
 
 // Delete permanently (optional)
-router.delete("/delete-location/:id", auth, locationController.deleteLocation);
+router.delete(
+  "/delete-location/:id",
+  auth,
+  checkPermission("Location", "delete"),
+  locationController.deleteLocation
+);
 
 module.exports = router;

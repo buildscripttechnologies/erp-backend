@@ -11,12 +11,23 @@ const {
   deleteUOM,
   createBulkUOMs,
 } = require("../controllers/uomController");
+const checkPermission = require("../middlewares/checkPermission");
 
-router.get("/all-uoms", auth, getAllUOMs);
-router.get("/uom/:uomId", auth, checkRole(["Admin"]), getUOMById);
-router.post("/add-uom", auth, checkRole(["Admin"]), createUOM);
-router.post("/add-many", auth, checkRole(["Admin"]), createBulkUOMs);
-router.patch("/update-uom/:id", auth, checkRole(["Admin"]), updateUOM);
-router.delete("/delete-uom/:id", auth, checkRole(["Admin"]), deleteUOM);
+router.get("/all-uoms", auth, checkPermission("UOM", "read"), getAllUOMs);
+router.get("/uom/:uomId", auth, checkPermission("UOM", "read"), getUOMById);
+router.post("/add-uom", auth, checkPermission("UOM", "write"), createUOM);
+router.post("/add-many", auth, checkPermission("UOM", "write"), createBulkUOMs);
+router.patch(
+  "/update-uom/:id",
+  auth,
+  checkPermission("UOM", "update"),
+  updateUOM
+);
+router.delete(
+  "/delete-uom/:id",
+  auth,
+  checkPermission("UOM", "delete"),
+  deleteUOM
+);
 
 module.exports = router;

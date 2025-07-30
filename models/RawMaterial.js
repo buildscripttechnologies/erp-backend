@@ -50,10 +50,12 @@ const rawMaterialSchema = new mongoose.Schema(
     },
     rate: {
       type: Number,
+      default: 0,
     },
-    totalRate: Number,
+    totalRate: { type: Number, default: 0 },
     gst: {
       type: Number,
+      default: 0,
     },
     stockQty: {
       type: Number,
@@ -88,46 +90,46 @@ const rawMaterialSchema = new mongoose.Schema(
 
 applySoftDelete(rawMaterialSchema);
 
-rawMaterialSchema.pre("save", function (next) {
-  if (this.rate != null && this.stockQty != null) {
-    this.totalRate = this.rate * this.stockQty;
-  }
-  next();
-});
+// rawMaterialSchema.pre("save", function (next) {
+//   if (this.rate != null && this.stockQty != null) {
+//     this.totalRate = this.rate * this.stockQty;
+//   }
+//   next();
+// });
 
-rawMaterialSchema.pre("findOneAndUpdate", function (next) {
-  const update = this.getUpdate();
-  const rate = update.rate ?? update.$set?.rate;
-  const stockQty = update.stockQty ?? update.$set?.stockQty;
+// rawMaterialSchema.pre("findOneAndUpdate", function (next) {
+//   const update = this.getUpdate();
+//   const rate = update.rate ?? update.$set?.rate;
+//   const stockQty = update.stockQty ?? update.$set?.stockQty;
 
-  if (rate != null && stockQty != null) {
-    if (!update.$set) update.$set = {};
-    update.$set.totalRate = rate * stockQty;
-  }
+//   if (rate != null && stockQty != null) {
+//     if (!update.$set) update.$set = {};
+//     update.$set.totalRate = rate * stockQty;
+//   }
 
-  next();
-});
+//   next();
+// });
 
-rawMaterialSchema.post("find", async function (docs) {
-  for (const doc of docs) {
-    if ((!doc.totalRate || doc.totalRate === 0) && doc.rate && doc.stockQty) {
-      doc.totalRate = doc.rate * doc.stockQty;
-      await doc.save(); // only if needed
-    }
-  }
-});
+// rawMaterialSchema.post("find", async function (docs) {
+//   for (const doc of docs) {
+//     if ((!doc.totalRate || doc.totalRate === 0) && doc.rate && doc.stockQty) {
+//       doc.totalRate = doc.rate * doc.stockQty;
+//       await doc.save(); // only if needed
+//     }
+//   }
+// });
 
-rawMaterialSchema.post("findOne", async function (doc) {
-  if (
-    doc &&
-    (!doc.totalRate || doc.totalRate === 0) &&
-    doc.rate &&
-    doc.stockQty
-  ) {
-    doc.totalRate = doc.rate * doc.stockQty;
-    await doc.save(); // only if needed
-  }
-});
+// rawMaterialSchema.post("findOne", async function (doc) {
+//   if (
+//     doc &&
+//     (!doc.totalRate || doc.totalRate === 0) &&
+//     doc.rate &&
+//     doc.stockQty
+//   ) {
+//     doc.totalRate = doc.rate * doc.stockQty;
+//     await doc.save(); // only if needed
+//   }
+// });
 
 const RawMaterial = mongoose.model("RawMaterial", rawMaterialSchema);
 module.exports = RawMaterial;

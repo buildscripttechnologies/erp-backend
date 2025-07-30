@@ -16,8 +16,6 @@ exports.addBom = async (req, res) => {
   try {
     const { partyName, orderQty, productName, productDetails, date } = req.body;
 
-    console.log("req.body", req.body);
-
     let customer = await Customer.findOne({ customerName: partyName });
 
     if (!customer) {
@@ -185,7 +183,7 @@ exports.getAllBoms = async (req, res) => {
 
     const totalResults = await BOM.countDocuments();
 
-    const boms = await BOM.find({ isDeleted: false })
+    const boms = await BOM.find()
       .populate("partyName", "customerName")
       .populate("productName", "itemName skuCode ")
       .populate("productDetails.itemId")

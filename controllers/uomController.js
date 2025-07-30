@@ -79,8 +79,6 @@ exports.getAllUOMs = async (req, res) => {
       UOM.countDocuments(filter),
     ]);
 
-    console.log("uoms", uoms);
-
     return res.status(200).json({
       status: 200,
       totalResults: total,

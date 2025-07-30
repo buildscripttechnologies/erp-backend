@@ -19,6 +19,7 @@ const vendorRoutes = require("./routes/vendorRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const bomRoutes = require("./routes/bomRoutes");
 const sampleRoutes = require("./routes/sampleRoutes");
+const syncRawMaterials = require("./syncData/syncRawMaterials");
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, "uploads");
 
@@ -61,4 +62,8 @@ app.use("/api/samples", sampleRoutes);
 app.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);
   connectDB();
+
+  syncRawMaterials()
+    .then(() => console.log("✅ Schema sync done"))
+    .catch((err) => console.error("❌ Schema sync failed:", err));
 });

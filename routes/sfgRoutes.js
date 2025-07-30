@@ -14,25 +14,28 @@ const {
   compressUploadedFiles,
 } = require("../middlewares/uploadFile");
 const setUploadType = require("../middlewares/setUploadType");
+const checkPermission = require("../middlewares/checkPermission");
 
 router.post(
   "/add-many",
   auth,
+  checkPermission("SFG", "write"),
   setUploadType("sfg_attachments"),
   uploadFile.array("files"),
   compressUploadedFiles,
   addMultipleSFGs
 );
-router.get("/get-all", auth, getAllSFGs);
-router.patch("/update/:id", auth, updateSFG);
+router.get("/get-all", auth, checkPermission("SFG", "read"), getAllSFGs);
+router.patch("/update/:id", auth, checkPermission("SFG", "update"), updateSFG);
 router.patch(
   "/edit/:id",
   auth,
+  checkPermission("SFG", "update"),
   setUploadType("sfg_attachments"),
   uploadFile.array("files"),
   compressUploadedFiles,
   updateSFGWithFiles
 );
-router.delete("/delete/:id", auth, deleteSFG);
+router.delete("/delete/:id", auth, checkPermission("SFG", "delete"), deleteSFG);
 
 module.exports = router;

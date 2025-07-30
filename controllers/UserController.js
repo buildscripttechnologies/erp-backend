@@ -127,6 +127,7 @@ const getAllUsers = async (req, res) => {
         isVerified: user.isVerified,
         twoStepEnabled: user.twoStepEnabled,
         status: user.status,
+        permissions: user.permissions,
       })),
       pagination: {
         currentPage: page,
@@ -140,9 +141,49 @@ const getAllUsers = async (req, res) => {
   }
 };
 
+const updatePermission = async (req, res) => {
+  try {
+    const { permissions } = req.body;
+
+    if (
+      !Array.isArray(permissions) ||
+      !permissions.every(
+        (p) =>
+          typeof p.module === "string" &&
+          Array.isArray(p.actions) &&
+          p.actions.every((a) => typeof a === "string")
+      )
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Invalid permissions format or structure" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      req.params.id,
+      { permissions },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      status: 200,
+      message: "User permissions updated successfully",
+      user: updatedUser,
+    });
+  } catch (err) {
+    console.log(err.message);
+    return res.status(500).json({ message: "Error updating permissions" });
+  }
+};
+
 module.exports = {
   updateUser,
   deleteUser,
   getUser,
   getAllUsers,
+  updatePermission,
 };
