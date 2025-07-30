@@ -56,7 +56,7 @@ exports.getAllUOMs = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10000;
     const skip = (page - 1) * limit;
-    const { status = true } = req.query;
+    const { status = true, search = "" } = req.query;
 
     let filter = {};
     if (status === "true" || status === true) {
@@ -65,6 +65,15 @@ exports.getAllUOMs = async (req, res) => {
       filter.status = false;
     } else if (status == "all") {
       filter = {};
+    }
+
+    // Add search condition
+    if (search.trim() !== "") {
+      const searchRegex = new RegExp(search, "i");
+      filter.$or = [
+        { unitName: searchRegex },
+        { unitDescription: searchRegex },
+      ];
     }
 
     const [uoms, total] = await Promise.all([

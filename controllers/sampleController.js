@@ -193,23 +193,78 @@ exports.getAllSamples = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+    const { search = "" } = req.query;
 
-    const totalResults = await Sample.countDocuments();
+    // Build search filter using regex
+    const searchRegex = new RegExp(search, "i");
 
-    const samples = await Sample.find()
-      .populate("partyName", "customerName")
-      .populate("product.name", "itemName skuCode ")
-      .populate("productDetails.itemId")
-      .populate("createdBy", "username fullName userType")
-      .sort({ createdAt: -1, _id: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    const matchStage = search
+      ? {
+          $or: [
+            { sampleNo: { $regex: searchRegex } },
+            { bomNo: { $regex: searchRegex } },
+            { "party.customerName": { $regex: searchRegex } },
+            { "product.name": { $regex: searchRegex } },
+          ],
+        }
+      : {};
 
-    // Restructure the Sample data
-    const formattedSamples = samples.map((s) => ({
+    const aggregationPipeline = [
+      {
+        $lookup: {
+          from: "customers",
+          localField: "partyName",
+          foreignField: "_id",
+          as: "party",
+        },
+      },
+      {
+        $unwind: {
+          path: "$party",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
+      {
+        $unwind: {
+          path: "$createdBy",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $match: matchStage,
+      },
+      {
+        $sort: { createdAt: -1, _id: -1 },
+      },
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $addFields: {
+                partyName: "$party.customerName",
+              },
+            },
+          ],
+          total: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await Sample.aggregate(aggregationPipeline);
+
+    const formattedSamples = result[0].data.map((s) => ({
       _id: s._id,
-      partyName: s.partyName?.customerName || null,
+      partyName: s.partyName || null,
       orderQty: s.orderQty,
       product: s.product || null,
       sampleNo: s.sampleNo,
@@ -225,7 +280,6 @@ exports.getAllSamples = async (req, res) => {
         itemId: pd.itemId?._id || null,
         itemName: pd.itemId?.itemName || null,
         skuCode: pd.itemId?.skuCode || null,
-        // uom: pd.itemId?.UOM || pd.itemId?.stockUOM,
         height: pd.height,
         width: pd.width,
         depth: pd.depth,
@@ -234,7 +288,9 @@ exports.getAllSamples = async (req, res) => {
       })),
     }));
 
-    res.status(200).json({
+    const totalResults = result[0].total[0]?.count || 0;
+
+    return res.status(200).json({
       success: true,
       totalResults,
       totalPages: Math.ceil(totalResults / limit),
@@ -244,7 +300,7 @@ exports.getAllSamples = async (req, res) => {
     });
   } catch (err) {
     console.error("Get All Samples Error:", err);
-    res
+    return res
       .status(500)
       .json({ success: false, message: "Failed to fetch Samples" });
   }

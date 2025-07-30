@@ -80,7 +80,7 @@ const getAllRoles = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
-    const { status = "true" } = req.query;
+    const { status = "true", search = "" } = req.query;
 
     // Build filter object
     let filter = {};
@@ -89,6 +89,12 @@ const getAllRoles = async (req, res) => {
     } else if (status === "false" || status === false) {
       filter.isActive = false;
     } // else no filter (all roles)
+
+    // Add search condition
+    if (search.trim() !== "") {
+      const searchRegex = new RegExp(search, "i");
+      filter.$or = [{ name: searchRegex }];
+    }
 
     // Parallel fetch and count
     const [roles, total] = await Promise.all([

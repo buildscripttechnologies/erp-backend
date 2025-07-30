@@ -31,7 +31,11 @@ exports.getAllRawMaterials = async (req, res) => {
   try {
     const { page = 1, limit = 20, search = "" } = req.query;
     const query = {
-      itemName: { $regex: search, $options: "i" },
+      $or: [
+        { itemName: { $regex: search, $options: "i" } },
+        { skuCode: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ],
     };
 
     const total = await RawMaterial.countDocuments(query);

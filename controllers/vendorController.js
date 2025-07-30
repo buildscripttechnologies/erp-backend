@@ -115,7 +115,17 @@ exports.getAllVendors = async (req, res) => {
 
     if (search) {
       const regex = new RegExp(search, "i");
-      filter.$or = [{ vendorName: regex }, { venderCode: regex }];
+      filter.$or = [
+        { vendorName: regex },
+        { venderCode: regex },
+        { natureOfBusiness: regex },
+        { address: regex },
+        { city: regex },
+        { state: regex },
+        { country: regex },
+        { gst: regex },
+        { postalCode: regex },
+      ];
     }
 
     if (status === "active") filter.isActive = true;

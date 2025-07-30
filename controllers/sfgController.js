@@ -102,6 +102,7 @@ exports.getAllSFGs = async (req, res) => {
           $or: [
             { itemName: { $regex: search, $options: "i" } },
             { skuCode: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
           ],
         }
       : {};
