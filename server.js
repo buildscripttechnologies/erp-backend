@@ -41,8 +41,8 @@ app.use(
 
 app.set("trust proxy", true);
 
-app.get("/", (req, res) => {
-  res.send("Welcome to the ERP Backend!");
+app.get('/', (req, res) => {
+  res.redirect(301, 'https://app.smartflow360.com');
 });
 
 app.use("/api/auth", authRoutes);
