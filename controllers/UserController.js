@@ -81,7 +81,7 @@ const getUser = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    let { page = 1, limit = 10, search = "", userType, status } = req.query;
+    let { page = 1, limit = 10, searchText = "", userType, status } = req.query;
 
     // console.log("req.query", req.query);
 
@@ -95,11 +95,12 @@ const getAllUsers = async (req, res) => {
     if (status) filter.status = status;
 
     // Add search conditions (case-insensitive, partial match)
-    if (search) {
-      const searchRegex = new RegExp(search, "i");
+    if (searchText) {
+      const searchRegex = new RegExp(searchText, "i");
       filter.$or = [
         { fullName: searchRegex },
         { username: searchRegex },
+        { userType: searchRegex },
         { email: searchRegex },
         { mobile: searchRegex },
       ];

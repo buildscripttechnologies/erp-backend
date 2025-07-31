@@ -69,9 +69,21 @@ exports.getAllCustomers = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     const filter = {};
+
     if (search) {
       const regex = new RegExp(search, "i");
-      filter.$or = [{ customerName: regex }, { customerCode: regex }];
+      filter.$or = [
+        { customerCode: regex },
+        { customerName: regex },
+        { aliasName: regex },
+        { natureOfBusiness: regex },
+        { address: regex },
+        { city: regex },
+        { state: regex },
+        { country: regex },
+        { postalCode: regex },
+        { gst: regex },
+      ];
     }
 
     if (status === "active") filter.isActive = true;

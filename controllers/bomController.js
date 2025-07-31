@@ -63,9 +63,6 @@ exports.addBom = async (req, res) => {
     const bomNo = await generateNextBomNo();
     const sampleNo = await generateNextSampleNo();
 
-    console.log("sfg", fg.sfg);
-    console.log("rm", fg.rm);
-
     let pDetails = fg.rm?.map((c) => ({
       itemId: c.rmid,
       type: "RawMaterial",
@@ -91,8 +88,6 @@ exports.addBom = async (req, res) => {
       ? productDetails
       : pDetails;
 
-    console.log("resolved", resolvedProductDetails);
-
     const newBom = await BOM.create({
       partyName: customer._id,
       orderQty,
@@ -103,8 +98,6 @@ exports.addBom = async (req, res) => {
       productDetails: resolvedProductDetails,
       createdBy: req.user?._id,
     });
-
-    console.log("data", newBom);
 
     res.status(201).json({ success: true, data: newBom });
   } catch (err) {
@@ -180,25 +173,66 @@ exports.getAllBoms = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
+    const { search = "" } = req.query;
 
-    const totalResults = await BOM.countDocuments();
+    const searchRegex = new RegExp(search, "i");
 
-    const boms = await BOM.find()
-      .populate("partyName", "customerName")
-      .populate("productName", "itemName skuCode ")
-      .populate("productDetails.itemId")
-      .populate("createdBy", "username fullName userType")
-      .sort({ createdAt: -1, _id: -1 })
-      .skip(skip)
-      .limit(limit)
-      .lean();
+    const matchStage = search
+      ? {
+          $or: [
+            { bomNo: { $regex: searchRegex } },
+            { sampleNo: { $regex: searchRegex } },
+            { "party.customerName": { $regex: searchRegex } },
+            { "product.itemName": { $regex: searchRegex } },
+          ],
+        }
+      : {};
 
-    // Restructure the BOM data
-    const formattedBoms = boms.map((bom) => ({
+    const aggregationPipeline = [
+      {
+        $lookup: {
+          from: "customers",
+          localField: "partyName",
+          foreignField: "_id",
+          as: "party",
+        },
+      },
+      { $unwind: { path: "$party", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "fgs",
+          localField: "productName",
+          foreignField: "_id",
+          as: "product",
+        },
+      },
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
+      { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
+      { $match: matchStage },
+      { $sort: { createdAt: -1, _id: -1 } },
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }],
+          total: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await BOM.aggregate(aggregationPipeline);
+
+    const formattedBoms = result[0].data.map((bom) => ({
       _id: bom._id,
-      partyName: bom.partyName?.customerName || null,
+      partyName: bom.party?.customerName || null,
       orderQty: bom.orderQty,
-      productName: bom.productName?.itemName || null,
+      productName: bom.product?.itemName || null,
       sampleNo: bom.sampleNo,
       bomNo: bom.bomNo,
       date: bom.date,
@@ -211,7 +245,6 @@ exports.getAllBoms = async (req, res) => {
         itemId: pd.itemId?._id || null,
         itemName: pd.itemId?.itemName || null,
         skuCode: pd.itemId?.skuCode || null,
-        // uom: pd.itemId?.UOM || pd.itemId?.stockUOM,
         height: pd.height,
         width: pd.width,
         depth: pd.depth,
@@ -219,6 +252,8 @@ exports.getAllBoms = async (req, res) => {
         qty: pd.qty,
       })),
     }));
+
+    const totalResults = result[0].total[0]?.count || 0;
 
     res.status(200).json({
       success: true,
