@@ -44,6 +44,10 @@ const rawMaterialSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    baseUOM: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "UOM",
+    },
     purchaseUOM: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
@@ -64,6 +68,10 @@ const rawMaterialSchema = new mongoose.Schema(
     stockUOM: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
+    },
+    conversionFactor: {
+      type: Number,
+      default: 1, // Example: 1 box = 10 kg
     },
     attachments: [
       {

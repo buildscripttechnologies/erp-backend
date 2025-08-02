@@ -19,6 +19,8 @@ const vendorRoutes = require("./routes/vendorRoutes");
 const customerRoutes = require("./routes/customerRoutes");
 const bomRoutes = require("./routes/bomRoutes");
 const sampleRoutes = require("./routes/sampleRoutes");
+const stockRoutes = require("./routes/stockRoutes");
+
 const syncRawMaterials = require("./syncData/syncRawMaterials");
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, "uploads");
@@ -42,7 +44,7 @@ app.use(
 app.set("trust proxy", true);
 
 app.get("/", (req, res) => {
-  res.send("Welcome to the ERP Backend!");
+  res.redirect(301, "https://app.smartflow360.com");
 });
 
 app.use("/api/auth", authRoutes);
@@ -58,6 +60,7 @@ app.use("/api/vendors", vendorRoutes);
 app.use("/api/customers", customerRoutes);
 app.use("/api/boms", bomRoutes);
 app.use("/api/samples", sampleRoutes);
+app.use("/api/stocks", stockRoutes);
 
 app.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);
