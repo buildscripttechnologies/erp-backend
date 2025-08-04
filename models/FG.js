@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const softDeletePlugin = require("../utils/softDeletePlugin");
 
-const applySoftDelete = require('../plugins/mongooseDeletePlugin');
+const applySoftDelete = require("../plugins/mongooseDeletePlugin");
 const fgSchema = new mongoose.Schema(
   {
     skuCode: {
@@ -39,6 +39,14 @@ const fgSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
     },
+    baseUOM: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "UOM",
+    },
+    conversionFactor: {
+      type: Number,
+      default: 1, // Example: 1 box = 10 kg
+    },
     status: {
       type: String,
       enum: ["Active", "Inactive"],
@@ -72,7 +80,7 @@ const fgSchema = new mongoose.Schema(
         depth: Number,
       },
     ],
-    
+
     deletedAt: { type: Date, default: null },
   },
   {

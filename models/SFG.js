@@ -47,6 +47,14 @@ const sfgSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
     },
+    baseUOM: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "UOM",
+    },
+    conversionFactor: {
+      type: Number,
+      default: 1, // Example: 1 box = 10 kg
+    },
     status: {
       type: String,
       enum: ["Active", "Inactive"],
@@ -80,7 +88,7 @@ const sfgSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-    
+
     deletedAt: { type: Date, default: null },
   },
   {
