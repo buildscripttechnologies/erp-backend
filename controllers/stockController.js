@@ -7,7 +7,7 @@ const dayjs = require("dayjs");
 
 exports.createStockEntry = async (req, res) => {
   try {
-    const { itemId, itemType, stockQty } = req.body;
+    const { itemId, itemType, stockQty, conversionFactor } = req.body;
 
     const modelMap = { RM: RawMaterial, SFG: SFG, FG: FG };
     const Model = modelMap[itemType];
@@ -19,7 +19,7 @@ exports.createStockEntry = async (req, res) => {
     const item = await query;
     if (!item) return res.status(404).json({ message: "Item not found" });
 
-    const convFactor = item.conversionFactor || 1;
+    const convFactor = conversionFactor;
 
     // Prepare base and purchase UOM
     const baseUOM = itemType === "RM" ? item.baseUOM?._id : item.UOM?._id;
@@ -50,6 +50,15 @@ exports.createStockEntry = async (req, res) => {
     const minimal = barcodes.map((b) => ({ _id: b._id, barcode: b.barcode }));
     stockDoc.barcodes = minimal;
     await stockDoc.save();
+
+    // ✅ Step 3.5: Update RM's stockQty if itemType is "RM"
+    if (itemType === "RM") {
+      await RawMaterial.findByIdAndUpdate(
+        itemId,
+        { $inc: { stockQty: stockQty } }, // ✅ increment stockQty by input amount
+        { new: true }
+      );
+    }
 
     // Step 4: Send response
     return res.status(200).json({

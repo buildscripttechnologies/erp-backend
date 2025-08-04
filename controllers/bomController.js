@@ -16,8 +16,8 @@ exports.addBom = async (req, res) => {
   try {
     const { partyName, orderQty, productName, productDetails, date } = req.body;
 
+    // Step 1: Get or create Customer
     let customer = await Customer.findOne({ customerName: partyName });
-
     if (!customer) {
       const [newCode] = await generateBulkCustomerCodes(1);
       customer = await Customer.create({
@@ -27,82 +27,61 @@ exports.addBom = async (req, res) => {
       });
     }
 
+    // Step 2: Get FG by product name
     let fg = await FG.findOne({ itemName: productName });
 
+    // Step 3: If FG doesn't exist, create new one
     if (!fg) {
-      const [newSku] = await generateBulkFgSkuCodes(1);
-      const rmComponents = productDetails
-        .filter((c) => c.type === "RawMaterial")
-        .map((c) => ({
-          rmid: c.itemId,
-          height: c.height,
-          width: c.width,
-          depth: c.depth,
-          qty: c.qty,
-        }));
-
-      const sfgComponents = productDetails
-        .filter((c) => c.type === "SFG")
-        .map((c) => ({
-          sfgid: c.itemId,
-          height: c.height,
-          width: c.width,
-          depth: c.depth,
-          qty: c.qty,
-        }));
       fg = await FG.create({
-        skuCode: newSku,
         itemName: productName,
         type: "FG",
-        rm: rmComponents,
-        sfg: sfgComponents,
+        rm: productDetails
+          .filter((d) => d.type === "RawMaterial")
+          .map((d) => ({
+            rmid: d.itemId,
+            qty: d.qty,
+            height: d.height,
+            width: d.width,
+            depth: d.depth,
+          })),
+        sfg: productDetails
+          .filter((d) => d.type === "SFG")
+          .map((d) => ({
+            sfgid: d.itemId,
+            qty: d.qty,
+            height: d.height,
+            width: d.width,
+            depth: d.depth,
+          })),
         createdBy: req.user?._id,
       });
     }
 
-    const bomNo = await generateNextBomNo();
-    const sampleNo = await generateNextSampleNo();
-
-    let pDetails = fg.rm?.map((c) => ({
-      itemId: c.rmid,
-      type: "RawMaterial",
-      height: c.height,
-      width: c.width,
-      depth: c.depth,
-      qty: c.qty,
+    // Step 4: Normalize productDetails types
+    const resolvedProductDetails = productDetails.map((d) => ({
+      ...d,
+      type: d.type === "RM" ? "RawMaterial" : d.type, // ensure enum compliance
     }));
 
-    pDetails = [
-      ...pDetails,
-      ...fg.sfg?.map((c) => ({
-        itemId: c.sfgid,
-        type: "SFG",
-        height: c.height,
-        width: c.width,
-        depth: c.depth,
-        qty: c.qty,
-      })),
-    ];
-
-    const resolvedProductDetails = productDetails?.length
-      ? productDetails
-      : pDetails;
+    // Step 5: Create BOM
+    const bomNo = await generateNextBomNo();
 
     const newBom = await BOM.create({
       partyName: customer._id,
       orderQty,
       productName: fg._id,
-      sampleNo,
       bomNo,
       date,
       productDetails: resolvedProductDetails,
       createdBy: req.user?._id,
     });
 
-    res.status(201).json({ success: true, data: newBom });
+    return res.status(201).json({ success: true, data: newBom });
   } catch (err) {
     console.error("Add BOM Error:", err);
-    res.status(500).json({ success: false, message: "Failed to add BOM" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to add BOM" });
   }
 };
 
@@ -240,17 +219,7 @@ exports.getAllBoms = async (req, res) => {
       createdAt: bom.createdAt,
       updatedAt: bom.updatedAt,
       createdBy: bom.createdBy,
-      productDetails: bom.productDetails.map((pd) => ({
-        _id: pd._id,
-        itemId: pd.itemId?._id || null,
-        itemName: pd.itemId?.itemName || null,
-        skuCode: pd.itemId?.skuCode || null,
-        height: pd.height,
-        width: pd.width,
-        depth: pd.depth,
-        type: pd.type,
-        qty: pd.qty,
-      })),
+      productDetails: bom.productDetails || "",
     }));
 
     const totalResults = result[0].total[0]?.count || 0;

@@ -40,6 +40,7 @@ const bomSchema = new mongoose.Schema(
           type: String,
           enum: ["RawMaterial", "SFG", "FG"],
         },
+        partName:String,
         height: Number,
         width: Number,
         depth: Number,
