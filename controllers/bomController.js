@@ -207,20 +207,51 @@ exports.getAllBoms = async (req, res) => {
 
     const result = await BOM.aggregate(aggregationPipeline);
 
-    const formattedBoms = result[0].data.map((bom) => ({
-      _id: bom._id,
-      partyName: bom.party?.customerName || null,
-      orderQty: bom.orderQty,
-      productName: bom.product?.itemName || null,
-      sampleNo: bom.sampleNo,
-      bomNo: bom.bomNo,
-      date: bom.date,
-      isActive: bom.isActive,
-      createdAt: bom.createdAt,
-      updatedAt: bom.updatedAt,
-      createdBy: bom.createdBy,
-      productDetails: bom.productDetails || "",
-    }));
+    // Attach skuCode and itemName to productDetails based on type
+    const enrichedData = await Promise.all(
+      result[0].data.map(async (bom) => {
+        const enrichedDetails = await Promise.all(
+          (bom.productDetails || []).map(async (detail) => {
+            let collectionName;
+            if (detail.type === "RawMaterial") collectionName = "rawmaterials";
+            else if (detail.type === "SFG") collectionName = "sfgs";
+            else if (detail.type === "FG") collectionName = "fgs";
+            else return detail;
+
+            const [item] = await BOM.db
+              .collection(collectionName)
+              .find({ _id: detail.itemId })
+              .project({ skuCode: 1, itemName: 1 })
+              .toArray();
+
+            return {
+              ...detail,
+              skuCode: item?.skuCode || null,
+              itemName: item?.itemName || null,
+            };
+          })
+        );
+
+        return {
+          _id: bom._id,
+          partyName: bom.party?.customerName || null,
+          orderQty: bom.orderQty,
+          productName: bom.product?.itemName || null,
+          sampleNo: bom.sampleNo,
+          bomNo: bom.bomNo,
+          date: bom.date,
+          isActive: bom.isActive,
+          createdAt: bom.createdAt,
+          updatedAt: bom.updatedAt,
+          createdBy: {
+            _id: bom.createdBy?._id,
+            username: bom.createdBy?.username,
+            fullName: bom.createdBy?.fullName,
+          },
+          productDetails: enrichedDetails,
+        };
+      })
+    );
 
     const totalResults = result[0].total[0]?.count || 0;
 
@@ -230,7 +261,7 @@ exports.getAllBoms = async (req, res) => {
       totalPages: Math.ceil(totalResults / limit),
       currentPage: page,
       limit,
-      data: formattedBoms,
+      data: enrichedData,
     });
   } catch (err) {
     console.error("Get All BOMs Error:", err);

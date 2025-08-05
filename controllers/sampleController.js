@@ -1,5 +1,6 @@
 const Customer = require("../models/Customer");
 const FG = require("../models/FG");
+const RawMaterial = require("../models/RawMaterial");
 const Sample = require("../models/Sample");
 const {
   generateNextSampleNo,
@@ -127,6 +128,7 @@ exports.updateSample = async (req, res) => {
 
 const fs = require("fs");
 const path = require("path");
+const SFG = require("../models/SFG");
 
 exports.updateSampleWithFiles = async (req, res) => {
   try {
@@ -204,7 +206,6 @@ exports.getAllSamples = async (req, res) => {
     const skip = (page - 1) * limit;
     const { search = "" } = req.query;
 
-    // Build search filter using regex
     const searchRegex = new RegExp(search, "i");
 
     const matchStage = search
@@ -256,7 +257,6 @@ exports.getAllSamples = async (req, res) => {
           },
         },
       },
-
       {
         $match: matchStage,
       },
@@ -284,7 +284,7 @@ exports.getAllSamples = async (req, res) => {
                 createdAt: 1,
                 updatedAt: 1,
                 file: 1,
-                partyName: 1,
+                partyName: "$party.customerName",
                 product: 1,
                 productDetails: 1,
                 createdBy: {
@@ -301,22 +301,35 @@ exports.getAllSamples = async (req, res) => {
     ];
 
     const result = await Sample.aggregate(aggregationPipeline);
+    const samples = result[0].data;
 
-    const formattedSamples = result[0].data.map((s) => ({
-      _id: s._id,
-      partyName: s.partyName || null,
-      orderQty: s.orderQty,
-      product: s.product || null,
-      sampleNo: s.sampleNo,
-      bomNo: s.bomNo,
-      date: s.date,
-      isActive: s.isActive,
-      createdAt: s.createdAt,
-      updatedAt: s.updatedAt,
-      createdBy: s.createdBy,
-      file: s.file,
-      productDetails: s.productDetails,
-    }));
+    // Enrich productDetails with skuCode and itemName
+    for (const sample of samples) {
+      if (sample.productDetails?.length > 0) {
+        for (const detail of sample.productDetails) {
+          const { itemId, type } = detail;
+
+          let item = null;
+          if (type === "RawMaterial") {
+            item = await RawMaterial.findById(itemId).select(
+              "skuCode itemName"
+            );
+          } else if (type === "SFG") {
+            item = await SFG.findById(itemId).select("skuCode itemName");
+          } else if (type === "FG") {
+            item = await FG.findById(itemId).select("skuCode itemName");
+          }
+
+          if (item) {
+            detail.skuCode = item.skuCode;
+            detail.itemName = item.itemName;
+          } else {
+            detail.skuCode = null;
+            detail.itemName = null;
+          }
+        }
+      }
+    }
 
     const totalResults = result[0].total[0]?.count || 0;
 
@@ -326,7 +339,7 @@ exports.getAllSamples = async (req, res) => {
       totalPages: Math.ceil(totalResults / limit),
       currentPage: page,
       limit,
-      data: formattedSamples,
+      data: samples,
     });
   } catch (err) {
     console.error("Get All Samples Error:", err);

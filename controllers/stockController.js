@@ -212,33 +212,63 @@ exports.getAllStocks = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
-    const [stocks, totalResults] = await Promise.all([
-      Stock.find()
-        .populate({
-          path: "baseUOM",
-          select: "_id unitName",
-        })
-        .populate({
-          path: "purchaseUOM",
-          select: "_id unitName",
-        })
-        .populate({
-          path: "stockUOM",
-          select: "_id unitName",
-        })
-        .populate({
-          path: "location",
-          select: "_id locationId", // You can limit location fields similarly
-        })
-        .populate({
-          path: "createdBy",
-          select: "_id username fullName",
-        })
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Stock.countDocuments(),
-    ]);
+    const { search = "", type, uom, fromDate, toDate } = req.query;
+
+    const query = {};
+
+    // Search filter (itemName or skuCode)
+    if (search) {
+      query.$or = [
+        { itemName: { $regex: search, $options: "i" } },
+        { skuCode: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Type filter
+    if (type) {
+      query.type = type;
+    }
+
+    // Date range filter
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) query.createdAt.$gte = new Date(fromDate);
+      if (toDate) {
+        // Add 1 day to include entire toDate
+        const to = new Date(toDate);
+        to.setDate(to.getDate() + 1);
+        query.createdAt.$lte = to;
+      }
+    }
+
+    // Fetch filtered stock documents
+    const stockQuery = Stock.find(query)
+      .populate({ path: "baseUOM", select: "_id unitName" })
+      .populate({ path: "purchaseUOM", select: "_id unitName" })
+      .populate({ path: "stockUOM", select: "_id unitName" })
+      .populate({ path: "location", select: "_id locationId" })
+      .populate({ path: "createdBy", select: "_id username fullName" })
+      .sort({ updatedAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const countQuery = Stock.countDocuments(query);
+
+    let [stocks, totalResults] = await Promise.all([stockQuery, countQuery]);
+
+    // UOM filter (after population)
+    if (uom) {
+      stocks = stocks.filter((stock) =>
+        [
+          // stock.baseUOM?.unitName,
+          stock.stockUOM?.unitName,
+          // stock.purchaseUOM?.unitName,
+        ]
+          .filter(Boolean)
+          .some((unit) => unit.toLowerCase() === uom.toLowerCase())
+      );
+      totalResults = stocks.length;
+    }
 
     const totalPages = Math.ceil(totalResults / limit);
 
