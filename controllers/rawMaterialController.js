@@ -52,6 +52,8 @@ exports.getAllRawMaterials = async (req, res) => {
       description: rm.description,
       hsnOrSac: rm.hsnOrSac,
       type: rm.type,
+      itemCategory: rm.itemCategory,
+      itemColor: rm.itemColor,
       qualityInspectionNeeded: rm.qualityInspectionNeeded,
       location: rm.location?.locationId || null,
       baseQty: rm.baseQty,

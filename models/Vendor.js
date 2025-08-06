@@ -13,6 +13,7 @@ const vendorSchema = mongoose.Schema(
     country: String,
     postalCode: String,
     gst: String,
+    pan: { type: String, default: null },
 
     factoryAddress: String,
     factoryCity: String,

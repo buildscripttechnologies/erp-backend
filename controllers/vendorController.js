@@ -108,7 +108,7 @@ exports.addMultipleVendors = async (req, res) => {
 
 exports.getAllVendors = async (req, res) => {
   try {
-    const { page = 1, limit = 10, status = "", search = "" } = req.query;
+    const { page = 1, limit = "", status = "", search = "" } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     let filter = {};

@@ -7,11 +7,20 @@ const stockSchema = new mongoose.Schema(
     itemName: String,
     type: { type: String, enum: ["RM", "SFG", "FG"], required: true },
     description: String,
+    itemCategory: {
+      type: String,
+      default: "",
+    },
+    itemColor: {
+      type: String,
+      default: "",
+    },
     baseUOM: { type: mongoose.Schema.Types.ObjectId, ref: "UOM" },
     purchaseUOM: { type: mongoose.Schema.Types.ObjectId, ref: "UOM" },
     stockUOM: { type: mongoose.Schema.Types.ObjectId, ref: "UOM" },
     conversionFactor: Number,
     stockQty: { type: Number, default: 0 },
+    damagedQty: { type: Number, default: 0 },
     barcodeTracked: { type: Boolean, default: false },
     barcodes: [
       {

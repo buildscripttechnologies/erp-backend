@@ -4,6 +4,7 @@ const {
   getAllStocks,
   getBarcodesByStockId,
   deleteStock,
+  getAllStocksMerged,
 } = require("../controllers/stockController");
 const auth = require("../middlewares/authMiddleware");
 const checkPermission = require("../middlewares/checkPermission");
@@ -11,16 +12,33 @@ const checkPermission = require("../middlewares/checkPermission");
 const router = express.Router();
 
 // Create stock + generate barcodes
-router.post("/add", auth, checkPermission("Stock", "write"), createStockEntry);
+router.post(
+  "/add",
+  auth,
+  checkPermission("Material Inward", "write"),
+  createStockEntry
+);
 
 // // Get all stocks with pagination
-router.get("/get-all", auth, checkPermission("Stock", "read"), getAllStocks);
+router.get(
+  "/get-all",
+  auth,
+  checkPermission("Material Inward", "read"),
+  getAllStocks
+);
+
+router.get(
+  "/get-all-merged",
+  auth,
+  checkPermission("Stock", "read"),
+  getAllStocksMerged
+);
 
 // Get barcodes for a given stock
 router.get(
   "/barcodes/:id",
   auth,
-  checkPermission("Stock", "read"),
+  checkPermission("Material Inward", "read"),
   getBarcodesByStockId
 );
 
@@ -28,7 +46,7 @@ router.get(
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("Stock", "delete"),
+  checkPermission("Material Inward", "delete"),
   deleteStock
 );
 

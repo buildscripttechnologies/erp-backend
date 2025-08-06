@@ -7,7 +7,8 @@ const dayjs = require("dayjs");
 
 exports.createStockEntry = async (req, res) => {
   try {
-    const { itemId, itemType, stockQty, conversionFactor } = req.body;
+    const { itemId, itemType, stockQty, conversionFactor, damagedQty } =
+      req.body;
 
     const modelMap = { RM: RawMaterial, SFG: SFG, FG: FG };
     const Model = modelMap[itemType];
@@ -32,11 +33,14 @@ exports.createStockEntry = async (req, res) => {
       itemName: item.itemName,
       type: itemType,
       description: item.description,
+      itemCategory: item.itemCategory,
+      itemColor: item.itemColor,
       baseUOM,
       purchaseUOM,
       stockUOM,
       conversionFactor: convFactor,
       stockQty,
+      damagedQty,
       location: item.location?._id,
       barcodeTracked: true,
       barcodes: [],
@@ -76,6 +80,8 @@ async function generateBarcodes(stock) {
     skuCode,
     type,
     stockQty,
+    itemCategory,
+    itemColor,
     conversionFactor,
     baseUOM,
     purchaseUOM,
@@ -120,30 +126,27 @@ async function generateBarcodes(stock) {
   let totalUnits = 1;
 
   if (type === "RM") {
-    const hasDifferentUOM =
-      purchaseUOM && baseUOM && purchaseUOM.toString() !== baseUOM.toString();
+    totalUnits = Math.floor(stockQty / conversionFactor);
+    const remainingQty = stockQty % conversionFactor;
 
-    if (hasDifferentUOM) {
-      totalUnits = Math.floor(stockQty / conversionFactor);
-      const remainingQty = stockQty % conversionFactor;
+    for (let i = 0; i < totalUnits; i++) {
+      const code = `${skuParts[0]}-${skuParts[1]}-${dateStr}-${String(
+        startCounter + i
+      ).padStart(4, "0")}`;
 
-      for (let i = 0; i < totalUnits; i++) {
-        const code = `${skuParts[0]}-${skuParts[1]}-${dateStr}-${String(
-          startCounter + i
-        ).padStart(4, "0")}`;
-
-        barcodes.push({
-          itemType: type,
-          itemId: stockId,
-          barcode: code,
-          qty: conversionFactor,
-          UOM: baseUOM,
-          originalUOM: purchaseUOM,
-          conversionFactor,
-          batchNo,
-          location,
-        });
-      }
+      barcodes.push({
+        itemType: type,
+        itemId: stockId,
+        barcode: code,
+        itemCategory,
+        itemColor,
+        qty: conversionFactor,
+        UOM: baseUOM,
+        originalUOM: purchaseUOM,
+        conversionFactor,
+        batchNo,
+        location,
+      });
 
       if (remainingQty > 0) {
         const code = `${skuParts[0]}-${skuParts[1]}-${dateStr}-${String(
@@ -154,6 +157,8 @@ async function generateBarcodes(stock) {
           itemType: type,
           itemId: stockId,
           barcode: code,
+          itemCategory,
+          itemColor,
           qty: remainingQty,
           UOM: baseUOM,
           originalUOM: purchaseUOM,
@@ -162,22 +167,6 @@ async function generateBarcodes(stock) {
           location,
         });
       }
-    } else {
-      const code = `${skuParts[0]}-${skuParts[1]}-${dateStr}-${String(
-        startCounter
-      ).padStart(4, "0")}`;
-
-      barcodes.push({
-        itemType: type,
-        itemId: stockId,
-        barcode: code,
-        qty: stockQty,
-        UOM: baseUOM,
-        originalUOM: baseUOM,
-        conversionFactor: 1,
-        batchNo,
-        location,
-      });
     }
   } else {
     // SFG or FG
@@ -192,6 +181,8 @@ async function generateBarcodes(stock) {
         itemType: type,
         itemId: stockId,
         barcode: code,
+        itemCategory,
+        itemColor,
         qty: conversionFactor,
         UOM: baseUOM,
         originalUOM: baseUOM,
@@ -289,6 +280,103 @@ exports.getAllStocks = async (req, res) => {
   }
 };
 
+//For Material Inward
+exports.getAllStocksMerged = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const { search = "", type, uom, fromDate, toDate } = req.query;
+
+    const query = {};
+
+    // Search filter (itemName or skuCode)
+    if (search) {
+      query.$or = [
+        { itemName: { $regex: search, $options: "i" } },
+        { skuCode: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Type filter
+    if (type) {
+      query.type = type;
+    }
+
+    // Date range filter
+    if (fromDate || toDate) {
+      query.createdAt = {};
+      if (fromDate) query.createdAt.$gte = new Date(fromDate);
+      if (toDate) {
+        const to = new Date(toDate);
+        to.setDate(to.getDate() + 1);
+        query.createdAt.$lte = to;
+      }
+    }
+
+    // Fetch all matching stocks first (no pagination yet)
+    let stocks = await Stock.find(query)
+      .populate({ path: "baseUOM", select: "_id unitName" })
+      .populate({ path: "purchaseUOM", select: "_id unitName" })
+      .populate({ path: "stockUOM", select: "_id unitName" })
+      .populate({ path: "location", select: "_id locationId" })
+      .populate({ path: "createdBy", select: "_id username fullName" })
+      .sort({ updatedAt: -1, _id: -1 });
+
+    // Optional UOM filter (after population)
+    if (uom) {
+      stocks = stocks.filter((stock) =>
+        [stock.stockUOM?.unitName]
+          .filter(Boolean)
+          .some((unit) => unit.toLowerCase() === uom.toLowerCase())
+      );
+    }
+
+    // Merge stocks by skuCode
+    const mergedMap = new Map();
+
+    for (const stock of stocks) {
+      const key = stock.skuCode;
+
+      if (!mergedMap.has(key)) {
+        // Clone the stock and set its stockQty as base
+        mergedMap.set(key, {
+          ...stock.toObject(),
+          stockQty: stock.stockQty,
+        });
+      } else {
+        // Merge stockQty
+        const existing = mergedMap.get(key);
+        existing.stockQty += stock.stockQty;
+      }
+    }
+
+    // Convert merged map to array
+    const mergedStocks = Array.from(mergedMap.values());
+
+    // Pagination after merging
+    const totalResults = mergedStocks.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    const paginated = mergedStocks.slice(skip, skip + limit);
+
+    return res.status(200).json({
+      status: 200,
+      totalResults,
+      totalPages,
+      currentPage: page,
+      limit,
+      data: paginated,
+    });
+  } catch (error) {
+    console.error("Error fetching stocks:", error);
+    return res.status(500).json({
+      status: 500,
+      message: "Internal server error",
+    });
+  }
+};
+
 exports.getStockById = async (req, res) => {
   try {
     const stock = await Stock.findById(req.params.id).populate(
@@ -350,6 +438,7 @@ exports.getBarcodesByStockId = async (req, res) => {
 };
 
 // DELETE /api/stocks/:id
+
 exports.deleteStock = async (req, res) => {
   try {
     const { id } = req.params;
@@ -361,12 +450,23 @@ exports.deleteStock = async (req, res) => {
         message: "Stock not found",
       });
     }
+    // Adjust RM stockQty before deleting
+    if (stock.type === "RM" && stock.skuCode) {
+      const rm = await RawMaterial.findOne({ skuCode: stock.skuCode });
+      // console.log("rm", rm);
 
-    await stock.delete(); // mongoose-delete's soft delete method
+      if (rm) {
+        rm.stockQty = Math.max(0, rm.stockQty - stock.stockQty); // prevent negative qty
+        await rm.save();
+      }
+    }
+
+    // Soft delete the stock entry
+    await stock.delete();
 
     return res.status(200).json({
       status: 200,
-      message: "Stock soft deleted successfully",
+      message: "Stock soft deleted and RM quantity updated",
     });
   } catch (error) {
     console.error("❌ Error deleting stock:", error);
@@ -376,3 +476,165 @@ exports.deleteStock = async (req, res) => {
     });
   }
 };
+
+// exports.deleteStock = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     const stock = await Stock.findById(id);
+//     if (!stock) {
+//       return res.status(404).json({
+//         status: 404,
+//         message: "Stock not found",
+//       });
+//     }
+
+//     await stock.delete(); // mongoose-delete's soft delete method
+
+//     return res.status(200).json({
+//       status: 200,
+//       message: "Stock soft deleted successfully",
+//     });
+//   } catch (error) {
+//     console.error("❌ Error deleting stock:", error);
+//     return res.status(500).json({
+//       status: 500,
+//       message: "Internal server error",
+//     });
+//   }
+// };
+
+// async function generateBarcodes(stock) {
+//   const {
+//     skuCode,
+//     type,
+//     stockQty,
+//     conversionFactor,
+//     baseUOM,
+//     purchaseUOM,
+//     location,
+//     _id: stockId,
+//   } = stock;
+
+//   const dateStr = dayjs().format("YYMMDD");
+//   const fullDate = dayjs().format("YYYYMMDD");
+//   const skuParts = skuCode.split("-");
+
+//   // Counter
+//   const lastBarcode = await Barcode.findOne({
+//     barcode: { $regex: `^${skuParts[0]}-${skuParts[1]}-${dateStr}-\\d{4}$` },
+//   })
+//     .sort({ barcode: -1 })
+//     .lean();
+
+//   let startCounter = 1;
+//   if (lastBarcode) {
+//     const parts = lastBarcode.barcode.split("-");
+//     const lastNum = parseInt(parts[3], 10);
+//     if (!isNaN(lastNum)) startCounter = lastNum + 1;
+//   }
+
+//   // Batch No
+//   const lastBatch = await Barcode.findOne({
+//     batchNo: { $regex: `^B-${fullDate}-\\d{2}$` },
+//   })
+//     .sort({ batchNo: -1 })
+//     .lean();
+
+//   let batchCounter = 1;
+//   if (lastBatch?.batchNo) {
+//     const match = lastBatch.batchNo.match(/-(\d{2})$/);
+//     if (match) batchCounter = parseInt(match[1]) + 1;
+//   }
+
+//   const batchNo = `B-${fullDate}-${String(batchCounter).padStart(2, "0")}`;
+
+//   const barcodes = [];
+//   let totalUnits = 1;
+
+//   if (type === "RM") {
+//     const hasDifferentUOM =
+//       purchaseUOM && baseUOM && purchaseUOM.toString() !== baseUOM.toString();
+
+//     if (hasDifferentUOM) {
+//       totalUnits = Math.floor(stockQty / conversionFactor);
+//       const remainingQty = stockQty % conversionFactor;
+
+//       for (let i = 0; i < totalUnits; i++) {
+//         const code = `${skuParts[0]}-${skuParts[1]}-${dateStr}-${String(
+//           startCounter + i
+//         ).padStart(4, "0")}`;
+
+//         barcodes.push({
+//           itemType: type,
+//           itemId: stockId,
+//           barcode: code,
+//           qty: conversionFactor,
+//           UOM: baseUOM,
+//           originalUOM: purchaseUOM,
+//           conversionFactor,
+//           batchNo,
+//           location,
+//         });
+//       }
+
+//       if (remainingQty > 0) {
+//         const code = `${skuParts[0]}-${skuParts[1]}-${dateStr}-${String(
+//           startCounter + totalUnits
+//         ).padStart(4, "0")}`;
+
+//         barcodes.push({
+//           itemType: type,
+//           itemId: stockId,
+//           barcode: code,
+//           qty: remainingQty,
+//           UOM: baseUOM,
+//           originalUOM: purchaseUOM,
+//           conversionFactor,
+//           batchNo,
+//           location,
+//         });
+//       }
+//     } else {
+//       const code = `${skuParts[0]}-${skuParts[1]}-${dateStr}-${String(
+//         startCounter
+//       ).padStart(4, "0")}`;
+
+//       barcodes.push({
+//         itemType: type,
+//         itemId: stockId,
+//         barcode: code,
+//         qty: stockQty,
+//         UOM: baseUOM,
+//         originalUOM: baseUOM,
+//         conversionFactor: 1,
+//         batchNo,
+//         location,
+//       });
+//     }
+//   } else {
+//     // SFG or FG
+//     totalUnits = Math.floor(stockQty / conversionFactor);
+
+//     for (let i = 0; i < totalUnits; i++) {
+//       const code = `${skuParts[0]}-${skuParts[1]}-${dateStr}-${String(
+//         startCounter + i
+//       ).padStart(4, "0")}`;
+
+//       barcodes.push({
+//         itemType: type,
+//         itemId: stockId,
+//         barcode: code,
+//         qty: conversionFactor,
+//         UOM: baseUOM,
+//         originalUOM: baseUOM,
+//         conversionFactor,
+//         batchNo,
+//         location,
+//       });
+//     }
+//   }
+
+//   // Save barcodes
+//   return await Barcode.insertMany(barcodes);
+// }

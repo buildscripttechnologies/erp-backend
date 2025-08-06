@@ -6,6 +6,14 @@ const barcodeSchema = new mongoose.Schema(
     itemId: { type: mongoose.Schema.Types.ObjectId, ref: "Item" },
     itemType: { type: String, enum: ["RM", "SFG", "FG"] },
     barcode: { type: String, unique: true },
+    itemCategory: {
+      type: String,
+      default: "",
+    },
+    itemColor: {
+      type: String,
+      default: "",
+    },
     qty: Number, // base UOM qty
     UOM: {
       type: mongoose.Schema.Types.ObjectId,
