@@ -1,5 +1,6 @@
 const Customer = require("../models/Customer");
 const FG = require("../models/FG");
+const RawMaterial = require("../models/RawMaterial");
 const Sample = require("../models/Sample");
 const {
   generateNextSampleNo,
@@ -11,8 +12,8 @@ exports.addSample = async (req, res) => {
     const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
     const { partyName, orderQty, productName, productDetails, date } = parsed;
 
+    // Step 1: Get or create Customer
     let customer = await Customer.findOne({ customerName: partyName });
-
     if (!customer) {
       const [newCode] = await generateBulkCustomerCodes(1);
       customer = await Customer.create({
@@ -22,41 +23,39 @@ exports.addSample = async (req, res) => {
       });
     }
 
+    // Step 2: Get FG by product name
     let fg = await FG.findOne({ itemName: productName });
 
-    const sampleNo = await generateNextSampleNo();
-    let pDetails;
-
-    if (fg) {
-      pDetails = fg.rm?.map((c) => ({
-        itemId: c.rmid,
-        type: "RawMaterial",
-        height: c.height,
-        width: c.width,
-        depth: c.depth,
-        qty: c.qty,
-      }));
-
-      pDetails = [
-        ...pDetails,
-        ...fg.sfg?.map((c) => ({
-          itemId: c.sfgid,
-          type: "SFG",
-          height: c.height,
-          width: c.width,
-          depth: c.depth,
-          qty: c.qty,
-        })),
-      ];
+    // Step 3: If FG doesn't exist, create new one
+    if (!fg) {
+      fg = await FG.create({
+        itemName: productName,
+        type: "FG",
+        rm: productDetails
+          .filter((d) => d.type === "RawMaterial")
+          .map((d) => ({
+            rmid: d.itemId,
+            qty: d.qty,
+            height: d.height,
+            width: d.width,
+            depth: d.depth,
+          })),
+        sfg: productDetails
+          .filter((d) => d.type === "SFG")
+          .map((d) => ({
+            sfgid: d.itemId,
+            qty: d.qty,
+            height: d.height,
+            width: d.width,
+            depth: d.depth,
+          })),
+        createdBy: req.user?._id,
+      });
     }
 
-    const resolvedProductDetails = productDetails?.length
-      ? productDetails
-      : pDetails;
-
+    // Step 4: Handle file uploads
     const protocol =
       process.env.NODE_ENV === "production" ? "https" : req.protocol;
-    // ✅ Just map uploaded files directly
     const attachments =
       req.files?.map((file) => ({
         fileName: file.originalname,
@@ -65,21 +64,32 @@ exports.addSample = async (req, res) => {
         }`,
       })) || [];
 
+    // Step 5: Normalize productDetails types for Sample schema
+    const resolvedProductDetails = productDetails.map((d) => ({
+      ...d,
+      type: d.type === "RM" ? "RawMaterial" : d.type, // normalize if needed
+    }));
+
+    // Step 6: Create Sample
+    const sampleNo = await generateNextSampleNo();
+
     const newSample = await Sample.create({
       partyName: customer._id,
       orderQty,
-      product: { pId: fg?._id || null, name: productName },
+      product: { pId: fg._id, name: productName },
       sampleNo,
       date,
       productDetails: resolvedProductDetails,
-      file: attachments, // ✅ direct file array
+      file: attachments,
       createdBy: req.user?._id,
     });
 
-    res.status(201).json({ success: true, data: newSample });
+    return res.status(201).json({ success: true, data: newSample });
   } catch (err) {
     console.error("Add Sample Error:", err);
-    res.status(500).json({ success: false, message: "Failed to add Sample" });
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to add Sample" });
   }
 };
 
@@ -118,6 +128,7 @@ exports.updateSample = async (req, res) => {
 
 const fs = require("fs");
 const path = require("path");
+const SFG = require("../models/SFG");
 
 exports.updateSampleWithFiles = async (req, res) => {
   try {
@@ -195,7 +206,6 @@ exports.getAllSamples = async (req, res) => {
     const skip = (page - 1) * limit;
     const { search = "" } = req.query;
 
-    // Build search filter using regex
     const searchRegex = new RegExp(search, "i");
 
     const matchStage = search
@@ -239,6 +249,15 @@ exports.getAllSamples = async (req, res) => {
         },
       },
       {
+        $addFields: {
+          createdBy: {
+            _id: "$createdBy._id",
+            username: "$createdBy.username",
+            fullName: "$createdBy.fullName",
+          },
+        },
+      },
+      {
         $match: matchStage,
       },
       {
@@ -254,6 +273,27 @@ exports.getAllSamples = async (req, res) => {
                 partyName: "$party.customerName",
               },
             },
+            {
+              $project: {
+                _id: 1,
+                sampleNo: 1,
+                bomNo: 1,
+                date: 1,
+                orderQty: 1,
+                isActive: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                file: 1,
+                partyName: "$party.customerName",
+                product: 1,
+                productDetails: 1,
+                createdBy: {
+                  _id: "$createdBy._id",
+                  username: "$createdBy.username",
+                  fullName: "$createdBy.fullName",
+                },
+              },
+            },
           ],
           total: [{ $count: "count" }],
         },
@@ -261,32 +301,35 @@ exports.getAllSamples = async (req, res) => {
     ];
 
     const result = await Sample.aggregate(aggregationPipeline);
+    const samples = result[0].data;
 
-    const formattedSamples = result[0].data.map((s) => ({
-      _id: s._id,
-      partyName: s.partyName || null,
-      orderQty: s.orderQty,
-      product: s.product || null,
-      sampleNo: s.sampleNo,
-      bomNo: s.bomNo,
-      date: s.date,
-      isActive: s.isActive,
-      createdAt: s.createdAt,
-      updatedAt: s.updatedAt,
-      createdBy: s.createdBy,
-      file: s.file,
-      productDetails: s.productDetails.map((pd) => ({
-        _id: pd._id,
-        itemId: pd.itemId?._id || null,
-        itemName: pd.itemId?.itemName || null,
-        skuCode: pd.itemId?.skuCode || null,
-        height: pd.height,
-        width: pd.width,
-        depth: pd.depth,
-        type: pd.type,
-        qty: pd.qty,
-      })),
-    }));
+    // Enrich productDetails with skuCode and itemName
+    for (const sample of samples) {
+      if (sample.productDetails?.length > 0) {
+        for (const detail of sample.productDetails) {
+          const { itemId, type } = detail;
+
+          let item = null;
+          if (type === "RawMaterial") {
+            item = await RawMaterial.findById(itemId).select(
+              "skuCode itemName"
+            );
+          } else if (type === "SFG") {
+            item = await SFG.findById(itemId).select("skuCode itemName");
+          } else if (type === "FG") {
+            item = await FG.findById(itemId).select("skuCode itemName");
+          }
+
+          if (item) {
+            detail.skuCode = item.skuCode;
+            detail.itemName = item.itemName;
+          } else {
+            detail.skuCode = null;
+            detail.itemName = null;
+          }
+        }
+      }
+    }
 
     const totalResults = result[0].total[0]?.count || 0;
 
@@ -296,7 +339,7 @@ exports.getAllSamples = async (req, res) => {
       totalPages: Math.ceil(totalResults / limit),
       currentPage: page,
       limit,
-      data: formattedSamples,
+      data: samples,
     });
   } catch (err) {
     console.error("Get All Samples Error:", err);

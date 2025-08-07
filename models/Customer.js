@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const softDeletePlugin = require("../utils/softDeletePlugin");
 
-const applySoftDelete = require('../plugins/mongooseDeletePlugin');
+const applySoftDelete = require("../plugins/mongooseDeletePlugin");
 const customerSchema = new mongoose.Schema(
   {
     customerCode: String,
@@ -14,11 +14,12 @@ const customerSchema = new mongoose.Schema(
     country: String,
     postalCode: String,
     gst: String,
-    bankName: String,
-    branch: String,
-    accountNumber: String,
-    ifscCode: String,
-    agentName: String,
+    pan: { type: String, default: null },
+    // bankName: String,
+    // branch: String,
+    // accountNumber: String,
+    // ifscCode: String,
+    // agentName: String,
     paymentTerms: String,
     leadCompetitor: String,
     transportationTime: String,
@@ -60,7 +61,7 @@ const customerSchema = new mongoose.Schema(
         },
       },
     ],
-   
+
     deletedAt: { type: Date, default: null },
   },
   { timestamps: true }

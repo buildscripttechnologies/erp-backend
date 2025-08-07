@@ -24,6 +24,15 @@ const rawMaterialSchema = new mongoose.Schema(
       enum: ["RM"],
       default: "RM",
     },
+    itemCategory: {
+      type: String,
+      default: "",
+    },
+    itemColor: {
+      type: String,
+      default: "",
+    },
+
     qualityInspectionNeeded: {
       type: Boolean,
       default: false,
