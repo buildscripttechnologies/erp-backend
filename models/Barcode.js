@@ -5,7 +5,7 @@ const barcodeSchema = new mongoose.Schema(
   {
     itemId: { type: mongoose.Schema.Types.ObjectId, ref: "Item" },
     itemType: { type: String, enum: ["RM", "SFG", "FG"] },
-    barcode: { type: String, unique: true },
+    barcode: { type: String },
     itemCategory: {
       type: String,
       default: "",
@@ -23,7 +23,7 @@ const barcodeSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
     },
-    conversionFactor: Number,
+    baseQty: Number,
     batchNo: String,
     location: { type: mongoose.Schema.Types.ObjectId, ref: "Location" },
     status: {
