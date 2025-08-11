@@ -21,6 +21,10 @@ const stockSchema = new mongoose.Schema(
     baseQty: Number,
     stockQty: { type: Number, default: 0 },
     damagedQty: { type: Number, default: 0 },
+    moq: {
+      type: Number,
+      default: 1,
+    },
     barcodeTracked: { type: Boolean, default: false },
     barcodes: [
       {
@@ -35,9 +39,7 @@ const stockSchema = new mongoose.Schema(
 
     location: { type: mongoose.Schema.Types.ObjectId, ref: "Location" },
     status: { type: String, enum: ["Active", "Inactive"], default: "Active" },
-    qualityApproved:{type:Boolean,
-      default:false,
-    },
+    qualityApproved: { type: Boolean, default: false },
     qualityNote: String,
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
