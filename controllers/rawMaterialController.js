@@ -132,7 +132,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
     });
 
     // Generate SKU codes
-    const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
+    // const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
 
     // Normalize data and resolve UOM
     const mappedRMs = await Promise.all(
@@ -144,7 +144,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
         return {
           ...rm,
           qualityInspectionNeeded: rm.qualityInspectionNeeded === "Required",
-          skuCode: skuCodes[index],
+          // skuCode: skuCodes[index],
           createdBy: req.user._id,
           purchaseUOM,
           stockUOM,
@@ -153,6 +153,34 @@ exports.addMultipleRawMaterials = async (req, res) => {
         };
       })
     );
+
+    // STEP 2: Check for existing SKUs in DB
+    const skuCodes = mappedRMs.map((rm) => rm.skuCode);
+    const regexSKUs = mappedRMs.map((rm) => new RegExp(`^${rm.skuCode}$`, "i"));
+    const existingRMs = await RawMaterial.find(
+      { skuCode: { $in: regexSKUs } },
+      { skuCode: 1 }
+    );
+
+    if (existingRMs.length > 0) {
+      const duplicates = existingRMs.map((rm) => rm.skuCode);
+      return res.status(409).json({
+        status: 409,
+        message: `Duplicate SKU(s) found: ${duplicates.join(", ")}`,
+      });
+    }
+
+    // STEP 3: Check for duplicates within the same upload
+    const seen = new Set();
+    const hasInBatchDuplicates = skuCodes.some(
+      (code) => seen.size === seen.add(code).size
+    );
+    if (hasInBatchDuplicates) {
+      return res.status(409).json({
+        status: 409,
+        message: "Duplicate SKU(s) found in the same upload batch.",
+      });
+    }
 
     const inserted = await RawMaterial.insertMany(mappedRMs, {
       ordered: false,

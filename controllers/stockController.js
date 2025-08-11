@@ -113,6 +113,7 @@ exports.createStockEntry = async (req, res) => {
     const baseUOM = itemType === "RM" ? item.baseUOM?._id : item.UOM?._id;
     const purchaseUOM = itemType === "RM" ? item.purchaseUOM?._id : undefined;
     const stockUOM = itemType === "RM" ? item.stockUOM?._id : item.UOM?._id;
+    const moq = item.moq;
 
     // ✅ Manual Mode Handling
     let finalStockQty = stockQty;
@@ -144,6 +145,7 @@ exports.createStockEntry = async (req, res) => {
       stockQty: finalStockQty,
       damagedQty: finalDamagedQty,
       baseQty: isManualMode ? undefined : baseQty,
+      moq,
       location: item.location?._id,
       barcodeTracked: true,
       barcodes: [],
@@ -543,7 +545,6 @@ exports.getAllStocksMerged = async (req, res) => {
 
     const query = {};
 
-    // Search filter (itemName or skuCode)
     if (search) {
       query.$or = [
         { itemName: { $regex: search, $options: "i" } },
@@ -551,12 +552,10 @@ exports.getAllStocksMerged = async (req, res) => {
       ];
     }
 
-    // Type filter
     if (type) {
       query.type = type;
     }
 
-    // Date range filter
     if (fromDate || toDate) {
       query.createdAt = {};
       if (fromDate) query.createdAt.$gte = new Date(fromDate);
@@ -567,7 +566,6 @@ exports.getAllStocksMerged = async (req, res) => {
       }
     }
 
-    // Fetch all matching stocks first (no pagination yet)
     let stocks = await Stock.find(query)
       .populate({ path: "baseUOM", select: "_id unitName" })
       .populate({ path: "purchaseUOM", select: "_id unitName" })
@@ -576,7 +574,6 @@ exports.getAllStocksMerged = async (req, res) => {
       .populate({ path: "createdBy", select: "_id username fullName" })
       .sort({ updatedAt: -1, _id: -1 });
 
-    // Optional UOM filter (after population)
     if (uom) {
       stocks = stocks.filter((stock) =>
         [stock.stockUOM?.unitName]
@@ -585,29 +582,28 @@ exports.getAllStocksMerged = async (req, res) => {
       );
     }
 
-    // Merge stocks by skuCode
     const mergedMap = new Map();
 
     for (const stock of stocks) {
       const key = stock.skuCode;
 
       if (!mergedMap.has(key)) {
-        // Clone the stock and set its stockQty as base
         mergedMap.set(key, {
           ...stock.toObject(),
-          stockQty: stock.stockQty,
+          stockQty: stock.stockQty || 0,
+          damagedQty: stock.damagedQty || 0,
+          moq: stock.moq || 0, // include MOQ from first occurrence
         });
       } else {
-        // Merge stockQty
         const existing = mergedMap.get(key);
-        existing.stockQty += stock.stockQty;
+        existing.stockQty += stock.stockQty || 0;
+        existing.damagedQty += stock.damagedQty || 0;
+        // moq remains same, assuming it’s constant per SKU
       }
     }
 
-    // Convert merged map to array
     const mergedStocks = Array.from(mergedMap.values());
 
-    // Pagination after merging
     const totalResults = mergedStocks.length;
     const totalPages = Math.ceil(totalResults / limit);
     const paginated = mergedStocks.slice(skip, skip + limit);

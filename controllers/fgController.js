@@ -277,7 +277,7 @@ exports.addMultipleFGs = async (req, res) => {
       });
     });
 
-    const skuCodes = await generateBulkFgSkuCodes(fgs.length);
+    // const skuCodes = await generateBulkFgSkuCodes(fgs.length);
 
     const mappedFGs = await Promise.all(
       fgs.map(async (fg, index) => {
@@ -286,7 +286,7 @@ exports.addMultipleFGs = async (req, res) => {
 
         return {
           ...fg,
-          skuCode: skuCodes[index],
+          // skuCode: skuCodes[index],
           createdBy: req.user._id,
           UOM: uom,
           location: loc,
@@ -295,7 +295,35 @@ exports.addMultipleFGs = async (req, res) => {
       })
     );
 
-    console.log("mapped", mappedFGs[0].rm, mappedFGs[0].sfg);
+    // STEP 2: Check for existing SKUs in DB
+    const skuCodes = mappedFGs.map((fg) => fg.skuCode);
+    const regexSKUs = mappedFGs.map((fg) => new RegExp(`^${fg.skuCode}$`, "i"));
+    const existingFGs = await FG.find(
+      { skuCode: { $in: regexSKUs } },
+      { skuCode: 1 }
+    );
+
+    if (existingFGs.length > 0) {
+      const duplicates = existingFGs.map((fg) => fg.skuCode);
+      return res.status(409).json({
+        status: 409,
+        message: `Duplicate SKU(s) found: ${duplicates.join(", ")}`,
+      });
+    }
+
+    // STEP 3: Check for duplicates within the same upload
+    const seen = new Set();
+    const hasInBatchDuplicates = skuCodes.some(
+      (code) => seen.size === seen.add(code).size
+    );
+    if (hasInBatchDuplicates) {
+      return res.status(409).json({
+        status: 409,
+        message: "Duplicate SKU(s) found in the same upload batch.",
+      });
+    }
+
+    // console.log("mapped", mappedFGs[0].rm, mappedFGs[0].sfg);
 
     const inserted = await FG.insertMany(mappedFGs, { ordered: false });
 
