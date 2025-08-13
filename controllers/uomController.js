@@ -54,7 +54,7 @@ exports.createBulkUOMs = async (req, res) => {
 exports.getAllUOMs = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10000;
+    const limit = parseInt(req.query.limit) || "";
     const skip = (page - 1) * limit;
     const { status = true, search = "" } = req.query;
 

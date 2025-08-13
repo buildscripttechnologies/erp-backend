@@ -44,6 +44,103 @@ const fgSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
     },
+    height: {
+      type: Number,
+      default: 0,
+    },
+    width: {
+      type: Number,
+      default: 0,
+    },
+    depth: {
+      type: Number,
+      default: 0,
+    },
+    qty: {
+      type: Number,
+      default: 0,
+    },
+    stitching: {
+      type: Number,
+      default: 0,
+    },
+    printing: {
+      type: Number,
+      default: 0,
+    },
+    others: {
+      type: Number,
+      default: 0,
+    },
+
+    // Rate and Totals
+    unitRate: {
+      type: Number,
+      default: 0,
+    },
+    unitB2BRate: {
+      type: Number,
+      default: 0,
+    },
+    unitD2CRate: {
+      type: Number,
+      default: 0,
+    },
+    totalRate: {
+      type: Number,
+      default: 0,
+    },
+    totalB2BRate: {
+      type: Number,
+      default: 0,
+    },
+    totalD2CRate: {
+      type: Number,
+      default: 0,
+    },
+
+    // Percentages
+    B2B: {
+      type: Number,
+      default: 0,
+    },
+    D2C: {
+      type: Number,
+      default: 0,
+    },
+    rejection: {
+      type: Number,
+      default: 0,
+    },
+    QC: {
+      type: Number,
+      default: 0,
+    },
+    machineMaintainance: {
+      type: Number,
+      default: 0,
+    },
+    materialHandling: {
+      type: Number,
+      default: 0,
+    },
+    packaging: {
+      type: Number,
+      default: 0,
+    },
+    shipping: {
+      type: Number,
+      default: 0,
+    },
+    companyOverHead: {
+      type: Number,
+      default: 0,
+    },
+    indirectExpense: {
+      type: Number,
+      default: 0,
+    },
+
     conversionFactor: {
       type: Number,
       default: 1, // Example: 1 box = 10 kg
@@ -69,7 +166,9 @@ const fgSchema = new mongoose.Schema(
         qty: Number,
         height: Number,
         width: Number,
-        depth: Number,
+        // depth: Number,
+        rate: Number,
+        sqInchRate: Number,
       },
     ],
     sfg: [
@@ -78,7 +177,9 @@ const fgSchema = new mongoose.Schema(
         qty: Number,
         height: Number,
         width: Number,
-        depth: Number,
+        // depth: Number,
+        rate: Number,
+        sqInchRate: Number,
       },
     ],
 

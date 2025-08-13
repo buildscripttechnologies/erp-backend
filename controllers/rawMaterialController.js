@@ -29,7 +29,7 @@ const generateBulkSkuCodes = async (count) => {
 // @desc    Get all raw materials (with optional pagination & search)
 exports.getAllRawMaterials = async (req, res) => {
   try {
-    const { page = 1, limit = 20, search = "" } = req.query;
+    const { page = 1, limit = "", search = "" } = req.query;
     const query = {
       $or: [
         { itemName: { $regex: search, $options: "i" } },
@@ -41,7 +41,7 @@ exports.getAllRawMaterials = async (req, res) => {
     const total = await RawMaterial.countDocuments(query);
     let rawMaterials = await RawMaterial.find(query)
       .populate("purchaseUOM stockUOM createdBy location")
-      .sort({ skuCode: -1 })
+      .sort({ updatedAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
@@ -59,6 +59,8 @@ exports.getAllRawMaterials = async (req, res) => {
       baseQty: rm.baseQty,
       pkgQty: rm.pkgQty,
       moq: rm.moq,
+      panno: rm.panno,
+      sqInchRate: rm.sqInchRate,
       rate: rm.rate,
       purchaseUOM: rm.purchaseUOM ? rm.purchaseUOM.unitName : null,
       gst: rm.gst,
@@ -76,7 +78,7 @@ exports.getAllRawMaterials = async (req, res) => {
     res.status(200).json({
       status: 200,
       totalResults: total,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit) || 1,
       currentPage: Number(page),
       limit: Number(limit),
       rawMaterials,
@@ -304,8 +306,11 @@ exports.downloadRawMaterialSample = async (req, res) => {
 
     const sampleData = [
       {
+        "Sku Code": "sku-001",
         "Item Name": "sample item name",
         Description: "sample description",
+        "Item Category": "sample category",
+        "Item Color": "red",
         "HSN/SAC": "12345",
         Type: "RM",
         "Quality Inspection": "Required/Not Required",
@@ -314,9 +319,10 @@ exports.downloadRawMaterialSample = async (req, res) => {
         "Pkg Qty": "5",
         MOQ: "1",
         Rate: "100",
+        Panno: "20",
         "Purchase UOM": ` ${uoms.map((u) => u.unitName).join("/ ")}`,
         GST: "18",
-        "Stock Qty": "10",
+        // "Stock Qty": "10",
         "Stock UOM": ` ${uoms.map((u) => u.unitName).join("/ ")}`,
       },
     ];
@@ -371,38 +377,98 @@ exports.uploadExcelRawMaterials = async (req, res) => {
       locations.map((l) => [l.locationId.trim().toUpperCase(), l._id])
     );
 
+    console.log("uom map", uomMap);
+    console.log("loc map", locMap);
+
     // Generate SKUs
-    const skuCodes = await generateBulkSkuCodes(data.length);
+    // const skuCodes = await generateBulkSkuCodes(data.length);
+
+    // Extract SKU codes from Excel & normalize
+    const uploadedSkuCodes = data
+      .map((row) => row["Sku Code"]?.trim().toLowerCase())
+      .filter(Boolean);
+
+    // Check for duplicates already in DB
+    const existingSkus = await RawMaterial.find(
+      { skuCode: { $in: uploadedSkuCodes } },
+      { skuCode: 1 }
+    );
+
+    if (existingSkus.length > 0) {
+      return res.status(400).json({
+        message: "Duplicate SKU codes found.",
+        duplicates: existingSkus.map((item) => item.skuCode),
+      });
+    }
+
+    // Check for duplicates within the uploaded file itself
+    const seen = new Set();
+    const duplicatesInFile = uploadedSkuCodes.filter((sku) => {
+      if (seen.has(sku)) return true;
+      seen.add(sku);
+      return false;
+    });
+
+    if (duplicatesInFile.length > 0) {
+      return res.status(400).json({
+        message: "Duplicate SKU codes found in uploaded file.",
+        duplicates: duplicatesInFile,
+      });
+    }
 
     const rawMaterials = data.map((row, index) => {
       const getUomId = (uomStr) => {
         if (!uomStr) return null;
         const cleaned = uomStr.trim().toLowerCase();
+        console.log("cleaned", cleaned);
+        console.log("uom id", uomMap[cleaned]);
+
         return uomMap[cleaned] || null;
       };
+
       const getLocId = (loc) => {
         if (!loc) return null;
         const cleaned = loc.trim().toUpperCase();
         return locMap[cleaned] || null;
       };
 
+      const baseQty = Number(row["Base Qty"] || 0);
+      const pkgQty = Number(row["Pkg Qty"] || 0);
+      const moq = Number(row["MOQ"] || 0);
+      const rate = Number(row["Rate"] || 0);
+      // const stockQty = Number(row["Stock Qty"] || 0);
+      const itemCategory = row["Item Category"]?.trim() || "";
+      let sqInchRate = 0;
+      const panno = Number(row["Panno"] || 0);
+
+      if (itemCategory.toLowerCase() == "fabric") {
+        sqInchRate = (rate / panno / 39) * 1.05;
+        sqInchRate = Number(sqInchRate.toFixed(4));
+        console.log("sqinch Rate", sqInchRate);
+      }
+
       return {
-        skuCode: skuCodes[index],
+        skuCode: row["Sku Code"]?.trim() || "",
         itemName: row["Item Name"]?.trim() || "",
         description: row["Description"]?.trim() || "",
+        itemCategory,
+        itemColor: row["Item Color"]?.trim() || "",
         hsnOrSac: row["HSN/SAC"]?.toString().trim() || "",
         type: row["Type"]?.trim() || "",
         qualityInspectionNeeded:
           row["Quality Inspection"]?.trim().toLowerCase() === "required",
         location: getLocId(row["Location"]),
-        baseQty: Number(row["Base Qty"] || 0),
-        pkgQty: Number(row["Pkg Qty"] || 0),
-        moq: Number(row["MOQ"] || 0),
+        baseQty,
+        pkgQty,
+        moq,
+        rate,
+        panno,
+        sqInchRate,
         purchaseUOM: getUomId(row["Purchase UOM"]),
         gst: Number(row["GST"] || 0),
-        stockQty: Number(row["Stock Qty"] || 0),
+        // stockQty,
         stockUOM: getUomId(row["Stock UOM"]),
-
+        // totalRate: rate * stockQty, // <-- Auto-calculated here ✅
         createdBy: req.user._id,
       };
     });

@@ -8,7 +8,7 @@ const fs = require("fs");
 
 exports.getAllFGs = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const { page = 1, limit = "", search = "" } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const searchFilter = search
@@ -114,7 +114,7 @@ exports.getAllFGs = async (req, res) => {
         select: "locationId",
       })
       .populate("createdBy", "fullName userType")
-      .sort({ skuCode: -1 })
+      .sort({ updatedAt: -1, _id: -1 })
       .skip(skip)
       .limit(Number(limit));
 
@@ -130,9 +130,28 @@ exports.getAllFGs = async (req, res) => {
       gst: fg.gst,
       type: fg.type,
       status: fg.status,
+      height: fg.height,
+      width: fg.width,
+      depth: fg.depth,
       createdAt: fg.createdAt,
       updatedAt: fg.updatedAt,
       uom: fg.UOM?.unitName || null,
+      stitching: fg.stitching,
+      printing: fg.printing,
+      others: fg.others,
+      B2B: fg.B2B,
+      D2C: fg.D2C,
+      rejection: fg.rejection,
+      QC: fg.QC,
+      machineMaintainance: fg.machineMaintainance,
+      materialHandling: fg.materialHandling,
+      packaging: fg.packaging,
+      shipping: fg.shipping,
+      companyOverHead: fg.companyOverHead,
+      indirectExpense: fg.indirectExpense,
+      unitRate: fg.unitRate,
+      unitB2BRate: fg.unitB2BRate,
+      unitD2CRate: fg.unitD2CRate,
       createdBy: {
         id: fg.createdBy?._id,
         fullName: fg.createdBy?.fullName,
@@ -152,7 +171,9 @@ exports.getAllFGs = async (req, res) => {
         qty: r.qty,
         height: r.height,
         width: r.width,
-        depth: r.depth,
+        rate: r.rate,
+        sqInchRate: r.sqInchRate,
+        // depth: r.depth,
       })),
       sfg: fg.sfg.map((sfgRef) => {
         const sfg = sfgRef.sfgid || {};
@@ -170,7 +191,9 @@ exports.getAllFGs = async (req, res) => {
           qty: sfgRef.qty,
           height: sfgRef.height,
           width: sfgRef.width,
-          depth: sfgRef.depth,
+          rate: sfgRef.rate,
+          sqInchRate: sfgRef.sqInchRate,
+          // depth: sfgRef.depth,
           rm: (sfg.rm || []).map((r) => ({
             id: r.rmid?._id || r.rmid,
             skuCode: r.rmid?.skuCode,
@@ -184,7 +207,9 @@ exports.getAllFGs = async (req, res) => {
             qty: r.qty,
             height: r.height,
             width: r.width,
-            depth: r.depth,
+            rate: r.rate,
+            sqInchRate: r.sqInchRate,
+            // depth: r.depth,
           })),
           sfg: (sfg.sfg || []).map((nested) => {
             const nestedSFG = nested.sfgid || {};
@@ -202,7 +227,9 @@ exports.getAllFGs = async (req, res) => {
               qty: nested.qty,
               height: nested.height,
               width: nested.width,
-              depth: nested.depth,
+              rate: nested.rate,
+              sqInchRate: nested.sqInchRate,
+              // depth: nested.depth,
               rm: (nestedSFG.rm || []).map((r) => ({
                 id: r.rmid?._id || r.rmid,
                 skuCode: r.rmid?.skuCode,
@@ -216,7 +243,9 @@ exports.getAllFGs = async (req, res) => {
                 qty: r.qty,
                 height: r.height,
                 width: r.width,
-                depth: r.depth,
+                rate: r.rate,
+                sqInchRate: r.sqInchRate,
+                // depth: r.depth,
               })),
             };
           }),
@@ -228,7 +257,7 @@ exports.getAllFGs = async (req, res) => {
       status: 200,
       message: "Fetched FGs successfully",
       totalResults: total,
-      totalPages: Math.ceil(total / limit),
+      totalPages: Math.ceil(total / limit) || 1,
       currentPage: Number(page),
       limit: Number(limit),
       data: formatted,

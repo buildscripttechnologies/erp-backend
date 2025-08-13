@@ -77,7 +77,7 @@ exports.getAllLocations = async (req, res) => {
   try {
     const {
       page = 1,
-      limit = 10000,
+      limit = "",
       search = "",
       isActive = "true",
     } = req.query;

@@ -7,7 +7,7 @@ const sfgSchema = new mongoose.Schema(
     skuCode: {
       type: String,
       trim: true,
-      unique:true,
+      unique: true,
     },
     itemName: {
       type: String,
