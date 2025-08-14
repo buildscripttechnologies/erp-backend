@@ -125,7 +125,7 @@ exports.addMultipleSFGs = async (req, res) => {
 
 exports.getAllSFGs = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "" } = req.query;
+    const { page = 1, limit = "", search = "" } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const searchFilter = search

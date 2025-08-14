@@ -65,7 +65,7 @@ exports.addMultipleCustomers = async (req, res) => {
 // Get all customers with pagination, search, and status filter
 exports.getAllCustomers = async (req, res) => {
   try {
-    const { page = 1, limit = 10, search = "", status = "" } = req.query;
+    const { page = 1, limit = "", search = "", status = "" } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const filter = {};
