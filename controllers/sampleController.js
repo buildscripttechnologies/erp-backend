@@ -10,7 +10,32 @@ const {
 exports.addSample = async (req, res) => {
   try {
     const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
-    const { partyName, orderQty, productName, productDetails, date } = parsed;
+    const {
+      partyName,
+      orderQty,
+      productName,
+      productDetails,
+      date,
+      height,
+      width,
+      depth,
+      B2B,
+      D2C,
+      rejection,
+      QC,
+      machineMaintainance,
+      materialHandling,
+      packaging,
+      shipping,
+      companyOverHead,
+      indirectExpense,
+      stitching,
+      printing,
+      others,
+      unitRate,
+      unitB2BRate,
+      unitD2CRate,
+    } = parsed;
 
     // Step 1: Get or create Customer
     let customer = await Customer.findOne({ customerName: partyName });
@@ -19,36 +44,6 @@ exports.addSample = async (req, res) => {
       customer = await Customer.create({
         customerCode: newCode,
         customerName: partyName,
-        createdBy: req.user?._id,
-      });
-    }
-
-    // Step 2: Get FG by product name
-    let fg = await FG.findOne({ itemName: productName });
-
-    // Step 3: If FG doesn't exist, create new one
-    if (!fg) {
-      fg = await FG.create({
-        itemName: productName,
-        type: "FG",
-        rm: productDetails
-          .filter((d) => d.type === "RawMaterial")
-          .map((d) => ({
-            rmid: d.itemId,
-            qty: d.qty,
-            height: d.height,
-            width: d.width,
-            depth: d.depth,
-          })),
-        sfg: productDetails
-          .filter((d) => d.type === "SFG")
-          .map((d) => ({
-            sfgid: d.itemId,
-            qty: d.qty,
-            height: d.height,
-            width: d.width,
-            depth: d.depth,
-          })),
         createdBy: req.user?._id,
       });
     }
@@ -64,6 +59,64 @@ exports.addSample = async (req, res) => {
         }`,
       })) || [];
 
+    // Step 2: Get FG by product name
+    let fg = await FG.findOne({ itemName: productName });
+
+    const sampleNo = await generateNextSampleNo();
+
+    // Step 3: If FG doesn't exist, create new one
+    if (!fg) {
+      fg = await FG.create({
+        skuCode: sampleNo,
+        itemName: productName,
+        qualityInspectionNeeded: false,
+        type: "FG",
+        file: attachments,
+        description: `Sample Product - ${sampleNo}`,
+        height,
+        width,
+        depth,
+        B2B,
+        D2C,
+        rejection,
+        QC,
+        machineMaintainance,
+        materialHandling,
+        packaging,
+        shipping,
+        companyOverHead,
+        indirectExpense,
+        stitching,
+        printing,
+        others,
+        unitRate,
+        unitB2BRate,
+        unitD2CRate,
+        rm: productDetails
+          .filter((d) => d.type === "RawMaterial")
+          .map((d) => ({
+            rmid: d.itemId,
+            qty: d.qty,
+            height: d.height,
+            width: d.width,
+            rate: d.rate,
+            sqInchRate: d.sqInchRate,
+            partName: d.partName,
+          })),
+        sfg: productDetails
+          .filter((d) => d.type === "SFG")
+          .map((d) => ({
+            sfgid: d.itemId,
+            qty: d.qty,
+            height: d.height,
+            width: d.width,
+            sqInchRate: d.sqInchRate,
+            partName: d.partName,
+          })),
+        createdBy: req.user?._id,
+      });
+    }
+
     // Step 5: Normalize productDetails types for Sample schema
     const resolvedProductDetails = productDetails.map((d) => ({
       ...d,
@@ -71,7 +124,7 @@ exports.addSample = async (req, res) => {
     }));
 
     // Step 6: Create Sample
-    const sampleNo = await generateNextSampleNo();
+    // const sampleNo = await generateNextSampleNo();
 
     const newSample = await Sample.create({
       partyName: customer._id,
@@ -79,6 +132,25 @@ exports.addSample = async (req, res) => {
       product: { pId: fg._id, name: productName },
       sampleNo,
       date,
+      height,
+      width,
+      depth,
+      B2B,
+      D2C,
+      rejection,
+      QC,
+      machineMaintainance,
+      materialHandling,
+      packaging,
+      shipping,
+      companyOverHead,
+      indirectExpense,
+      stitching,
+      printing,
+      others,
+      unitRate,
+      unitB2BRate,
+      unitD2CRate,
       productDetails: resolvedProductDetails,
       file: attachments,
       createdBy: req.user?._id,
@@ -140,6 +212,26 @@ exports.updateSampleWithFiles = async (req, res) => {
       partyName,
       orderQty,
       productName,
+      date,
+      height,
+      width,
+      depth,
+      B2B,
+      D2C,
+      rejection,
+      QC,
+      machineMaintainance,
+      materialHandling,
+      packaging,
+      shipping,
+      companyOverHead,
+      indirectExpense,
+      stitching,
+      printing,
+      others,
+      unitRate,
+      unitB2BRate,
+      unitD2CRate,
       productDetails = [],
       deletedFiles = [],
     } = parsed;
@@ -183,7 +275,26 @@ exports.updateSampleWithFiles = async (req, res) => {
     sample.orderQty = orderQty;
     sample.product = { pId: fg?._id || null, name: productName };
     sample.productDetails = productDetails;
-
+    sample.date = date;
+    sample.height = height;
+    sample.width = width;
+    sample.depth = depth;
+    sample.B2B = B2B;
+    sample.D2C = D2C;
+    sample.rejection = rejection;
+    sample.QC = QC;
+    sample.machineMaintainance = machineMaintainance;
+    sample.materialHandling = materialHandling;
+    sample.packaging = packaging;
+    sample.shipping = shipping;
+    sample.companyOverHead = companyOverHead;
+    sample.indirectExpense = indirectExpense;
+    sample.stitching = stitching;
+    sample.printing = printing;
+    sample.others = others;
+    sample.unitRate = unitRate;
+    sample.unitB2BRate = unitB2BRate;
+    sample.unitD2CRate = unitD2CRate;
     await sample.save();
 
     res.status(200).json({
@@ -202,7 +313,7 @@ exports.updateSampleWithFiles = async (req, res) => {
 exports.getAllSamples = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || "";
+    const limit = parseInt(req.query.limit) || 1000000000;
     const skip = (page - 1) * limit;
     const { search = "" } = req.query;
 
@@ -286,6 +397,25 @@ exports.getAllSamples = async (req, res) => {
                 file: 1,
                 partyName: "$party.customerName",
                 product: 1,
+                height: 1,
+                width: 1,
+                depth: 1,
+                B2B: 1,
+                D2C: 1,
+                rejection: 1,
+                QC: 1,
+                machineMaintainance: 1,
+                materialHandling: 1,
+                packaging: 1,
+                shipping: 1,
+                companyOverHead: 1,
+                indirectExpense: 1,
+                stitching: 1,
+                printing: 1,
+                others: 1,
+                unitRate: 1,
+                unitB2BRate: 1,
+                unitD2CRate: 1,
                 productDetails: 1,
                 createdBy: {
                   _id: "$createdBy._id",
@@ -301,6 +431,8 @@ exports.getAllSamples = async (req, res) => {
     ];
 
     const result = await Sample.aggregate(aggregationPipeline);
+    console.log("result", result[0]);
+
     const samples = result[0].data;
 
     // Enrich productDetails with skuCode and itemName

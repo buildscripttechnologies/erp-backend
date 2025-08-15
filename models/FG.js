@@ -163,6 +163,7 @@ const fgSchema = new mongoose.Schema(
     rm: [
       {
         rmid: { type: mongoose.Schema.Types.ObjectId, ref: "RawMaterial" },
+        partName: String,
         qty: Number,
         height: Number,
         width: Number,
