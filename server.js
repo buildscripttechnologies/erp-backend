@@ -20,6 +20,7 @@ const customerRoutes = require("./routes/customerRoutes");
 const bomRoutes = require("./routes/bomRoutes");
 const sampleRoutes = require("./routes/sampleRoutes");
 const stockRoutes = require("./routes/stockRoutes");
+const healthRoutes = require("./routes/healthRoute");
 
 const syncRawMaterials = require("./syncData/syncRawMaterials");
 
@@ -61,6 +62,7 @@ app.use("/api/customers", customerRoutes);
 app.use("/api/boms", bomRoutes);
 app.use("/api/samples", sampleRoutes);
 app.use("/api/stocks", stockRoutes);
+app.use("/api/health", healthRoutes);
 
 app.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);

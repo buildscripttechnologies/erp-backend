@@ -431,7 +431,7 @@ exports.getAllSamples = async (req, res) => {
     ];
 
     const result = await Sample.aggregate(aggregationPipeline);
-    console.log("result", result[0]);
+    // console.log("result", result[0]);
 
     const samples = result[0].data;
 

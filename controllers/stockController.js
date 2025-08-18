@@ -5,7 +5,6 @@ const Barcode = require("../models/Barcode");
 const Stock = require("../models/Stock");
 const dayjs = require("dayjs");
 
-
 exports.createStockEntry = async (req, res) => {
   try {
     const {
@@ -40,7 +39,6 @@ exports.createStockEntry = async (req, res) => {
     let finalDamagedQty = damagedQty;
     let isManualMode = Array.isArray(manualEntries) && manualEntries.length > 0;
 
-  
     // Step 1: Create stock
     const stockDoc = await Stock.create({
       skuCode: item.skuCode,
@@ -96,8 +94,6 @@ exports.createStockEntry = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
-
-
 
 async function generateBarcodes(stock, manualEntries = []) {
   const {
