@@ -48,4 +48,4 @@ jobs:
           script: |
             cd /var/www/mern-backend/erp-backend
             npm install --omit=dev
-            sudo systemctl restart mern-backend-prod
+            sudo systemctl restart mern-backend
