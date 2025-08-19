@@ -3,12 +3,20 @@ const router = express.Router();
 const bomController = require("../controllers/bomController");
 const auth = require("../middlewares/authMiddleware");
 const checkPermission = require("../middlewares/checkPermission");
+const setUploadType = require("../middlewares/setUploadType");
+const {
+  uploadFile,
+  compressUploadedFiles,
+} = require("../middlewares/uploadFile");
 
 // Add BOM
 router.post(
   "/add",
   auth,
   checkPermission("BOM", "write"),
+  setUploadType("bom_attachments"),
+  uploadFile.array("files"),
+  compressUploadedFiles,
   bomController.addBom
 );
 
@@ -17,6 +25,9 @@ router.patch(
   "/update/:id",
   auth,
   checkPermission("BOM", "update"),
+  setUploadType("bom_attachments"),
+  uploadFile.array("files"),
+  compressUploadedFiles,
   bomController.updateBom
 );
 
