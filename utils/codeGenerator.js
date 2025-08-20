@@ -71,7 +71,9 @@ exports.generateNextSampleNo = async () => {
 };
 
 exports.generateNextPONo = async () => {
-  const allPOs = await PO.find({}, { poNo: 1 }).lean();
+  const allPOs = await PO.findWithDeleted({}, { poNo: 1 }).lean(); // includes deleted
+  console.log("pos", allPOs.length);
+
   let max = 0;
 
   allPOs.forEach((po) => {

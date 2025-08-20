@@ -1,28 +1,36 @@
 const mongoose = require("mongoose");
-const softDeletePlugin = require("../utils/softDeletePlugin");
-
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
+
 const poSchema = new mongoose.Schema(
   {
-    poNo: { type: String },
-
-    date: {
-      type: Date,
-      default: Date.now,
-    },
+    poNo: { type: String, required: true },
 
     vendor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Vendor",
     },
 
-    item: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "RawMaterial",
+    date: {
+      type: Date,
+      default: Date.now,
     },
-    orderQty: Number,
+
+    // 👇 Array of items instead of single item/vendor
+    items: [
+      {
+        item: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "RawMaterial",
+        },
+        orderQty: { type: Number },
+        rate: { type: Number },
+        amount: { type: Number },
+        // date: { type: Date, default: Date.now },
+      },
+    ],
 
     totalAmount: Number,
+
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
