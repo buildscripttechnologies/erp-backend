@@ -33,6 +33,7 @@ const addPO = async (req, res) => {
       })),
       date: req.body.date,
       totalAmount: req.body.totalAmount,
+      createdBy: req.user._id,
     });
 
     const savedPO = await newPO.save();
@@ -65,6 +66,8 @@ const getAllPOs = async (req, res) => {
           { "vendor.venderCode": regex },
           { "items.item.itemName": regex },
           { "items.item.skuCode": regex },
+          { "createdBy.fullName": regex }, // ✅ allow search by user fullName
+          { "createdBy.username": regex }, // ✅ allow search by username
         ],
       };
     }
@@ -81,7 +84,18 @@ const getAllPOs = async (req, res) => {
       },
       { $unwind: "$vendor" },
 
-      // --- Items join (raw materials) ---
+      // --- CreatedBy join ---
+      {
+        $lookup: {
+          from: "users", // collection name for users
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
+      { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
+
+      // --- Items join ---
       {
         $lookup: {
           from: "rawmaterials",
@@ -182,7 +196,7 @@ const getAllPOs = async (req, res) => {
       },
       { $project: { items_populated: 0, purchaseUOMs: 0, stockUOMs: 0 } },
 
-      // --- Only required fields ---
+      // --- Final projection (include createdBy) ---
       {
         $project: {
           poNo: 1,
@@ -197,6 +211,11 @@ const getAllPOs = async (req, res) => {
             venderCode: 1,
             vendorName: 1,
             natureOfBusiness: 1,
+          },
+          createdBy: {
+            _id: 1,
+            fullName: 1,
+            username: 1,
           },
           items: {
             _id: 1,
