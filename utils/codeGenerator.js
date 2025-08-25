@@ -1,6 +1,7 @@
 const BOM = require("../models/BOM");
 const Customer = require("../models/Customer");
 const FG = require("../models/FG");
+const PO = require("../models/PO");
 const Sample = require("../models/Sample");
 
 exports.generateBulkFgSkuCodes = async (count) => {
@@ -67,4 +68,20 @@ exports.generateNextSampleNo = async () => {
   });
 
   return `SMP-${(max + 1).toString().padStart(3, "0")}`;
+};
+
+exports.generateNextPONo = async () => {
+  const allPOs = await PO.findWithDeleted({}, { poNo: 1 }).lean(); // includes deleted
+
+  let max = 0;
+
+  allPOs.forEach((po) => {
+    const match = po.poNo?.toString().match(/PO-(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > max) max = num;
+    }
+  });
+
+  return `PO-${(max + 1).toString().padStart(3, "0")}`;
 };
