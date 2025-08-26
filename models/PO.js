@@ -36,6 +36,8 @@ const poSchema = new mongoose.Schema(
         amount: { type: Number },
         gstAmount: Number,
         amountWithGst: Number,
+        rejected: { type: Boolean, default: false },
+        rejectionReason: { type: String, default: "" },
         // date: { type: Date, default: Date.now },
       },
     ],

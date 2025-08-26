@@ -147,6 +147,8 @@ const getAllPOs = async (req, res) => {
                 amount: "$$it.amount",
                 gstAmount: "$$it.gstAmount",
                 amountWithGst: "$$it.amountWithGst",
+                rejected: "$$it.rejected",
+                rejectionReason: "$$it.rejectionReason",
                 item: {
                   $let: {
                     vars: {
@@ -251,6 +253,8 @@ const getAllPOs = async (req, res) => {
             amount: 1,
             gstAmount: 1,
             amountWithGst: 1,
+            rejected: 1,
+            rejectionReason: 1,
             item: {
               _id: 1,
               skuCode: 1,
