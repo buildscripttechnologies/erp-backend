@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
+const { type } = require("os");
 
 const poSchema = new mongoose.Schema(
   {
@@ -37,6 +38,11 @@ const poSchema = new mongoose.Schema(
         gstAmount: Number,
         amountWithGst: Number,
         rejected: { type: Boolean, default: false },
+        itemStatus: {
+          type: String,
+          enum: ["approved", "rejected", "pending"],
+          default: "pending",
+        },
         rejectionReason: { type: String, default: "" },
         // date: { type: Date, default: Date.now },
       },
