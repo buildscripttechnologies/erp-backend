@@ -14,6 +14,14 @@ const poSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    expiryDate: {
+      type: Date,
+      default: Date.now,
+    },
+    deliveryDate: {
+      type: Date,
+      default: Date.now,
+    },
 
     // 👇 Array of items instead of single item/vendor
     items: [
@@ -24,12 +32,21 @@ const poSchema = new mongoose.Schema(
         },
         orderQty: { type: Number },
         rate: { type: Number },
+        gst: Number,
         amount: { type: Number },
+        gstAmount: Number,
+        amountWithGst: Number,
+        rejected: { type: Boolean, default: false },
+        rejectionReason: { type: String, default: "" },
         // date: { type: Date, default: Date.now },
       },
     ],
 
     totalAmount: Number,
+    totalGstAmount: Number,
+    totalAmountWithGst: Number,
+
+    address: String,
 
     status: {
       type: String,

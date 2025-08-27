@@ -29,10 +29,18 @@ const addPO = async (req, res) => {
         item: i.item,
         orderQty: Number(i.orderQty),
         rate: i.rate,
+        gst: i.gst,
         amount: i.amount,
+        gstAmount: i.gstAmount,
+        amountWithGst: i.amountWithGst,
       })),
       date: req.body.date,
       totalAmount: req.body.totalAmount,
+      totalGstAmount: req.body.totalGstAmount,
+      totalAmountWithGst: req.body.totalAmountWithGst,
+      expiryDate: req.body.expiryDate,
+      deliveryDate: req.body.deliveryDate,
+      address: req.body.address,
       createdBy: req.user._id,
     });
 
@@ -132,9 +140,15 @@ const getAllPOs = async (req, res) => {
               as: "it",
               in: {
                 _id: "$$it._id",
+                amount: "$$it.amount",
                 orderQty: "$$it.orderQty",
                 rate: "$$it.rate",
+                gst: "$$it.gst",
                 amount: "$$it.amount",
+                gstAmount: "$$it.gstAmount",
+                amountWithGst: "$$it.amountWithGst",
+                rejected: "$$it.rejected",
+                rejectionReason: "$$it.rejectionReason",
                 item: {
                   $let: {
                     vars: {
@@ -201,7 +215,12 @@ const getAllPOs = async (req, res) => {
         $project: {
           poNo: 1,
           date: 1,
+          expiryDate: 1,
+          deliveryDate: 1,
+          address: 1,
           totalAmount: 1,
+          totalGstAmount: 1,
+          totalAmountWithGst: 1,
           status: 1,
           deleted: 1,
           createdAt: 1,
@@ -230,7 +249,12 @@ const getAllPOs = async (req, res) => {
             _id: 1,
             orderQty: 1,
             rate: 1,
+            gst: 1,
             amount: 1,
+            gstAmount: 1,
+            amountWithGst: 1,
+            rejected: 1,
+            rejectionReason: 1,
             item: {
               _id: 1,
               skuCode: 1,
