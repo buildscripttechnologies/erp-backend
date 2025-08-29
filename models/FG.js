@@ -44,6 +44,10 @@ const fgSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
     },
+    rate: {
+      type: Number,
+      default: 0,
+    },
     height: {
       type: Number,
       default: 0,

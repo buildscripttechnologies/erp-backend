@@ -144,6 +144,9 @@ const bomSchema = new mongoose.Schema(
         qty: {
           type: Number,
         },
+        grams: {
+          type: Number,
+        },
         rate: Number,
         sqInchRate: Number,
       },
