@@ -102,6 +102,10 @@ exports.addSample = async (req, res) => {
             rate: d.rate,
             sqInchRate: d.sqInchRate,
             partName: d.partName,
+            grams: d.grams,
+            category: d.category,
+            baseQty: d.baseQty,
+            itemRate: d.itemRate,
           })),
         sfg: productDetails
           .filter((d) => d.type === "SFG")
@@ -112,6 +116,10 @@ exports.addSample = async (req, res) => {
             width: d.width,
             sqInchRate: d.sqInchRate,
             partName: d.partName,
+            grams: d.grams,
+            category: d.category,
+            baseQty: d.baseQty,
+            itemRate: d.itemRate,
           })),
         createdBy: req.user?._id,
       });
