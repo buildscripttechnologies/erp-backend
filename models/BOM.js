@@ -140,12 +140,17 @@ const bomSchema = new mongoose.Schema(
         height: Number,
         width: Number,
         // depth: Number,
-
+        category: String,
         qty: {
+          type: Number,
+        },
+        grams: {
           type: Number,
         },
         rate: Number,
         sqInchRate: Number,
+        baseQty: Number,
+        itemRate: Number,
       },
     ],
     isActive: {
