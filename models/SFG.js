@@ -158,7 +158,6 @@ const sfgSchema = new mongoose.Schema(
       default: 0,
     },
 
-    
     status: {
       type: String,
       enum: ["Active", "Inactive"],
@@ -210,7 +209,6 @@ const sfgSchema = new mongoose.Schema(
         itemRate: Number,
       },
     ],
-    
 
     deletedAt: { type: Date, default: null },
   },

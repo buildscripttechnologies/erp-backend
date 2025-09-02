@@ -27,7 +27,7 @@ exports.getAllFGs = async (req, res) => {
       .populate({
         path: "rm.rmid",
         select:
-          "skuCode itemName description type hsnOrSac stockUOM qualityInspectionNeeded location",
+          "skuCode itemName description itemCategory type hsnOrSac stockUOM qualityInspectionNeeded location",
         populate: [
           {
             path: "stockUOM",
@@ -58,7 +58,7 @@ exports.getAllFGs = async (req, res) => {
           {
             path: "rm.rmid",
             select:
-              "skuCode itemName description hsnOrSac type location qualityInspectionNeeded stockUOM",
+              "skuCode itemName description itemCategory hsnOrSac type location qualityInspectionNeeded stockUOM",
             populate: [
               {
                 path: "stockUOM",
@@ -74,7 +74,7 @@ exports.getAllFGs = async (req, res) => {
           {
             path: "sfg.sfgid",
             select:
-              "skuCode itemName description hsnOrSac qualityInspectionNeeded location type moq UOM rm",
+              "skuCode itemName description itemCategory hsnOrSac qualityInspectionNeeded location type moq UOM rm",
             populate: [
               {
                 path: "UOM",
@@ -88,7 +88,7 @@ exports.getAllFGs = async (req, res) => {
               {
                 path: "rm.rmid",
                 select:
-                  "skuCode itemName description hsnOrSac type location qualityInspectionNeeded stockUOM",
+                  "skuCode itemName description itemCategory hsnOrSac type location qualityInspectionNeeded stockUOM",
                 populate: [
                   {
                     path: "stockUOM",
@@ -178,7 +178,7 @@ exports.getAllFGs = async (req, res) => {
         grams: r.grams,
         rate: r.rate,
         sqInchRate: r.sqInchRate,
-        category: r.category,
+        category: r.rmid?.itemCategory || r.category,
         itemRate: r.itemRate,
         baseQty: r.baseQty,
 
@@ -227,7 +227,7 @@ exports.getAllFGs = async (req, res) => {
             grams: r.grams,
             rate: r.rate,
             sqInchRate: r.sqInchRate,
-            category: r.category,
+            category: r.rmid?.itemCategory || r.category,
             itemRate: r.itemRate,
             baseQty: r.baseQty,
             // depth: r.depth,
@@ -275,7 +275,7 @@ exports.getAllFGs = async (req, res) => {
                 grams: r.grams,
                 rate: r.rate,
                 sqInchRate: r.sqInchRate,
-                category: r.category,
+                category: r.rmid?.itemCategory || r.category,
                 itemRate: r.itemRate,
                 baseQty: r.baseQty,
                 // depth: r.depth,

@@ -471,6 +471,7 @@ exports.getAllBoms = async (req, res) => {
                   $project: {
                     skuCode: 1,
                     itemName: 1,
+                    itemCategory:1,
                     "location.locationId": 1,
                   },
                 },
@@ -481,6 +482,7 @@ exports.getAllBoms = async (req, res) => {
               ...detail,
               skuCode: item?.skuCode || null,
               itemName: item?.itemName || null,
+              category: item?.itemCategory || null,
               location: item?.location || null, // now an object { name, code }
             };
           })

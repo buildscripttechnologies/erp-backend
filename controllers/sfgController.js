@@ -144,7 +144,7 @@ exports.getAllSFGs = async (req, res) => {
       .populate({
         path: "rm.rmid",
         select:
-          "skuCode itemName description type hsnOrSac stockUOM qualityInspectionNeeded location",
+          "skuCode itemName description itemCategory type hsnOrSac stockUOM qualityInspectionNeeded location",
         populate: [
           {
             path: "stockUOM",
@@ -172,7 +172,7 @@ exports.getAllSFGs = async (req, res) => {
           {
             path: "rm.rmid",
             select:
-              "skuCode itemName description type hsnOrSac stockUOM qualityInspectionNeeded location",
+              "skuCode itemName description itemCategory type hsnOrSac stockUOM qualityInspectionNeeded location",
             populate: [
               {
                 path: "stockUOM",
@@ -266,7 +266,7 @@ exports.getAllSFGs = async (req, res) => {
         grams: r.grams,
         rate: r.rate,
         sqInchRate: r.sqInchRate,
-        category: r.category,
+        category: r.rmid?.itemCategory || r.category,
         itemRate: r.itemRate,
         baseQty: r.baseQty,
       })),
@@ -312,7 +312,7 @@ exports.getAllSFGs = async (req, res) => {
             grams: r.grams,
             rate: r.rate,
             sqInchRate: r.sqInchRate,
-            category: r.category,
+            category: r.rmid?.itemCategory || r.category,
             itemRate: r.itemRate,
             baseQty: r.baseQty,
           })),
