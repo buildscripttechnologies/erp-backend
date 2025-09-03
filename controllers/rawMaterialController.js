@@ -304,26 +304,32 @@ exports.downloadRawMaterialSample = async (req, res) => {
   try {
     const uoms = await UOM.find({}, "unitName"); // only fetch unit names
 
+    // Create a readable UOM list like "KG / PCS / MTR"
+    const uomOptions = uoms.map((u) => u.unitName).join(" / ");
+
     const sampleData = [
       {
-        "Sku Code": "sku-001",
-        "Item Name": "sample item name",
-        Description: "sample description",
-        "Item Category": "sample category",
-        "Item Color": "red",
-        "HSN/SAC": "12345",
-        Type: "RM",
-        "Quality Inspection": "Required/Not Required",
-        Location: "ABC12",
-        "Base Qty": "10",
-        "Pkg Qty": "5",
-        MOQ: "1",
-        Rate: "100",
-        Panno: "20",
-        "Purchase UOM": ` ${uoms.map((u) => u.unitName).join("/ ")}`,
-        GST: "18",
-        // "Stock Qty": "10",
-        "Stock UOM": ` ${uoms.map((u) => u.unitName).join("/ ")}`,
+        skuCode: "",
+        itemName: "",
+        description: "",
+        itemCategory: "",
+        itemColor: "",
+        hsnOrSac: "",
+        type: "RM",
+        location: "",
+        moq: "1",
+        panno: "",
+        sqInchRate: "",
+        rate: "",
+        gst: "",
+        stockQty: "",
+        baseQty: "",
+        pkgQty: "",
+        purchaseUOM: uomOptions, // ✅ no leading space
+        stockUOM: uomOptions, // ✅ no leading space
+        qualityInspection: "Required / Not Required",
+        attachments: "",
+        totalRate: "",
       },
     ];
 
@@ -359,36 +365,43 @@ exports.uploadExcelRawMaterials = async (req, res) => {
 
     const workbook = XLSX.read(req.file.buffer, { type: "buffer" });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-    const data = XLSX.utils.sheet_to_json(sheet);
+
+    // Convert Excel to JSON, keep empty cells as ""
+    const data = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
     if (!data || data.length === 0) {
       return res.status(400).json({ message: "Excel is empty or invalid." });
     }
 
-    // UOM Mapping
-    const uoms = await UOM.find();
+    // ✅ Normalize keys (remove leading/trailing spaces)
+    const normalizedData = data.map((row) => {
+      const newRow = {};
+      for (const key in row) {
+        if (Object.hasOwn(row, key)) {
+          newRow[key.trim()] = row[key];
+        }
+      }
+      return newRow;
+    });
 
+    // --- UOM Mapping ---
+    const uoms = await UOM.find();
     const uomMap = Object.fromEntries(
       uoms.map((u) => [u.unitName.trim().toLowerCase(), u._id])
     );
 
+    // --- Location Mapping ---
     const locations = await Location.find();
     const locMap = Object.fromEntries(
       locations.map((l) => [l.locationId.trim().toUpperCase(), l._id])
     );
 
-    console.log("uom map", uomMap);
-    console.log("loc map", locMap);
-
-    // Generate SKUs
-    // const skuCodes = await generateBulkSkuCodes(data.length);
-
-    // Extract SKU codes from Excel & normalize
-    const uploadedSkuCodes = data
-      .map((row) => row["Sku Code"]?.trim().toLowerCase())
+    // --- Extract SKU Codes ---
+    const uploadedSkuCodes = normalizedData
+      .map((row) => row["skuCode"]?.trim().toLowerCase())
       .filter(Boolean);
 
-    // Check for duplicates already in DB
+    // --- Check duplicate SKUs in DB ---
     const existingSkus = await RawMaterial.find(
       { skuCode: { $in: uploadedSkuCodes } },
       { skuCode: 1 }
@@ -396,12 +409,12 @@ exports.uploadExcelRawMaterials = async (req, res) => {
 
     if (existingSkus.length > 0) {
       return res.status(400).json({
-        message: "Duplicate SKU codes found.",
+        message: "Duplicate SKU codes found in DB.",
         duplicates: existingSkus.map((item) => item.skuCode),
       });
     }
 
-    // Check for duplicates within the uploaded file itself
+    // --- Check duplicate SKUs in uploaded file ---
     const seen = new Set();
     const duplicatesInFile = uploadedSkuCodes.filter((sku) => {
       if (seen.has(sku)) return true;
@@ -416,13 +429,11 @@ exports.uploadExcelRawMaterials = async (req, res) => {
       });
     }
 
-    const rawMaterials = data.map((row, index) => {
+    // --- Transform rows into RawMaterial objects ---
+    const rawMaterials = normalizedData.map((row) => {
       const getUomId = (uomStr) => {
         if (!uomStr) return null;
         const cleaned = uomStr.trim().toLowerCase();
-        console.log("cleaned", cleaned);
-        console.log("uom id", uomMap[cleaned]);
-
         return uomMap[cleaned] || null;
       };
 
@@ -432,48 +443,58 @@ exports.uploadExcelRawMaterials = async (req, res) => {
         return locMap[cleaned] || null;
       };
 
-      const baseQty = Number(row["Base Qty"] || 0);
-      const pkgQty = Number(row["Pkg Qty"] || 0);
-      const moq = Number(row["MOQ"] || 0);
-      const rate = Number(row["Rate"] || 0);
-      // const stockQty = Number(row["Stock Qty"] || 0);
-      const itemCategory = row["Item Category"]?.trim() || "";
+      const baseQty = Number(row["baseQty"] || 0);
+      const pkgQty = Number(row["pkgQty"] || 0);
+      const moq = Number(row["moq"] || 0);
+      const rate = Number(row["rate"] || 0);
+      const stockQty = Number(row["stockQty"] || 0);
+      const itemCategory = row["itemCategory"]?.trim() || "";
       let sqInchRate = 0;
-      const panno = Number(row["Panno"] || 0);
+      const panno = Number(row["panno"] || 0);
 
-      if (itemCategory.toLowerCase() == "fabric") {
-        sqInchRate = (rate / panno / 39) * 1.05;
-        sqInchRate = Number(sqInchRate.toFixed(4));
-        console.log("sqinch Rate", sqInchRate);
+      // --- Special sqInchRate calculation ---
+      if (
+        itemCategory.toLowerCase().includes("fabric") ||
+        itemCategory.toLowerCase() === "cotton" ||
+        itemCategory.toLowerCase() === "canvas"
+      ) {
+        const fabricRate =
+          itemCategory.includes("cotton") || itemCategory.includes("canvas")
+            ? 38
+            : 39;
+        sqInchRate = (rate / panno / fabricRate) * 1.05;
+        sqInchRate = Number(sqInchRate.toFixed(2));
       }
 
       return {
-        skuCode: row["Sku Code"]?.trim() || "",
-        itemName: row["Item Name"]?.trim() || "",
-        description: row["Description"]?.trim() || "",
+        skuCode: row["skuCode"]?.trim() || "",
+        itemName: row["itemName"]?.trim() || "",
+        description: row["description"]?.trim() || "-",
         itemCategory,
-        itemColor: row["Item Color"]?.trim() || "",
-        hsnOrSac: row["HSN/SAC"]?.toString().trim() || "",
-        type: row["Type"]?.trim() || "",
-        qualityInspectionNeeded:
-          row["Quality Inspection"]?.trim().toLowerCase() === "required",
-        location: getLocId(row["Location"]),
-        baseQty,
-        pkgQty,
+        itemColor: row["itemColor"]?.trim() || "",
+        hsnOrSac: row["hsnOrSac"]?.toString().trim() || "",
+        type: "RM",
+        location: getLocId(row["location"]),
         moq,
-        rate,
         panno,
         sqInchRate,
-        purchaseUOM: getUomId(row["Purchase UOM"]),
-        gst: Number(row["GST"] || 0),
-        // stockQty,
-        stockUOM: getUomId(row["Stock UOM"]),
-        // totalRate: rate * stockQty, // <-- Auto-calculated here ✅
+        rate,
+        gst: Number(row["gst"] || 0),
+        stockQty,
+        baseQty,
+        pkgQty,
+        purchaseUOM: getUomId(row["purchaseUOM"]),
+        stockUOM: getUomId(row["stockUOM"]),
+        qualityInspectionNeeded:
+          row["qualityInspectionNeeded"]?.trim().toLowerCase() === "required",
+        totalRate: rate * stockQty,
         createdBy: req.user._id,
       };
     });
 
+    // --- Insert into DB ---
     const inserted = await RawMaterial.insertMany(rawMaterials);
+
     res.status(201).json({
       status: 201,
       message: "Raw materials uploaded successfully.",

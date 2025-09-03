@@ -452,7 +452,7 @@ exports.getAllSamples = async (req, res) => {
           let item = null;
           if (type === "RawMaterial") {
             item = await RawMaterial.findById(itemId).select(
-              "skuCode itemName itemCategory"
+              "skuCode itemName itemCategory panno attachments"
             );
           } else if (type === "SFG") {
             item = await SFG.findById(itemId).select("skuCode itemName");
@@ -464,6 +464,8 @@ exports.getAllSamples = async (req, res) => {
             detail.skuCode = item.skuCode;
             detail.itemName = item.itemName;
             detail.category = item.itemCategory;
+            (detail.panno = item.panno),
+              (detail.attachments = item.attachments);
           } else {
             detail.skuCode = null;
             detail.itemName = null;
