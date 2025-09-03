@@ -73,7 +73,7 @@ exports.addBom = async (req, res) => {
     // let fg = await FG.findOne({ itemName: productName });
 
     const bomNo = await generateNextBomNo();
-    console.log("bom sample", bomNo, sampleNo);
+    // console.log("bom sample", bomNo, sampleNo);
 
     // Step 3: If FG doesn't exist, create new one
     // if (!fg) {
@@ -246,7 +246,7 @@ exports.updateBom = async (req, res) => {
       deletedFiles = [],
     } = parsed;
 
-    console.log("deletedFiles", deletedFiles);
+    // console.log("deletedFiles", deletedFiles);
 
     // Step 1: Ensure customer exists (create if missing)
     let customer = await Customer.findOne({ customerName: partyName });
@@ -297,7 +297,7 @@ exports.updateBom = async (req, res) => {
 
     updatedFiles = [...updatedFiles, ...newFiles];
 
-    console.log("updated files", updatedFiles);
+    // console.log("updated files", updatedFiles);
 
     // Step 6: Update BOM
     const updatedBom = await BOM.findByIdAndUpdate(
@@ -451,14 +451,39 @@ exports.getAllBoms = async (req, res) => {
 
             const [item] = await BOM.db
               .collection(collectionName)
-              .find({ _id: detail.itemId })
-              .project({ skuCode: 1, itemName: 1 })
+              .aggregate([
+                { $match: { _id: detail.itemId } },
+                {
+                  $lookup: {
+                    from: "locations", // collection name
+                    localField: "location", // field in RawMaterial/SFG/FG
+                    foreignField: "_id", // field in Location
+                    as: "location",
+                  },
+                },
+                {
+                  $unwind: {
+                    path: "$location",
+                    preserveNullAndEmptyArrays: true,
+                  },
+                },
+                {
+                  $project: {
+                    skuCode: 1,
+                    itemName: 1,
+                    itemCategory:1,
+                    "location.locationId": 1,
+                  },
+                },
+              ])
               .toArray();
 
             return {
               ...detail,
               skuCode: item?.skuCode || null,
               itemName: item?.itemName || null,
+              category: item?.itemCategory || null,
+              location: item?.location || null, // now an object { name, code }
             };
           })
         );

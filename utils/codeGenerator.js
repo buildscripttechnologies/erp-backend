@@ -1,6 +1,7 @@
 const BOM = require("../models/BOM");
 const Customer = require("../models/Customer");
 const FG = require("../models/FG");
+const MI = require("../models/MI");
 const PO = require("../models/PO");
 const Sample = require("../models/Sample");
 
@@ -84,4 +85,19 @@ exports.generateNextPONo = async () => {
   });
 
   return `PO-${(max + 1).toString().padStart(3, "0")}`;
+};
+exports.generateNextProdNo = async () => {
+  const allMIs = await MI.findWithDeleted({}, { prodNo: 1 }).lean(); // includes deleted
+
+  let max = 0;
+
+  allMIs.forEach((mi) => {
+    const match = mi.prodNo?.toString().match(/PROD-(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > max) max = num;
+    }
+  });
+
+  return `PROD-${(max + 1).toString().padStart(3, "0")}`;
 };
