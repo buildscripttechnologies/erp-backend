@@ -152,6 +152,15 @@ const somSchema = new mongoose.Schema(
         itemRate: Number,
       },
     ],
+    consumptionTable: [
+      {
+        skuCode: String,
+        itemName: String,
+        category: String,
+        weight: { type: String }, // in kg if applicable
+        qty: { type: String }, // in meters, pcs, etc.
+      },
+    ],
     isActive: {
       type: Boolean,
       default: true,

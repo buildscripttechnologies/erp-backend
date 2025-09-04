@@ -41,6 +41,7 @@ router.patch(
 // Delete BOM (soft delete)
 router.delete(
   "/delete/:id",
+  auth,
   checkPermission("BOM", "delete"),
   bomController.deleteBom
 );

@@ -201,6 +201,8 @@ const fgSchema = new mongoose.Schema(
       },
     ],
 
+    isSample: { type: Boolean, default: false },
+
     deletedAt: { type: Date, default: null },
   },
   {

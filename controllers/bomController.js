@@ -20,6 +20,7 @@ exports.addBom = async (req, res) => {
       orderQty,
       productName,
       productDetails,
+      consumptionTable,
       sampleNo = "",
       date,
       height,
@@ -167,6 +168,7 @@ exports.addBom = async (req, res) => {
       totalB2BRate,
       totalD2CRate,
       productDetails: resolvedProductDetails,
+      consumptionTable: consumptionTable,
       file: attachments,
       createdBy: req.user?._id,
     });
@@ -180,36 +182,6 @@ exports.addBom = async (req, res) => {
   }
 };
 
-// ✅ EDIT BOM
-// exports.updateBom = async (req, res) => {
-//   try {
-//     const { id } = req.params;
-//     const { partyName, orderQty, productName, productDetails } = req.body;
-
-//     const customer = await Customer.findOne({ customerName: partyName });
-//     const fg = await FG.findOne({ itemName: productName });
-
-//     const updatedBom = await BOM.findByIdAndUpdate(
-//       id,
-//       {
-//         partyName: customer?._id,
-//         orderQty,
-//         productName: fg?._id,
-//         productDetails,
-//       },
-//       { new: true }
-//     );
-
-//     if (!updatedBom)
-//       return res.status(404).json({ success: false, message: "BOM not found" });
-
-//     res.status(200).json({ success: true, data: updatedBom });
-//   } catch (err) {
-//     console.error("Update BOM Error:", err);
-//     res.status(500).json({ success: false, message: "Failed to update BOM" });
-//   }
-// };
-
 exports.updateBom = async (req, res) => {
   try {
     const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
@@ -219,6 +191,7 @@ exports.updateBom = async (req, res) => {
       orderQty,
       productName,
       productDetails,
+      consumptionTable,
       sampleNo = "",
       date,
       height,
@@ -331,6 +304,7 @@ exports.updateBom = async (req, res) => {
         totalB2BRate,
         totalD2CRate,
         productDetails: resolvedProductDetails,
+        consumptionTable: consumptionTable,
         file: updatedFiles,
         updatedBy: req.user?._id,
         updatedAt: new Date(),
@@ -475,6 +449,7 @@ exports.getAllBoms = async (req, res) => {
                     "location.locationId": 1,
                     panno: 1,
                     attachments: 1,
+                    stockQty: 1,
                   },
                 },
               ])
@@ -488,6 +463,7 @@ exports.getAllBoms = async (req, res) => {
               location: item?.location || null, // now an object { name, code }
               panno: item?.panno,
               attachments: item?.attachments,
+              stockQty: item?.stockQty,
             };
           })
         );
@@ -502,6 +478,7 @@ exports.getAllBoms = async (req, res) => {
             fullName: bom.createdBy?.fullName,
           },
           productDetails: enrichedDetails,
+          consumptionTable: bom.consumptionTable,
         };
       })
     );
