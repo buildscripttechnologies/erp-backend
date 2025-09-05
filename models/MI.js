@@ -46,6 +46,18 @@ const miSchema = new mongoose.Schema(
         },
       },
     ],
+    consumptionTable: [
+      {
+        skuCode: String,
+        itemName: String,
+        category: String,
+        weight: { type: String }, // in kg if applicable
+        qty: { type: String }, // in meters, pcs, etc.
+        stockQty: Number,
+        type: String,
+        isChecked: Boolean,
+      },
+    ],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   },
   {

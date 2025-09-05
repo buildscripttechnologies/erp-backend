@@ -1,19 +1,56 @@
+const FG = require("../models/FG");
 const MI = require("../models/MI");
+const RawMaterial = require("../models/RawMaterial");
+const SFG = require("../models/SFG");
 const { generateNextProdNo } = require("../utils/codeGenerator");
 
 // Create Material Issue
 exports.createMI = async (req, res) => {
   try {
-    // console.log("req body", req.body);
-    let { itemDetails, bomNo, bom } = req.body;
+    let { itemDetails, bomNo, bom, consumptionTable = [] } = req.body;
     let prodNo = await generateNextProdNo();
+
+    // Loop through consumptionTable to update stock
+    for (const item of consumptionTable) {
+      const { skuCode, type, qty, weight, stockQty } = item;
+
+      // Parse numbers from qty/weight
+
+      // Decide which collection to query
+      let Model;
+      if (type === "RawMaterial") {
+        Model = RawMaterial;
+      } else if (type === "SFG") {
+        Model = SFG;
+      } else if (type === "FG") {
+        Model = FG;
+      } else {
+        continue; // skip if unknown type
+      }
+
+      // Find the item by skuCode
+      const dbItem = await Model.findOne({ skuCode });
+      if (!dbItem) continue;
+
+      // Deduct stock
+
+      dbItem.stockQty = stockQty;
+      await dbItem.save();
+      // update in consumptionTable too
+    }
+
+    console.log("consumption", consumptionTable);
+
+    // Create Material Issue
     const mi = await MI.create({
       prodNo,
       bom,
       bomNo,
-      itemDetails: itemDetails,
+      itemDetails,
+      consumptionTable,
       createdBy: req.user._id,
     });
+
     res.status(201).json({ status: 201, data: mi });
   } catch (err) {
     console.error("Error creating Material Issue:", err);
@@ -128,7 +165,9 @@ exports.deleteMI = async (req, res) => {
       return res.status(404).json({ message: "Material Issue not found" });
 
     await mi.delete(); // uses your soft delete plugin
-    res.json({ message: "Material Issue deleted successfully" });
+    res
+      .status(200)
+      .json({ status: 200, message: "Material Issue deleted successfully" });
   } catch (err) {
     console.error("Error deleting Material Issue:", err);
     res.status(500).json({ message: err.message });

@@ -15,6 +15,7 @@ exports.addSample = async (req, res) => {
       orderQty,
       productName,
       productDetails,
+      consumptionTable,
       date,
       height,
       width,
@@ -121,6 +122,7 @@ exports.addSample = async (req, res) => {
             baseQty: d.baseQty,
             itemRate: d.itemRate,
           })),
+        isSample: true,
         createdBy: req.user?._id,
       });
     }
@@ -160,6 +162,7 @@ exports.addSample = async (req, res) => {
       unitB2BRate,
       unitD2CRate,
       productDetails: resolvedProductDetails,
+      consumptionTable: consumptionTable,
       file: attachments,
       createdBy: req.user?._id,
     });
@@ -241,6 +244,7 @@ exports.updateSampleWithFiles = async (req, res) => {
       unitB2BRate,
       unitD2CRate,
       productDetails = [],
+      consumptionTable = [],
       deletedFiles = [],
     } = parsed;
 
@@ -283,6 +287,7 @@ exports.updateSampleWithFiles = async (req, res) => {
     sample.orderQty = orderQty;
     sample.product = { pId: fg?._id || null, name: productName };
     sample.productDetails = productDetails;
+    sample.consumptionTable = consumptionTable;
     sample.date = date;
     sample.height = height;
     sample.width = width;
@@ -424,7 +429,9 @@ exports.getAllSamples = async (req, res) => {
                 unitRate: 1,
                 unitB2BRate: 1,
                 unitD2CRate: 1,
+               
                 productDetails: 1,
+                consumptionTable: 1,
                 createdBy: {
                   _id: "$createdBy._id",
                   username: "$createdBy.username",
@@ -452,7 +459,7 @@ exports.getAllSamples = async (req, res) => {
           let item = null;
           if (type === "RawMaterial") {
             item = await RawMaterial.findById(itemId).select(
-              "skuCode itemName itemCategory"
+              "skuCode itemName itemCategory panno attachments"
             );
           } else if (type === "SFG") {
             item = await SFG.findById(itemId).select("skuCode itemName");
@@ -464,6 +471,8 @@ exports.getAllSamples = async (req, res) => {
             detail.skuCode = item.skuCode;
             detail.itemName = item.itemName;
             detail.category = item.itemCategory;
+            (detail.panno = item.panno),
+              (detail.attachments = item.attachments);
           } else {
             detail.skuCode = null;
             detail.itemName = null;
