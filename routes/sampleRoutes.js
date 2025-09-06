@@ -15,8 +15,11 @@ router.post(
   auth,
   checkPermission("Sample", "write"),
   setUploadType("sample_attachments"),
-  uploadFile.array("files"),
-  compressUploadedFiles,
+  uploadFile.fields([
+    { name: "files", maxCount: 10 },
+    { name: "printingFiles", maxCount: 10 },
+  ]),
+  // compressUploadedFiles,
   sampleController.addSample
 );
 
@@ -26,8 +29,11 @@ router.patch(
   auth,
   checkPermission("Sample", "update"),
   setUploadType("sample_attachments"),
-  uploadFile.array("files"),
-  compressUploadedFiles,
+  uploadFile.fields([
+    { name: "files", maxCount: 10 },
+    { name: "printingFiles", maxCount: 10 },
+  ]),
+  // compressUploadedFiles,
   sampleController.updateSampleWithFiles
 );
 

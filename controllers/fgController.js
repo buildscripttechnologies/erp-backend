@@ -161,6 +161,7 @@ exports.getAllFGs = async (req, res) => {
         userType: fg.createdBy?.userType,
       },
       files: fg.file || [],
+      printingFile: fg.printingFile || [],
       rm: fg.rm.map((r) => ({
         id: r.rmid?._id || r.rmid,
         skuCode: r.rmid?.skuCode,
@@ -183,6 +184,8 @@ exports.getAllFGs = async (req, res) => {
         itemRate: r.itemRate,
         baseQty: r.baseQty,
         panno: r.rmid?.panno,
+        isPrint: r.isPrint,
+        cuttingType: r.cuttingType,
         // depth: r.depth,
       })),
       sfg: fg.sfg.map((sfgRef) => {
@@ -209,6 +212,8 @@ exports.getAllFGs = async (req, res) => {
           category: sfg.category,
           itemRate: sfg.itemRate,
           baseQty: sfg.baseQty,
+          isPrint: sfg.isPrint,
+          cuttingType: sfg.cuttingType,
           // depth: sfgRef.depth,
           rm: (sfg.rm || []).map((r) => ({
             id: r.rmid?._id || r.rmid,
@@ -232,6 +237,8 @@ exports.getAllFGs = async (req, res) => {
             itemRate: r.itemRate,
             baseQty: r.baseQty,
             panno: r.rmid?.panno,
+            isPrint: r.isPrint,
+            cuttingType: r.cuttingType,
             // depth: r.depth,
           })),
           sfg: (sfg.sfg || []).map((nested) => {
@@ -258,6 +265,8 @@ exports.getAllFGs = async (req, res) => {
               category: nestedSFG.category,
               itemRate: nestedSFG.itemRate,
               baseQty: nestedSFG.baseQty,
+              isPrint: nestedSFG.isPrint,
+              cuttingType: nestedSFG.cuttingType,
               // depth: nested.depth,
               rm: (nestedSFG.rm || []).map((r) => ({
                 id: r.rmid?._id || r.rmid,
@@ -281,6 +290,8 @@ exports.getAllFGs = async (req, res) => {
                 itemRate: r.itemRate,
                 baseQty: r.baseQty,
                 panno: r.rmid?.panno,
+                isPrint: r.isPrint,
+                cuttingType: r.cuttingType,
                 // depth: r.depth,
               })),
             };
@@ -312,6 +323,8 @@ exports.addMultipleFGs = async (req, res) => {
   try {
     const fgs = JSON.parse(req.body.fgs);
 
+    console.log("fgs", fgs);
+
     if (!Array.isArray(fgs) || fgs.length === 0) {
       return res.status(400).json({
         status: 400,
@@ -322,9 +335,10 @@ exports.addMultipleFGs = async (req, res) => {
     console.log("add fgs", fgs[0].rm, fgs[0].sfg);
 
     const fileMap = {};
+    const printingFileMap = {};
 
     // Map files by index from filename convention
-    req.files.forEach((file) => {
+    req.files?.files?.forEach((file) => {
       const match = file.originalname.match(/__index_(\d+)__/);
       if (!match) return;
       const index = parseInt(match[1], 10);
@@ -341,6 +355,25 @@ exports.addMultipleFGs = async (req, res) => {
         fileUrl: fileUrl,
       });
     });
+    req.files?.printingFiles?.forEach((file) => {
+      const match = file.originalname.match(/__index_(\d+)__/);
+      if (!match) return;
+      const index = parseInt(match[1], 10);
+      const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
+      const protocol =
+        process.env.NODE_ENV === "production" ? "https" : req.protocol;
+      const fileUrl = `${protocol}://${req.get("host")}/uploads/${
+        req.uploadType
+      }/${file.filename}`;
+
+      if (!printingFileMap[index]) printingFileMap[index] = [];
+      printingFileMap[index].push({
+        fileName: cleanedFileName,
+        fileUrl: fileUrl,
+      });
+    });
+
+    console.log("print file map", printingFileMap);
 
     // const skuCodes = await generateBulkFgSkuCodes(fgs.length);
 
@@ -356,6 +389,7 @@ exports.addMultipleFGs = async (req, res) => {
           UOM: uom,
           location: loc,
           file: fileMap[index] || [],
+          printingFile: printingFileMap[index] || [],
         };
       })
     );
@@ -442,7 +476,11 @@ exports.updateFG = async (req, res) => {
 exports.updateFGWithFiles = async (req, res) => {
   try {
     const parsed = JSON.parse(req.body.data);
-    const { deletedFiles = [], ...updateFields } = parsed;
+    const {
+      deletedFiles = [],
+      deletedPrintingFiles = [],
+      ...updateFields
+    } = parsed;
 
     const fg = await FG.findById(req.params.id);
     if (!fg) return res.status(404).json({ message: "FG not found" });
@@ -451,10 +489,13 @@ exports.updateFGWithFiles = async (req, res) => {
     fg.file = fg.file.filter(
       (file) => !deletedFiles.includes(file._id?.toString())
     );
+    fg.printingFile = fg.printingFile.filter(
+      (file) => !deletedPrintingFiles.includes(file._id?.toString())
+    );
 
     // Handle new uploads
-    if (req.files?.length) {
-      const uploadedFiles = req.files.map((file) => {
+    if (req.files?.files?.length) {
+      const uploadedFiles = req.files?.files?.map((file) => {
         const protocol =
           process.env.NODE_ENV === "production" ? "https" : req.protocol;
         const fileUrl = `${protocol}://${req.get("host")}/uploads/${
@@ -470,6 +511,24 @@ exports.updateFGWithFiles = async (req, res) => {
       });
 
       fg.file.push(...uploadedFiles);
+    }
+    if (req.files?.printingFiles?.length) {
+      const uploadedPrintingFiles = req.files?.printingFiles?.map((file) => {
+        const protocol =
+          process.env.NODE_ENV === "production" ? "https" : req.protocol;
+        const fileUrl = `${protocol}://${req.get("host")}/uploads/${
+          req.uploadType
+        }/${file.filename}`;
+        const cleanedFileName = file.originalname.replace(/__index_\d+__/, ""); // optional cleanup
+
+        return {
+          fileName: cleanedFileName,
+          fileUrl,
+        };
+        s;
+      });
+
+      fg.printingFile.push(...uploadedPrintingFiles);
     }
 
     const resolvedUOM = await resolveUOM(updateFields.UOM);

@@ -39,7 +39,7 @@ exports.createMI = async (req, res) => {
       // update in consumptionTable too
     }
 
-    console.log("consumption", consumptionTable);
+    // console.log("consumption", consumptionTable);
 
     // Create Material Issue
     const mi = await MI.create({

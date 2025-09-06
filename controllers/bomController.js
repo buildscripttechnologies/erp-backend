@@ -61,8 +61,19 @@ exports.addBom = async (req, res) => {
     // Step 4: Handle file uploads
     const protocol =
       process.env.NODE_ENV === "production" ? "https" : req.protocol;
+
+    console.log("req.files", req.files);
+
     const attachments =
-      req.files?.map((file) => ({
+      req.files?.files?.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+          file.filename
+        }`,
+      })) || [];
+
+    const printingAttachments =
+      req.files?.printingFiles?.map((file) => ({
         fileName: file.originalname,
         fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
           file.filename
@@ -170,6 +181,7 @@ exports.addBom = async (req, res) => {
       productDetails: resolvedProductDetails,
       consumptionTable: consumptionTable,
       file: attachments,
+      printingFile: printingAttachments,
       createdBy: req.user?._id,
     });
 
@@ -217,6 +229,7 @@ exports.updateBom = async (req, res) => {
       totalB2BRate,
       totalD2CRate,
       deletedFiles = [],
+      deletedPrintingFiles = [],
     } = parsed;
 
     // console.log("deletedFiles", deletedFiles);
@@ -237,7 +250,15 @@ exports.updateBom = async (req, res) => {
       process.env.NODE_ENV === "production" ? "https" : req.protocol;
 
     const newFiles =
-      req.files?.map((file) => ({
+      req.files?.files?.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+          file.filename
+        }`,
+      })) || [];
+
+    const newPrintingFiles =
+      req.files?.printingFiles?.map((file) => ({
         fileName: file.originalname,
         fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
           file.filename
@@ -258,6 +279,7 @@ exports.updateBom = async (req, res) => {
 
     // Step 5: Merge files (remove deleted ones, add new ones)
     let updatedFiles = existingBom.file || [];
+    let updatedPrintingFiles = existingBom.printingFile || [];
 
     if (deletedFiles.length > 0) {
       updatedFiles = updatedFiles.filter(
@@ -267,8 +289,17 @@ exports.updateBom = async (req, res) => {
           )
       );
     }
+    if (deletedPrintingFiles.length > 0) {
+      updatedPrintingFiles = updatedPrintingFiles.filter(
+        (f) =>
+          !deletedPrintingFiles.some(
+            (file) => file._id.toString() === f._id.toString()
+          )
+      );
+    }
 
     updatedFiles = [...updatedFiles, ...newFiles];
+    updatedPrintingFiles = [...updatedPrintingFiles, ...newPrintingFiles];
 
     // console.log("updated files", updatedFiles);
 
@@ -306,6 +337,7 @@ exports.updateBom = async (req, res) => {
         productDetails: resolvedProductDetails,
         consumptionTable: consumptionTable,
         file: updatedFiles,
+        printingFile: updatedPrintingFiles,
         updatedBy: req.user?._id,
         updatedAt: new Date(),
       },

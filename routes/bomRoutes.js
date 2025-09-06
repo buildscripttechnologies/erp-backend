@@ -15,8 +15,11 @@ router.post(
   auth,
   checkPermission("BOM", "write"),
   setUploadType("bom_attachments"),
-  uploadFile.array("files"),
-  compressUploadedFiles,
+  uploadFile.fields([
+    { name: "files", maxCount: 10 },
+    { name: "printingFiles", maxCount: 10 },
+  ]),
+  // compressUploadedFiles,
   bomController.addBom
 );
 
@@ -26,8 +29,11 @@ router.patch(
   auth,
   checkPermission("BOM", "update"),
   setUploadType("bom_attachments"),
-  uploadFile.array("files"),
-  compressUploadedFiles,
+  uploadFile.fields([
+    { name: "files", maxCount: 10 },
+    { name: "printingFiles", maxCount: 10 },
+  ]),
+  // compressUploadedFiles,
   bomController.updateBom
 );
 

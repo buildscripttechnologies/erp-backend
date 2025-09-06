@@ -160,6 +160,12 @@ const fgSchema = new mongoose.Schema(
         fileUrl: String,
       },
     ],
+    printingFile: [
+      {
+        fileName: String,
+        fileUrl: String,
+      },
+    ],
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -180,6 +186,8 @@ const fgSchema = new mongoose.Schema(
         sqInchRate: Number,
         baseQty: Number,
         itemRate: Number,
+        cuttingType: String,
+        isPrint: Boolean,
       },
     ],
     sfg: [
@@ -198,6 +206,8 @@ const fgSchema = new mongoose.Schema(
         sqInchRate: Number,
         baseQty: Number,
         itemRate: Number,
+        cuttingType: String,
+        isPrint: Boolean,
       },
     ],
 
