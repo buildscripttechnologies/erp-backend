@@ -4,6 +4,12 @@ const RawMaterial = require("../models/RawMaterial");
 const SFG = require("../models/SFG");
 const { generateNextProdNo } = require("../utils/codeGenerator");
 
+const modelMap = {
+  RawMaterial,
+  SFG,
+  FG,
+};
+
 // Create Material Issue
 exports.createMI = async (req, res) => {
   try {
@@ -12,34 +18,31 @@ exports.createMI = async (req, res) => {
 
     // Loop through consumptionTable to update stock
     for (const item of consumptionTable) {
-      const { skuCode, type, qty, weight, stockQty } = item;
+      const { skuCode, type, qty, weight } = item;
 
       // Parse numbers from qty/weight
+      const issueQty = qty && qty !== "N/A" ? parseFloat(qty) : 0;
+      const issueWeight = weight && weight !== "N/A" ? parseFloat(weight) : 0;
 
       // Decide which collection to query
       let Model;
-      if (type === "RawMaterial") {
-        Model = RawMaterial;
-      } else if (type === "SFG") {
-        Model = SFG;
-      } else if (type === "FG") {
-        Model = FG;
-      } else {
-        continue; // skip if unknown type
-      }
+      if (type === "RawMaterial") Model = RawMaterial;
+      else if (type === "SFG") Model = SFG;
+      else if (type === "FG") Model = FG;
+      else continue; // skip unknown type
 
       // Find the item by skuCode
       const dbItem = await Model.findOne({ skuCode });
       if (!dbItem) continue;
 
-      // Deduct stock
-
-      dbItem.stockQty = stockQty;
+      // Deduct issued quantity/weight from stock
+      const deduction = issueQty || issueWeight; // pick the applicable value
+      dbItem.stockQty = Math.max(0, (dbItem.stockQty || 0) - deduction);
       await dbItem.save();
-      // update in consumptionTable too
-    }
 
-    // console.log("consumption", consumptionTable);
+      // Update stockQty in the consumptionTable
+      item.stockQty = dbItem.stockQty;
+    }
 
     // Create Material Issue
     const mi = await MI.create({
@@ -78,6 +81,26 @@ exports.getAllMI = async (req, res) => {
       filters["itemDetails.assignee"] = req.query.assignee;
     }
 
+    // Filter by cuttingType or isPrint (inside itemDetails)
+    const elemMatch = {};
+    if (req.query.cuttingType) elemMatch.cuttingType = req.query.cuttingType;
+    if (req.query.isPrint !== undefined)
+      elemMatch.isPrint = req.query.isPrint === "true";
+
+    if (Object.keys(elemMatch).length > 0) {
+      filters.itemDetails = { $elemMatch: elemMatch };
+    }
+
+    // Filter by cuttingType (inside itemDetails)
+    if (req.query.cuttingType) {
+      filters["itemDetails.cuttingType"] = req.query.cuttingType;
+    }
+
+    // Filter by isPrint (inside itemDetails)
+    if (req.query.isPrint !== undefined) {
+      filters["itemDetails.isPrint"] = req.query.isPrint === "true";
+    }
+
     // Search across multiple fields
     if (search) {
       filters.$or = [
@@ -96,14 +119,31 @@ exports.getAllMI = async (req, res) => {
       .populate("bom", "bomNo partyName productName")
       .populate({
         path: "itemDetails.itemId",
-        select: "skuCode itemName description location", // <-- location included
-        populate: { path: "location", select: "locationId" }, // <-- nested populate if location is a ref
+        select: "skuCode itemName description location",
+        populate: { path: "location", select: "locationId" },
       })
       .populate("itemDetails.assignee", "_id fullName username")
       .populate("createdBy", "_id fullName username")
       .skip(skip)
       .limit(limit)
       .sort({ updatedAt: -1, _id: -1 });
+
+    // Update consumptionTable stockQty dynamically
+    for (let mi of mis) {
+      if (mi.consumptionTable?.length) {
+        for (let row of mi.consumptionTable) {
+          const Model = modelMap[row.type]; // get the correct model dynamically
+          if (!Model) continue;
+
+          const item = await Model.findOne({ skuCode: row.skuCode }).select(
+            "stockQty"
+          );
+          if (item) {
+            row.stockQty = item.stockQty; // update stockQty with latest
+          }
+        }
+      }
+    }
 
     res.status(200).json({
       success: true,
@@ -141,16 +181,60 @@ exports.getMIById = async (req, res) => {
 // Update Material Issue
 exports.updateMI = async (req, res) => {
   try {
-    const mi = await MI.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-    });
+    const { id } = req.params;
+    const updateData = req.body;
 
-    if (!mi)
+    // Fetch existing MI
+    const existingMI = await MI.findById(id);
+    if (!existingMI) {
       return res.status(404).json({ message: "Material Issue not found" });
+    }
 
-    res
-      .status(200)
-      .json({ status: 200, message: "Update Sucessful", data: mi });
+    if (
+      updateData.consumptionTable &&
+      Array.isArray(updateData.consumptionTable)
+    ) {
+      for (const updatedItem of updateData.consumptionTable) {
+        const oldItem = existingMI.consumptionTable.find(
+          (ci) =>
+            ci.skuCode === updatedItem.skuCode && ci.type === updatedItem.type
+        );
+
+        if (oldItem) {
+          const diff = (updatedItem.stockQty || 0) - (oldItem.stockQty || 0);
+
+          if (diff !== 0) {
+            let Model;
+            if (updatedItem.type === "RawMaterial") Model = RawMaterial;
+            else if (updatedItem.type === "SFG") Model = SFG;
+            else if (updatedItem.type === "FG") Model = FG;
+            else continue;
+
+            await Model.updateOne(
+              { skuCode: updatedItem.skuCode },
+              { $inc: { stockQty: diff } }
+            );
+          }
+        } else {
+          // Optional: handle new item addition if needed
+          // You could also initialize its stock if required
+        }
+
+        // Update stockQty in updateData to match DB after update
+        updatedItem.stockQty = oldItem
+          ? oldItem.stockQty + (updatedItem.stockQty - oldItem.stockQty)
+          : updatedItem.stockQty;
+      }
+    }
+
+    // Update MI
+    const updatedMI = await MI.findByIdAndUpdate(id, updateData, { new: true });
+
+    res.status(200).json({
+      status: 200,
+      message: "Material Issue updated successfully",
+      data: updatedMI,
+    });
   } catch (err) {
     console.error("Error updating Material Issue:", err);
     res.status(400).json({ message: err.message });
@@ -164,12 +248,56 @@ exports.deleteMI = async (req, res) => {
     if (!mi)
       return res.status(404).json({ message: "Material Issue not found" });
 
-    await mi.delete(); // uses your soft delete plugin
+    await mi.delete({ _id: req.params.id }); // uses your soft delete plugin
     res
       .status(200)
       .json({ status: 200, message: "Material Issue deleted successfully" });
   } catch (err) {
     console.error("Error deleting Material Issue:", err);
     res.status(500).json({ message: err.message });
+  }
+};
+
+exports.getMiWithCutting = async (req, res) => {
+  try {
+    // Pagination
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    // Filter: itemDetails must have cuttingType not null
+    const filters = {
+      itemDetails: { $elemMatch: { cuttingType: { $ne: null, $ne: "" } } },
+    };
+
+    // Count total
+    const totalResults = await MI.countDocuments(filters);
+
+    // Fetch data
+    const mis = await MI.find(filters)
+      .populate("bom", "bomNo partyName productName")
+      .populate({
+        path: "itemDetails.itemId",
+        select: "skuCode itemName description location",
+        populate: { path: "location", select: "locationId" },
+      })
+      .populate("itemDetails.assignee", "_id fullName username")
+      .populate("createdBy", "_id fullName username")
+      .skip(skip)
+      .limit(limit)
+      .sort({ updatedAt: -1, _id: -1 });
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      totalResults,
+      totalPages: Math.ceil(totalResults / limit),
+      currentPage: page,
+      limit,
+      data: mis,
+    });
+  } catch (err) {
+    console.error("Error fetching Material Issues with cutting:", err);
+    res.status(500).json({ success: false, message: err.message });
   }
 };

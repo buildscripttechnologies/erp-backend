@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
-const { type } = require("os");
+
 const miSchema = new mongoose.Schema(
   {
     prodNo: String,
@@ -58,11 +58,15 @@ const miSchema = new mongoose.Schema(
         weight: { type: String }, // in kg if applicable
         qty: { type: String }, // in meters, pcs, etc.
         stockQty: Number,
+        receiveQty: { type: Number, default: 0 },
         type: {
           type: String,
           default: "",
         },
         isChecked: Boolean,
+        isReceived: { type: Boolean, default: false },
+        receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        receivedAt: { type: Date },
       },
     ],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
