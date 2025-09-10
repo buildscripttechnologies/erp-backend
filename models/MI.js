@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
+const { type } = require("os");
 
 const miSchema = new mongoose.Schema(
   {
@@ -42,7 +43,7 @@ const miSchema = new mongoose.Schema(
         assignee: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         status: {
           type: String,
-          enum: ["pending", "issued"],
+          enum: ["pending", "in cutting", "in printing", "in stitching"],
           default: "pending",
         },
         isPrint: Boolean,
@@ -67,6 +68,7 @@ const miSchema = new mongoose.Schema(
         isReceived: { type: Boolean, default: false },
         receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         receivedAt: { type: Date },
+        extra: { type: Number, default: 0 },
       },
     ],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },

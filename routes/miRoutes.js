@@ -9,6 +9,9 @@ const {
   updateMI,
   deleteMI,
   getMiWithCutting,
+  getInCutting,
+  getInPrinting,
+  getOutsideCompany,
 } = require("../controllers/materialIssueController");
 
 const router = express.Router();
@@ -33,11 +36,18 @@ router.delete(
   deleteMI
 );
 
+router.get("/cutting", auth, checkPermission("Cutting", "read"), getInCutting);
 router.get(
-  "/cutting",
+  "/printing",
   auth,
-  checkPermission("Cutting", "read"),
-  getMiWithCutting
+  checkPermission("Printing", "read"),
+  getInPrinting
+);
+router.get(
+  "/outside-company",
+  auth,
+  checkPermission("Outside Company", "read"),
+  getOutsideCompany
 );
 
 module.exports = router;

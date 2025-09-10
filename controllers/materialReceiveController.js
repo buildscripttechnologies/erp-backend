@@ -9,6 +9,7 @@ const modelMap = {
   SFG,
   FG,
 };
+
 exports.createMR = async (req, res) => {
   try {
     let { prodNo, bomNo, bom, consumptionTable = [] } = req.body;

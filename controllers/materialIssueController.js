@@ -13,7 +13,7 @@ const modelMap = {
 // Create Material Issue
 exports.createMI = async (req, res) => {
   try {
-    let { itemDetails, bomNo, bom, consumptionTable = [] } = req.body;
+    let { itemDetails, bomNo, bom, status, consumptionTable = [] } = req.body;
     let prodNo = await generateNextProdNo();
 
     // Loop through consumptionTable to update stock
@@ -52,6 +52,7 @@ exports.createMI = async (req, res) => {
       itemDetails,
       consumptionTable,
       createdBy: req.user._id,
+      status,
     });
 
     res.status(201).json({ status: 201, data: mi });
@@ -298,6 +299,191 @@ exports.getMiWithCutting = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching Material Issues with cutting:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getInCutting = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    // Fetch all MIs (or you can add pagination if needed)
+    const mis = await MI.find()
+      .populate("bom", "bomNo productName")
+      .populate({
+        path: "itemDetails.itemId",
+        select: "skuCode itemName description location",
+        populate: { path: "location", select: "locationId" },
+      });
+
+    // Flatten and filter itemDetails that are in cutting
+    const cuttingItems = mis.flatMap((mi) =>
+      mi.itemDetails
+        .filter(
+          (item) =>
+            item.status === "in cutting" &&
+            item.jobWorkType === "Inside Company"
+        )
+        .map((item) => ({
+          _id: item._id,
+          skuCode: item.itemId?.skuCode || "",
+          itemName: item.itemId?.itemName || "",
+          description: item.itemId?.description || "",
+          location: item.itemId?.location || null,
+          cuttingType: item.cuttingType || "",
+          partName: item.partName || "",
+          height: item.height || "",
+          width: item.width || "",
+          qty: item.qty || "",
+          grams: item.grams || "",
+          jobWorkType: item.jobWorkType || "",
+          bomId: mi.bom?._id || null,
+          bomNo: mi.bom?.bomNo || "",
+          productName: mi.bom?.productName || "",
+          prodNo: mi.prodNo || "",
+          status: item.status,
+          createdAt: item.createdAt || mi.createdAt,
+          updatedAt: item.updatedAt || mi.updatedAt,
+        }))
+    );
+    const totalResults = cuttingItems.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    const paginatedItems = cuttingItems.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      totalResults,
+      totalPages,
+      currentPage: page,
+      limit,
+      data: cuttingItems,
+    });
+  } catch (err) {
+    console.error("Error fetching itemDetails in cutting:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getInPrinting = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    // Fetch all MIs (or you can add pagination if needed)
+    const mis = await MI.find()
+      .populate("bom", "bomNo productName")
+      .populate({
+        path: "itemDetails.itemId",
+        select: "skuCode itemName description location",
+        populate: { path: "location", select: "locationId" },
+      });
+
+    // Flatten and filter itemDetails that are in cutting
+    const printingItems = mis.flatMap((mi) =>
+      mi.itemDetails
+        .filter(
+          (item) =>
+            item.status === "in printing" &&
+            item.jobWorkType === "Inside Company"
+        )
+        .map((item) => ({
+          _id: item._id,
+          skuCode: item.itemId?.skuCode || "",
+          itemName: item.itemId?.itemName || "",
+          description: item.itemId?.description || "",
+          location: item.itemId?.location || null,
+          cuttingType: item.cuttingType || "",
+          partName: item.partName || "",
+          height: item.height || "",
+          width: item.width || "",
+          qty: item.qty || "",
+          grams: item.grams || "",
+          jobWorkType: item.jobWorkType || "",
+          bomId: mi.bom?._id || null,
+          bomNo: mi.bom?.bomNo || "",
+          productName: mi.bom?.productName || "",
+          prodNo: mi.prodNo || "",
+          status: item.status,
+          createdAt: item.createdAt || mi.createdAt,
+          updatedAt: item.updatedAt || mi.updatedAt,
+        }))
+    );
+    const totalResults = printingItems.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    const paginatedItems = printingItems.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      totalResults,
+      totalPages,
+      currentPage: page,
+      limit,
+      data: paginatedItems,
+    });
+  } catch (err) {
+    console.error("Error fetching itemDetails in printing:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getOutsideCompany = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    // Fetch all MIs (or you can add pagination if needed)
+    const mis = await MI.find()
+      .populate("bom", "bomNo productName")
+      .populate({
+        path: "itemDetails.itemId",
+        select: "skuCode itemName description location",
+        populate: { path: "location", select: "locationId" },
+      });
+
+    // Flatten and filter itemDetails that are in cutting
+    const Items = mis.flatMap((mi) =>
+      mi.itemDetails
+        .filter((item) => item.jobWorkType === "Outside Company")
+        .map((item) => ({
+          _id: item._id,
+          skuCode: item.itemId?.skuCode || "",
+          itemName: item.itemId?.itemName || "",
+          description: item.itemId?.description || "",
+          location: item.itemId?.location || null,
+          cuttingType: item.cuttingType || "",
+          partName: item.partName || "",
+          height: item.height || "",
+          width: item.width || "",
+          qty: item.qty || "",
+          grams: item.grams || "",
+          jobWorkType: item.jobWorkType || "",
+          bomId: mi.bom?._id || null,
+          bomNo: mi.bom?.bomNo || "",
+          productName: mi.bom?.productName || "",
+          prodNo: mi.prodNo || "",
+          status: item.status,
+          createdAt: item.createdAt || mi.createdAt,
+          updatedAt: item.updatedAt || mi.updatedAt,
+        }))
+    );
+    const totalResults = Items.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    const paginatedItems = Items.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      totalResults,
+      totalPages,
+      currentPage: page,
+      limit,
+      data: paginatedItems,
+    });
+  } catch (err) {
+    console.error("Error fetching Items:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
