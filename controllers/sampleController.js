@@ -53,7 +53,15 @@ exports.addSample = async (req, res) => {
     const protocol =
       process.env.NODE_ENV === "production" ? "https" : req.protocol;
     const attachments =
-      req.files?.map((file) => ({
+      req.files?.files?.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+          file.filename
+        }`,
+      })) || [];
+
+    const printingAttachments =
+      req.files?.printingFiles?.map((file) => ({
         fileName: file.originalname,
         fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
           file.filename
@@ -73,6 +81,7 @@ exports.addSample = async (req, res) => {
         qualityInspectionNeeded: false,
         type: "FG",
         file: attachments,
+        printingFile: printingAttachments,
         description: `Sample Product - ${sampleNo}`,
         height,
         width,
@@ -107,6 +116,8 @@ exports.addSample = async (req, res) => {
             category: d.category,
             baseQty: d.baseQty,
             itemRate: d.itemRate,
+            isPrint: d.isPrint,
+            cuttingType: d.cuttingType,
           })),
         sfg: productDetails
           .filter((d) => d.type === "SFG")
@@ -121,6 +132,8 @@ exports.addSample = async (req, res) => {
             category: d.category,
             baseQty: d.baseQty,
             itemRate: d.itemRate,
+            isPrint: d.isPrint,
+            cuttingType: d.cuttingType,
           })),
         isSample: true,
         createdBy: req.user?._id,
@@ -164,6 +177,7 @@ exports.addSample = async (req, res) => {
       productDetails: resolvedProductDetails,
       consumptionTable: consumptionTable,
       file: attachments,
+      printingFile: printingAttachments,
       createdBy: req.user?._id,
     });
 
@@ -246,6 +260,7 @@ exports.updateSampleWithFiles = async (req, res) => {
       productDetails = [],
       consumptionTable = [],
       deletedFiles = [],
+      deletedPrintingFiles = [],
     } = parsed;
 
     console.log("deletedFiles", deletedFiles);
@@ -258,9 +273,15 @@ exports.updateSampleWithFiles = async (req, res) => {
 
     // 🧹 Remove files marked for deletion by _id
     const deletedIds = deletedFiles.map((f) => f._id.toString());
+    const deletedPrintingIds = deletedPrintingFiles.map((f) =>
+      f._id.toString()
+    );
 
     sample.file = sample.file.filter(
       (file) => !deletedIds.includes(file._id.toString())
+    );
+    sample.printingFile = sample.printingFile.filter(
+      (file) => !deletedPrintingIds.includes(file._id.toString())
     );
 
     // console.log("files", sample.file);
@@ -272,14 +293,23 @@ exports.updateSampleWithFiles = async (req, res) => {
     const protocol =
       process.env.NODE_ENV === "production" ? "https" : req.protocol;
     // 📂 Handle new file uploads if any
-    if (req.files?.length) {
-      const uploadedFiles = req.files.map((file) => ({
+    if (req.files?.files?.length) {
+      const uploadedFiles = req.files?.files?.map((file) => ({
         fileName: file.originalname,
         fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
           file.filename
         }`,
       }));
       sample.file.push(...uploadedFiles);
+    }
+    if (req.files?.printingFiles?.length) {
+      const uploadedFiles = req.files?.printingFiles?.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+          file.filename
+        }`,
+      }));
+      sample.printingFile.push(...uploadedFiles);
     }
 
     // 📝 Update fields
@@ -408,6 +438,7 @@ exports.getAllSamples = async (req, res) => {
                 createdAt: 1,
                 updatedAt: 1,
                 file: 1,
+                printingFile: 1,
                 partyName: "$party.customerName",
                 product: 1,
                 height: 1,
@@ -429,7 +460,7 @@ exports.getAllSamples = async (req, res) => {
                 unitRate: 1,
                 unitB2BRate: 1,
                 unitD2CRate: 1,
-               
+
                 productDetails: 1,
                 consumptionTable: 1,
                 createdBy: {

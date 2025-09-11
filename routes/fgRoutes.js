@@ -21,8 +21,11 @@ router.post(
   auth,
   checkPermission("FG", "write"),
   setUploadType("fg_attachments"),
-  uploadFile.array("files"),
-  compressUploadedFiles,
+  uploadFile.fields([
+    { name: "files", maxCount: 10 },
+    { name: "printingFiles", maxCount: 10 },
+  ]),
+  // compressUploadedFiles,
   addMultipleFGs
 );
 router.get("/get-all", auth, checkPermission("FG", "read"), getAllFGs);
@@ -32,8 +35,11 @@ router.patch(
   auth,
   checkPermission("FG", "update"),
   setUploadType("fg_attachments"),
-  uploadFile.array("files"),
-  compressUploadedFiles,
+  uploadFile.fields([
+    { name: "files", maxCount: 10 },
+    { name: "printingFiles", maxCount: 10 },
+  ]),
+  // compressUploadedFiles,
   updateFGWithFiles
 );
 router.delete("/delete/:id", auth, checkPermission("FG", "delete"), deleteFG);

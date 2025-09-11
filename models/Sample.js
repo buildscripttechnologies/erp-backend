@@ -150,6 +150,8 @@ const somSchema = new mongoose.Schema(
         sqInchRate: Number,
         baseQty: Number,
         itemRate: Number,
+        cuttingType: String,
+        isPrint: Boolean,
       },
     ],
     consumptionTable: [
@@ -166,6 +168,12 @@ const somSchema = new mongoose.Schema(
       default: true,
     },
     file: [
+      {
+        fileName: String,
+        fileUrl: String,
+      },
+    ],
+    printingFile: [
       {
         fileName: String,
         fileUrl: String,

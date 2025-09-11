@@ -1,6 +1,8 @@
 const mongoose = require("mongoose");
 
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
+const { type } = require("os");
+
 const miSchema = new mongoose.Schema(
   {
     prodNo: String,
@@ -41,9 +43,12 @@ const miSchema = new mongoose.Schema(
         assignee: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         status: {
           type: String,
-          enum: ["pending", "issued"],
+          enum: ["pending", "in cutting", "in printing", "in stitching"],
           default: "pending",
         },
+        isPrint: Boolean,
+        cuttingType: String,
+        jobWorkType: String,
       },
     ],
     consumptionTable: [
@@ -54,8 +59,16 @@ const miSchema = new mongoose.Schema(
         weight: { type: String }, // in kg if applicable
         qty: { type: String }, // in meters, pcs, etc.
         stockQty: Number,
-        type: String,
+        receiveQty: { type: Number, default: 0 },
+        type: {
+          type: String,
+          default: "",
+        },
         isChecked: Boolean,
+        isReceived: { type: Boolean, default: false },
+        receivedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        receivedAt: { type: Date },
+        extra: { type: Number, default: 0 },
       },
     ],
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
