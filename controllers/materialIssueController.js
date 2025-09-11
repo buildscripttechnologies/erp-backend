@@ -327,6 +327,7 @@ exports.getInCutting = async (req, res) => {
         )
         .map((item) => ({
           _id: item._id,
+          miId: mi._id,
           skuCode: item.itemId?.skuCode || "",
           itemName: item.itemId?.itemName || "",
           description: item.itemId?.description || "",
@@ -358,7 +359,7 @@ exports.getInCutting = async (req, res) => {
       totalPages,
       currentPage: page,
       limit,
-      data: cuttingItems,
+      data: paginatedItems,
     });
   } catch (err) {
     console.error("Error fetching itemDetails in cutting:", err);
@@ -390,6 +391,7 @@ exports.getInPrinting = async (req, res) => {
         )
         .map((item) => ({
           _id: item._id,
+          miId: mi._id,
           skuCode: item.itemId?.skuCode || "",
           itemName: item.itemId?.itemName || "",
           description: item.itemId?.description || "",
@@ -449,6 +451,7 @@ exports.getOutsideCompany = async (req, res) => {
         .filter((item) => item.jobWorkType === "Outside Company")
         .map((item) => ({
           _id: item._id,
+          miId: mi._id,
           skuCode: item.itemId?.skuCode || "",
           itemName: item.itemId?.itemName || "",
           description: item.itemId?.description || "",
@@ -484,6 +487,188 @@ exports.getOutsideCompany = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching Items:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getInStitching = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    // Fetch all MIs (or you can add pagination if needed)
+    const mis = await MI.find()
+      .populate("bom", "bomNo productName")
+      .populate({
+        path: "itemDetails.itemId",
+        select: "skuCode itemName description location",
+        populate: { path: "location", select: "locationId" },
+      });
+
+    // Flatten and filter itemDetails that are in cutting
+    const stitchingItems = mis.flatMap((mi) =>
+      mi.itemDetails
+        .filter((item) => item.status === "in stitching")
+        .map((item) => ({
+          _id: item._id,
+          miId: mi._id,
+          skuCode: item.itemId?.skuCode || "",
+          itemName: item.itemId?.itemName || "",
+          description: item.itemId?.description || "",
+          location: item.itemId?.location || null,
+          cuttingType: item.cuttingType || "",
+          partName: item.partName || "",
+          height: item.height || "",
+          width: item.width || "",
+          qty: item.qty || "",
+          grams: item.grams || "",
+          jobWorkType: item.jobWorkType || "",
+          bomId: mi.bom?._id || null,
+          bomNo: mi.bom?.bomNo || "",
+          productName: mi.bom?.productName || "",
+          prodNo: mi.prodNo || "",
+          status: item.status,
+          createdAt: item.createdAt || mi.createdAt,
+          updatedAt: item.updatedAt || mi.updatedAt,
+        }))
+    );
+    const totalResults = stitchingItems.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    const paginatedItems = stitchingItems.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      totalResults,
+      totalPages,
+      currentPage: page,
+      limit,
+      data: paginatedItems,
+    });
+  } catch (err) {
+    console.error("Error fetching itemDetails in stitching:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+exports.getInQualityCheck = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+    // Fetch all MIs (or you can add pagination if needed)
+    const mis = await MI.find()
+      .populate("bom", "bomNo productName")
+      .populate({
+        path: "itemDetails.itemId",
+        select: "skuCode itemName description location",
+        populate: { path: "location", select: "locationId" },
+      });
+
+    // Flatten and filter itemDetails that are in cutting
+    const qualityCheckItems = mis.flatMap((mi) =>
+      mi.itemDetails
+        .filter((item) => item.status === "in quality check")
+        .map((item) => ({
+          _id: item._id,
+          miId: mi._id,
+          skuCode: item.itemId?.skuCode || "",
+          itemName: item.itemId?.itemName || "",
+          description: item.itemId?.description || "",
+          location: item.itemId?.location || null,
+          cuttingType: item.cuttingType || "",
+          partName: item.partName || "",
+          height: item.height || "",
+          width: item.width || "",
+          qty: item.qty || "",
+          grams: item.grams || "",
+          jobWorkType: item.jobWorkType || "",
+          bomId: mi.bom?._id || null,
+          bomNo: mi.bom?.bomNo || "",
+          productName: mi.bom?.productName || "",
+          prodNo: mi.prodNo || "",
+          status: item.status,
+          createdAt: item.createdAt || mi.createdAt,
+          updatedAt: item.updatedAt || mi.updatedAt,
+        }))
+    );
+    const totalResults = qualityCheckItems.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    const paginatedItems = qualityCheckItems.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      totalResults,
+      totalPages,
+      currentPage: page,
+      limit,
+      data: paginatedItems,
+    });
+  } catch (err) {
+    console.error("Error fetching itemDetails in quality check:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PATCH /mi/update-item
+exports.updateMiItem = async (req, res) => {
+  try {
+    const { miId, itemId, updates } = req.body;
+
+    if (!miId || !itemId || !updates) {
+      return res.status(400).json({
+        success: false,
+        message: "miId, itemId and updates are required",
+      });
+    }
+
+    // 1. Find MI
+    const mi = await MI.findById(miId);
+    if (!mi) {
+      return res.status(404).json({ success: false, message: "MI not found" });
+    }
+
+    // 2. Find item inside itemDetails
+    const itemIndex = mi.itemDetails.findIndex(
+      (it) => String(it._id) === String(itemId)
+    );
+    if (itemIndex === -1) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Item not found in MI" });
+    }
+
+    // 3. Update fields of the selected item
+    Object.keys(updates).forEach((key) => {
+      mi.itemDetails[itemIndex][key] = updates[key];
+    });
+
+    // 4. Check overall MI status
+    const allCompleted = mi.itemDetails.every(
+      (it) => it.status === "completed"
+    );
+
+    if (allCompleted) {
+      mi.status = "completed";
+    } else {
+      mi.status = "in progress";
+    }
+
+    // 5. Save changes
+    await mi.save();
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      message: "Item updated successfully",
+      data: {
+        item: mi.itemDetails[itemIndex],
+        miStatus: mi.status,
+      },
+    });
+  } catch (err) {
+    console.error("Error updating MI item:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

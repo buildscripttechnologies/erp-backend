@@ -12,7 +12,7 @@ const miSchema = new mongoose.Schema(
     description: String,
     status: {
       type: String,
-      enum: ["pending", "issued"],
+      enum: ["pending", "issued", "in progress", "completed"],
       default: "pending",
     },
     itemDetails: [
@@ -43,7 +43,14 @@ const miSchema = new mongoose.Schema(
         assignee: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         status: {
           type: String,
-          enum: ["pending", "in cutting", "in printing", "in stitching"],
+          enum: [
+            "pending",
+            "in cutting",
+            "in printing",
+            "in stitching",
+            "in quality check",
+            "completed",
+          ],
           default: "pending",
         },
         isPrint: Boolean,
