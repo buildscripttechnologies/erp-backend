@@ -8,11 +8,11 @@ const miSchema = new mongoose.Schema(
     prodNo: String,
     bom: { type: mongoose.Schema.Types.ObjectId, ref: "BOM" },
     bomNo: String,
+    productName: String,
     type: { type: String, enum: ["SFG", "FG"] },
     description: String,
     status: {
       type: String,
-      enum: ["pending", "issued", "in progress", "completed"],
       default: "pending",
     },
     itemDetails: [
@@ -43,19 +43,13 @@ const miSchema = new mongoose.Schema(
         assignee: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
         status: {
           type: String,
-          enum: [
-            "pending",
-            "in cutting",
-            "in printing",
-            "in stitching",
-            "in quality check",
-            "completed",
-          ],
+
           default: "pending",
         },
-        isPrint: Boolean,
+        isPrint: { type: Boolean, default: false },
         cuttingType: String,
         jobWorkType: String,
+        note: { type: String, default: "" },
       },
     ],
     consumptionTable: [

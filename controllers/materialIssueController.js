@@ -13,7 +13,14 @@ const modelMap = {
 // Create Material Issue
 exports.createMI = async (req, res) => {
   try {
-    let { itemDetails, bomNo, bom, status, consumptionTable = [] } = req.body;
+    let {
+      itemDetails,
+      bomNo,
+      bom,
+      productName,
+      status,
+      consumptionTable = [],
+    } = req.body;
     let prodNo = await generateNextProdNo();
 
     // Loop through consumptionTable to update stock
@@ -49,6 +56,7 @@ exports.createMI = async (req, res) => {
       prodNo,
       bom,
       bomNo,
+      productName,
       itemDetails,
       consumptionTable,
       createdBy: req.user._id,
@@ -105,8 +113,9 @@ exports.getAllMI = async (req, res) => {
     // Search across multiple fields
     if (search) {
       filters.$or = [
-        { description: { $regex: search, $options: "i" } },
+        { productName: { $regex: search, $options: "i" } },
         { prodNo: { $regex: search, $options: "i" } },
+        { bomNo: { $regex: search, $options: "i" } },
         { type: { $regex: search, $options: "i" } },
         { "itemDetails.partName": { $regex: search, $options: "i" } },
       ];
@@ -268,7 +277,7 @@ exports.getMiWithCutting = async (req, res) => {
 
     // Filter: itemDetails must have cuttingType not null
     const filters = {
-      itemDetails: { $elemMatch: { cuttingType: { $ne: null, $ne: "" } } },
+      itemDetails: { $elemMatch: { status: "in cutting" } },
     };
 
     // Count total
@@ -276,7 +285,7 @@ exports.getMiWithCutting = async (req, res) => {
 
     // Fetch data
     const mis = await MI.find(filters)
-      .populate("bom", "bomNo partyName productName")
+      .populate("bom", "bomNo partyName productName printingFile")
       .populate({
         path: "itemDetails.itemId",
         select: "skuCode itemName description location",
@@ -308,49 +317,56 @@ exports.getInCutting = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
-    // Fetch all MIs (or you can add pagination if needed)
-    const mis = await MI.find()
-      .populate("bom", "bomNo productName")
+
+    // Search
+    const search = req.query.search || "";
+    const filters = {};
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filters.$or = [
+        { productName: regex }, // ✅ denormalized
+        { prodNo: regex },
+        { bomNo: regex },
+        { type: regex },
+        { "itemDetails.partName": regex },
+      ];
+    }
+
+    // Fetch all MIs with filters + population
+    const mis = await MI.find(filters)
+      .populate("bom", "bomNo productName printingFile")
       .populate({
         path: "itemDetails.itemId",
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
-      });
+      })
+      .populate("createdBy", "_id fullName username")
+      .sort({ updatedAt: -1, _id: -1 });
 
-    // Flatten and filter itemDetails that are in cutting
-    const cuttingItems = mis.flatMap((mi) =>
-      mi.itemDetails
-        .filter(
+    // Filter itemDetails inside each MI
+    const filteredMIs = mis
+      .map((mi) => {
+        const filteredItems = mi.itemDetails.filter(
           (item) =>
-            item.status === "in cutting" &&
-            item.jobWorkType === "Inside Company"
-        )
-        .map((item) => ({
-          _id: item._id,
-          miId: mi._id,
-          skuCode: item.itemId?.skuCode || "",
-          itemName: item.itemId?.itemName || "",
-          description: item.itemId?.description || "",
-          location: item.itemId?.location || null,
-          cuttingType: item.cuttingType || "",
-          partName: item.partName || "",
-          height: item.height || "",
-          width: item.width || "",
-          qty: item.qty || "",
-          grams: item.grams || "",
-          jobWorkType: item.jobWorkType || "",
-          bomId: mi.bom?._id || null,
-          bomNo: mi.bom?.bomNo || "",
-          productName: mi.bom?.productName || "",
-          prodNo: mi.prodNo || "",
-          status: item.status,
-          createdAt: item.createdAt || mi.createdAt,
-          updatedAt: item.updatedAt || mi.updatedAt,
-        }))
-    );
-    const totalResults = cuttingItems.length;
+            ["in cutting", "yet to cutting", "cutting paused"].includes(
+              item.status?.toLowerCase()
+            ) && item.jobWorkType === "Inside Company"
+        );
+
+        if (filteredItems.length === 0) return null;
+
+        return {
+          ...mi.toObject(),
+          itemDetails: filteredItems,
+        };
+      })
+      .filter(Boolean);
+
+    // Pagination
+    const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = cuttingItems.slice(skip, skip + limit);
+    const paginatedItems = filteredMIs.slice(skip, skip + limit);
 
     res.status(200).json({
       success: true,
@@ -372,49 +388,56 @@ exports.getInPrinting = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
-    // Fetch all MIs (or you can add pagination if needed)
-    const mis = await MI.find()
-      .populate("bom", "bomNo productName")
+
+    // Search
+    const search = req.query.search || "";
+    const filters = {};
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filters.$or = [
+        { productName: regex }, // ✅ denormalized field
+        { prodNo: regex },
+        { bomNo: regex },
+        { type: regex },
+        { "itemDetails.partName": regex },
+      ];
+    }
+
+    // Fetch all MIs with filters + population
+    const mis = await MI.find(filters)
+      .populate("bom", "bomNo productName printingFile")
       .populate({
         path: "itemDetails.itemId",
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
-      });
+      })
+      .populate("createdBy", "_id fullName username")
+      .sort({ updatedAt: -1, _id: -1 });
 
-    // Flatten and filter itemDetails that are in cutting
-    const printingItems = mis.flatMap((mi) =>
-      mi.itemDetails
-        .filter(
+    // Filter itemDetails inside each MI
+    const filteredMIs = mis
+      .map((mi) => {
+        const filteredItems = mi.itemDetails.filter(
           (item) =>
-            item.status === "in printing" &&
-            item.jobWorkType === "Inside Company"
-        )
-        .map((item) => ({
-          _id: item._id,
-          miId: mi._id,
-          skuCode: item.itemId?.skuCode || "",
-          itemName: item.itemId?.itemName || "",
-          description: item.itemId?.description || "",
-          location: item.itemId?.location || null,
-          cuttingType: item.cuttingType || "",
-          partName: item.partName || "",
-          height: item.height || "",
-          width: item.width || "",
-          qty: item.qty || "",
-          grams: item.grams || "",
-          jobWorkType: item.jobWorkType || "",
-          bomId: mi.bom?._id || null,
-          bomNo: mi.bom?.bomNo || "",
-          productName: mi.bom?.productName || "",
-          prodNo: mi.prodNo || "",
-          status: item.status,
-          createdAt: item.createdAt || mi.createdAt,
-          updatedAt: item.updatedAt || mi.updatedAt,
-        }))
-    );
-    const totalResults = printingItems.length;
+            ["yet to print", "in printing", "printing paused"].includes(
+              item.status?.toLowerCase()
+            ) && item.jobWorkType === "Inside Company"
+        );
+
+        if (filteredItems.length === 0) return null;
+
+        return {
+          ...mi.toObject(),
+          itemDetails: filteredItems,
+        };
+      })
+      .filter(Boolean);
+
+    // Pagination
+    const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = printingItems.slice(skip, skip + limit);
+    const paginatedItems = filteredMIs.slice(skip, skip + limit);
 
     res.status(200).json({
       success: true,
@@ -436,45 +459,53 @@ exports.getOutsideCompany = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
-    // Fetch all MIs (or you can add pagination if needed)
-    const mis = await MI.find()
-      .populate("bom", "bomNo productName")
+
+    // Search
+    const search = req.query.search || "";
+    const filters = {};
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filters.$or = [
+        { productName: regex }, // ✅ denormalized field
+        { prodNo: regex },
+        { bomNo: regex },
+        { type: regex },
+        { "itemDetails.partName": regex },
+      ];
+    }
+
+    // Fetch all MIs with filters + population
+    const mis = await MI.find(filters)
+      .populate("bom", "bomNo productName printingFile")
       .populate({
         path: "itemDetails.itemId",
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
-      });
+      })
+      .populate("createdBy", "_id fullName username")
+      .sort({ updatedAt: -1, _id: -1 });
 
-    // Flatten and filter itemDetails that are in cutting
-    const Items = mis.flatMap((mi) =>
-      mi.itemDetails
-        .filter((item) => item.jobWorkType === "Outside Company")
-        .map((item) => ({
-          _id: item._id,
-          miId: mi._id,
-          skuCode: item.itemId?.skuCode || "",
-          itemName: item.itemId?.itemName || "",
-          description: item.itemId?.description || "",
-          location: item.itemId?.location || null,
-          cuttingType: item.cuttingType || "",
-          partName: item.partName || "",
-          height: item.height || "",
-          width: item.width || "",
-          qty: item.qty || "",
-          grams: item.grams || "",
-          jobWorkType: item.jobWorkType || "",
-          bomId: mi.bom?._id || null,
-          bomNo: mi.bom?.bomNo || "",
-          productName: mi.bom?.productName || "",
-          prodNo: mi.prodNo || "",
-          status: item.status,
-          createdAt: item.createdAt || mi.createdAt,
-          updatedAt: item.updatedAt || mi.updatedAt,
-        }))
-    );
-    const totalResults = Items.length;
+    // Filter itemDetails inside each MI
+    const filteredMIs = mis
+      .map((mi) => {
+        const filteredItems = mi.itemDetails.filter(
+          (item) => item.jobWorkType === "Outside Company"
+        );
+
+        if (filteredItems.length === 0) return null;
+
+        return {
+          ...mi.toObject(),
+          itemDetails: filteredItems,
+        };
+      })
+      .filter(Boolean);
+
+    // Pagination
+    const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = Items.slice(skip, skip + limit);
+    const paginatedItems = filteredMIs.slice(skip, skip + limit);
 
     res.status(200).json({
       success: true,
@@ -486,7 +517,7 @@ exports.getOutsideCompany = async (req, res) => {
       data: paginatedItems,
     });
   } catch (err) {
-    console.error("Error fetching Items:", err);
+    console.error("Error fetching Outside Company:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -496,45 +527,59 @@ exports.getInStitching = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
-    // Fetch all MIs (or you can add pagination if needed)
-    const mis = await MI.find()
-      .populate("bom", "bomNo productName")
+
+    // Search
+    const search = req.query.search || "";
+    const filters = {};
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filters.$or = [
+        { productName: regex }, // ✅ denormalized field
+        { prodNo: regex },
+        { bomNo: regex },
+        { type: regex },
+        { "itemDetails.partName": regex },
+      ];
+    }
+
+    // Fetch all MIs with population
+    const mis = await MI.find(filters)
+      .populate("bom", "bomNo productName printingFile")
       .populate({
         path: "itemDetails.itemId",
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
-      });
+      })
+      .populate("createdBy", "_id fullName username")
+      .sort({ updatedAt: -1, _id: -1 });
 
-    // Flatten and filter itemDetails that are in cutting
-    const stitchingItems = mis.flatMap((mi) =>
-      mi.itemDetails
-        .filter((item) => item.status === "in stitching")
-        .map((item) => ({
-          _id: item._id,
-          miId: mi._id,
-          skuCode: item.itemId?.skuCode || "",
-          itemName: item.itemId?.itemName || "",
-          description: item.itemId?.description || "",
-          location: item.itemId?.location || null,
-          cuttingType: item.cuttingType || "",
-          partName: item.partName || "",
-          height: item.height || "",
-          width: item.width || "",
-          qty: item.qty || "",
-          grams: item.grams || "",
-          jobWorkType: item.jobWorkType || "",
-          bomId: mi.bom?._id || null,
-          bomNo: mi.bom?.bomNo || "",
-          productName: mi.bom?.productName || "",
-          prodNo: mi.prodNo || "",
-          status: item.status,
-          createdAt: item.createdAt || mi.createdAt,
-          updatedAt: item.updatedAt || mi.updatedAt,
-        }))
-    );
-    const totalResults = stitchingItems.length;
+    // Filter itemDetails inside each MI
+    const filteredMIs = mis
+      .map((mi) => {
+        const filteredItems = mi.itemDetails.filter(
+          (item) =>
+            [
+              "Yet to Stitch",
+              "In Stitching",
+              "Stitching Paused",
+              "Completed",
+            ].includes(item.status) && item.jobWorkType === "Inside Company"
+        );
+
+        if (filteredItems.length === 0) return null;
+
+        return {
+          ...mi.toObject(),
+          itemDetails: filteredItems,
+        };
+      })
+      .filter(Boolean);
+
+    // Pagination
+    const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = stitchingItems.slice(skip, skip + limit);
+    const paginatedItems = filteredMIs.slice(skip, skip + limit);
 
     res.status(200).json({
       success: true,
@@ -556,45 +601,59 @@ exports.getInQualityCheck = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
-    // Fetch all MIs (or you can add pagination if needed)
-    const mis = await MI.find()
-      .populate("bom", "bomNo productName")
+
+    // 🔍 Search
+    const search = req.query.search || "";
+    const filters = {};
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filters.$or = [
+        { productName: regex }, // denormalized field
+        { prodNo: regex },
+        { bomNo: regex },
+        { type: regex },
+        { "itemDetails.partName": regex },
+      ];
+    }
+
+    // Fetch all MIs with population
+    const mis = await MI.find(filters)
+      .populate("bom", "bomNo productName printingFile")
       .populate({
         path: "itemDetails.itemId",
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
-      });
+      })
+      .populate("createdBy", "_id fullName username")
+      .sort({ updatedAt: -1, _id: -1 });
 
-    // Flatten and filter itemDetails that are in cutting
-    const qualityCheckItems = mis.flatMap((mi) =>
-      mi.itemDetails
-        .filter((item) => item.status === "in quality check")
-        .map((item) => ({
-          _id: item._id,
-          miId: mi._id,
-          skuCode: item.itemId?.skuCode || "",
-          itemName: item.itemId?.itemName || "",
-          description: item.itemId?.description || "",
-          location: item.itemId?.location || null,
-          cuttingType: item.cuttingType || "",
-          partName: item.partName || "",
-          height: item.height || "",
-          width: item.width || "",
-          qty: item.qty || "",
-          grams: item.grams || "",
-          jobWorkType: item.jobWorkType || "",
-          bomId: mi.bom?._id || null,
-          bomNo: mi.bom?.bomNo || "",
-          productName: mi.bom?.productName || "",
-          prodNo: mi.prodNo || "",
-          status: item.status,
-          createdAt: item.createdAt || mi.createdAt,
-          updatedAt: item.updatedAt || mi.updatedAt,
-        }))
-    );
-    const totalResults = qualityCheckItems.length;
+    // Filter itemDetails inside each MI
+    const filteredMIs = mis
+      .map((mi) => {
+        const filteredItems = mi.itemDetails.filter(
+          (item) =>
+            [
+              "Yet to Check",
+              "In Checking",
+              "Checking Paused",
+              "Approved",
+            ].includes(item.status) && mi.status !== "Approved"
+        );
+
+        if (filteredItems.length === 0) return null;
+
+        return {
+          ...mi.toObject(),
+          itemDetails: filteredItems,
+        };
+      })
+      .filter(Boolean);
+
+    // 📄 Pagination
+    const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = qualityCheckItems.slice(skip, skip + limit);
+    const paginatedItems = filteredMIs.slice(skip, skip + limit);
 
     res.status(200).json({
       success: true,
@@ -646,13 +705,23 @@ exports.updateMiItem = async (req, res) => {
 
     // 4. Check overall MI status
     const allCompleted = mi.itemDetails.every(
-      (it) => it.status === "completed"
+      (it) => it.status === "Completed"
     );
+    const allApproved = mi.itemDetails.every((it) => it.status === "Approved");
 
     if (allCompleted) {
-      mi.status = "completed";
-    } else {
-      mi.status = "in progress";
+      // update all items’ status to "Yet to Check"
+      mi.itemDetails = mi.itemDetails.map((it) => ({
+        ...it.toObject(),
+        status: "Yet to Check",
+      }));
+
+      mi.status = "In Progress";
+    }
+    if (allApproved) {
+      // update all items’ status to "Yet to Check"
+
+      mi.status = "Approved";
     }
 
     // 5. Save changes
