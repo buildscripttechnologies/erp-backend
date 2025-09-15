@@ -12,6 +12,9 @@ const {
   getInCutting,
   getInPrinting,
   getOutsideCompany,
+  updateMiItem,
+  getInStitching,
+  getInQualityCheck,
 } = require("../controllers/materialIssueController");
 
 const router = express.Router();
@@ -48,6 +51,25 @@ router.get(
   auth,
   checkPermission("Outside Company", "read"),
   getOutsideCompany
+);
+router.get(
+  "/stitching",
+  auth,
+  checkPermission("Stitching", "read"),
+  getInStitching
+);
+router.get(
+  "/quality-check",
+  auth,
+  checkPermission("Quality Check", "read"),
+  getInQualityCheck
+);
+
+router.patch(
+  "/next-stage",
+  auth,
+  // checkPermission("Outside Company", "read"),
+  updateMiItem
 );
 
 module.exports = router;

@@ -27,6 +27,12 @@ const mrRoutes = require("./routes/mrRoutes");
 const healthRoutes = require("./routes/healthRoute");
 
 const syncRawMaterials = require("./syncData/syncRawMaterials");
+const {
+  sendWhatsAppMessage,
+  sendTemplateMessage,
+  sendBroadcastTemplateMessage,
+  sendToUser,
+} = require("./utils/wati");
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, "uploads");
 
@@ -51,6 +57,28 @@ app.set("trust proxy", true);
 app.get("/", (req, res) => {
   res.redirect(301, "https://app.smartflow360.com");
 });
+
+app.post("/sendmsg", async (req, res) => {
+  try {
+    await sendTemplateMessage(
+      "918160276496", // WhatsApp number (with country code)
+      "test_msg", // Template name
+      { name: "nisarg mangukiya" }, // Template params
+      "test_msg" // Broadcast name (optional)
+    );
+    res.send("msg sent");
+  } catch (error) {
+    res.send(error.message);
+  }
+});
+// app.post("/sendmsg", async (req, res) => {
+//   try {
+//     await sendToUser("917359286348", "test_msg", { name: "Divyesh" });
+//     res.send("msg sent");
+//   } catch (error) {
+//     res.send(error.message);
+//   }
+// });
 
 app.use("/api/auth", authRoutes);
 app.use("/api/otp", otpRoutes);
