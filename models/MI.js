@@ -50,6 +50,7 @@ const miSchema = new mongoose.Schema(
         cuttingType: String,
         jobWorkType: String,
         note: { type: String, default: "" },
+        vendor: { type: String },
       },
     ],
     consumptionTable: [

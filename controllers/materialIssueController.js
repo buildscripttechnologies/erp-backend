@@ -563,7 +563,7 @@ exports.getInStitching = async (req, res) => {
               "Yet to Stitch",
               "In Stitching",
               "Stitching Paused",
-              "Completed",
+              "Job Completed",
             ].includes(item.status) && item.jobWorkType === "Inside Company"
         );
 
@@ -673,12 +673,13 @@ exports.getInQualityCheck = async (req, res) => {
 // PATCH /mi/update-item
 exports.updateMiItem = async (req, res) => {
   try {
-    const { miId, itemId, updates } = req.body;
+    const { miId, updates } = req.body;
+    console.log("req.body", req.body);
 
-    if (!miId || !itemId || !updates) {
+    if (!miId || !Array.isArray(updates) || updates.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "miId, itemId and updates are required",
+        message: "miId and updates[] are required",
       });
     }
 
@@ -688,51 +689,46 @@ exports.updateMiItem = async (req, res) => {
       return res.status(404).json({ success: false, message: "MI not found" });
     }
 
-    // 2. Find item inside itemDetails
-    const itemIndex = mi.itemDetails.findIndex(
-      (it) => String(it._id) === String(itemId)
-    );
-    if (itemIndex === -1) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Item not found in MI" });
-    }
-
-    // 3. Update fields of the selected item
-    Object.keys(updates).forEach((key) => {
-      mi.itemDetails[itemIndex][key] = updates[key];
+    // 2. Loop through updates and apply to items
+    updates.forEach((upd) => {
+      const { itemId, ...fields } = upd;
+      const itemIndex = mi.itemDetails.findIndex(
+        (it) => String(it._id) === String(itemId)
+      );
+      if (itemIndex !== -1) {
+        Object.keys(fields).forEach((key) => {
+          mi.itemDetails[itemIndex][key] = fields[key];
+        });
+      }
     });
 
-    // 4. Check overall MI status
+    // 3. Check overall MI status
     const allCompleted = mi.itemDetails.every(
-      (it) => it.status === "Completed"
+      (it) => it.status === "Job Completed"
     );
     const allApproved = mi.itemDetails.every((it) => it.status === "Approved");
 
     if (allCompleted) {
-      // update all items’ status to "Yet to Check"
       mi.itemDetails = mi.itemDetails.map((it) => ({
         ...it.toObject(),
         status: "Yet to Check",
       }));
-
       mi.status = "In Progress";
     }
-    if (allApproved) {
-      // update all items’ status to "Yet to Check"
 
-      mi.status = "Approved";
+    if (allApproved) {
+      mi.status = "Completed";
     }
 
-    // 5. Save changes
+    // 4. Save changes
     await mi.save();
 
     res.status(200).json({
       success: true,
       status: 200,
-      message: "Item updated successfully",
+      message: "Items updated successfully",
       data: {
-        item: mi.itemDetails[itemIndex],
+        items: mi.itemDetails,
         miStatus: mi.status,
       },
     });
