@@ -463,7 +463,7 @@ exports.uploadExcelRawMaterials = async (req, res) => {
             ? 38
             : 39;
         sqInchRate = (rate / panno / fabricRate) * 1.05;
-        sqInchRate = Number(sqInchRate.toFixed(2));
+        sqInchRate = Number(sqInchRate);
       }
 
       return {
