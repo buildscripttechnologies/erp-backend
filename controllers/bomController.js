@@ -1,6 +1,7 @@
 const BOM = require("../models/BOM");
 const Customer = require("../models/Customer");
 const FG = require("../models/FG");
+const MI = require("../models/MI");
 const {
   generateBulkFgSkuCodes,
   generateBulkCustomerCodes,
@@ -23,6 +24,7 @@ exports.addBom = async (req, res) => {
       consumptionTable,
       sampleNo = "",
       date,
+      deliveryDate,
       height,
       width,
       depth,
@@ -156,6 +158,7 @@ exports.addBom = async (req, res) => {
       sampleNo,
       bomNo,
       date,
+      deliveryDate,
       height,
       width,
       depth,
@@ -206,6 +209,7 @@ exports.updateBom = async (req, res) => {
       consumptionTable,
       sampleNo = "",
       date,
+      deliveryDate,
       height,
       width,
       depth,
@@ -312,6 +316,7 @@ exports.updateBom = async (req, res) => {
         productName,
         sampleNo,
         date,
+        deliveryDate,
         height,
         width,
         depth,
@@ -499,6 +504,13 @@ exports.getAllBoms = async (req, res) => {
             };
           })
         );
+
+        // 🔹 Find MI by prodNo (assuming BOM has prodNo field)
+        let miStatus = null;
+        if (bom.prodNo) {
+          const mi = await MI.findOne({ prodNo: bom.prodNo }).select("status");
+          bom.status = mi?.status || null;
+        }
 
         return {
           ...bom, // include ALL BOM fields (file, b2b, d2c, etc.)

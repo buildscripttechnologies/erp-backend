@@ -1,3 +1,4 @@
+const BOM = require("../models/BOM");
 const FG = require("../models/FG");
 const MI = require("../models/MI");
 const RawMaterial = require("../models/RawMaterial");
@@ -63,6 +64,12 @@ exports.createMI = async (req, res) => {
       status,
     });
 
+    let b = await BOM.findOne({ bomNo: bomNo });
+    (b.prodNo = mi.prodNo), (b.productionDate = mi.createdAt);
+    b.status = "In Progress";
+
+    await b.save();
+
     res.status(201).json({ status: 201, data: mi });
   } catch (err) {
     console.error("Error creating Material Issue:", err);
@@ -126,7 +133,11 @@ exports.getAllMI = async (req, res) => {
 
     // Fetch data
     const mis = await MI.find(filters)
-      .populate("bom", "bomNo partyName productName")
+      .populate({
+        path: "bom",
+        select: "bomNo partyName productName",
+        populate: { path: "partyName", select: "customerName" },
+      })
       .populate({
         path: "itemDetails.itemId",
         select: "skuCode itemName description location",
@@ -349,9 +360,8 @@ exports.getInCutting = async (req, res) => {
       .map((mi) => {
         const filteredItems = mi.itemDetails.filter(
           (item) =>
-            ["in cutting", "yet to cutting", "cutting paused"].includes(
-              item.status?.toLowerCase()
-            ) && item.jobWorkType === "Inside Company"
+            item.stages?.some((s) => s.stage === "Cutting") &&
+            item.jobWorkType === "Inside Company"
         );
 
         if (filteredItems.length === 0) return null;
@@ -418,11 +428,8 @@ exports.getInPrinting = async (req, res) => {
     // Filter itemDetails inside each MI
     const filteredMIs = mis
       .map((mi) => {
-        const filteredItems = mi.itemDetails.filter(
-          (item) =>
-            ["yet to print", "in printing", "printing paused"].includes(
-              item.status?.toLowerCase()
-            ) && item.jobWorkType === "Inside Company"
+        const filteredItems = mi.itemDetails.filter((item) =>
+          item.stages?.some((s) => s.stage === "Printing")
         );
 
         if (filteredItems.length === 0) return null;
@@ -557,14 +564,8 @@ exports.getInStitching = async (req, res) => {
     // Filter itemDetails inside each MI
     const filteredMIs = mis
       .map((mi) => {
-        const filteredItems = mi.itemDetails.filter(
-          (item) =>
-            [
-              "Yet to Stitch",
-              "In Stitching",
-              "Stitching Paused",
-              "Job Completed",
-            ].includes(item.status) && item.jobWorkType === "Inside Company"
+        const filteredItems = mi.itemDetails.filter((item) =>
+          item.stages?.some((s) => s.stage === "Stitching")
         );
 
         if (filteredItems.length === 0) return null;
@@ -631,14 +632,8 @@ exports.getInQualityCheck = async (req, res) => {
     // Filter itemDetails inside each MI
     const filteredMIs = mis
       .map((mi) => {
-        const filteredItems = mi.itemDetails.filter(
-          (item) =>
-            [
-              "Yet to Check",
-              "In Checking",
-              "Checking Paused",
-              "Approved",
-            ].includes(item.status) && mi.status !== "Approved"
+        const filteredItems = mi.itemDetails.filter((item) =>
+          item.stages?.some((s) => s.stage === "Checking")
         );
 
         if (filteredItems.length === 0) return null;
@@ -674,7 +669,8 @@ exports.getInQualityCheck = async (req, res) => {
 exports.updateMiItem = async (req, res) => {
   try {
     const { miId, updates } = req.body;
-    console.log("req.body", req.body);
+
+    console.log("updates", updates);
 
     if (!miId || !Array.isArray(updates) || updates.length === 0) {
       return res.status(400).json({
@@ -689,38 +685,77 @@ exports.updateMiItem = async (req, res) => {
       return res.status(404).json({ success: false, message: "MI not found" });
     }
 
-    // 2. Loop through updates and apply to items
+    // 2. Apply updates
     updates.forEach((upd) => {
-      const { itemId, ...fields } = upd;
-      const itemIndex = mi.itemDetails.findIndex(
-        (it) => String(it._id) === String(itemId)
-      );
-      if (itemIndex !== -1) {
-        Object.keys(fields).forEach((key) => {
-          mi.itemDetails[itemIndex][key] = fields[key];
+      console.log("upd", upd);
+
+      const { itemId, updateStage, completeStage, pushStage, note } = upd;
+      const item = mi.itemDetails.id(itemId); // use Mongoose subdoc lookup
+      if (!item) return;
+
+      if (!item.stages) item.stages = [];
+
+      if (updateStage) {
+        // ✅ Update last stage status
+        if (item.stages.length > 0) {
+          item.stages[item.stages.length - 1].status = updateStage.status;
+          if (note) item.stages[item.stages.length - 1].note = note;
+        }
+      }
+      if (completeStage) {
+        // ✅ Update last stage status
+        if (item.stages.length > 0) {
+          item.stages[item.stages.length - 1].status = completeStage.status;
+          if (note) item.stages[item.stages.length - 1].note = note;
+        }
+      }
+
+      if (pushStage) {
+        // ✅ Add a new stage
+        item.stages.push({
+          stage: pushStage.stage,
+          status: pushStage.status,
+          note: note || "",
+          updatedAt: new Date(),
         });
       }
+
+      // // Keep flat `status` in sync for quick filtering
+      // if (item.stages.length > 0) {
+      //   const last = item.stages[item.stages.length - 1];
+      //   item.status = `${last.stage} - ${last.status}`;
+      // }
     });
 
     // 3. Check overall MI status
-    const allCompleted = mi.itemDetails.every(
-      (it) => it.status === "Job Completed"
+    const allReadyForStitching = mi.itemDetails.every((it) => {
+      const last = it.stages[it.stages.length - 1];
+      console.log("last", last);
+
+      return last.stage === "Stitching";
+    });
+
+    const allReadyForChecking = mi.itemDetails.every((it) =>
+      it.stages?.some(
+        (s) => s.stage === "Stitching" && s.status === "Completed"
+      )
     );
-    const allApproved = mi.itemDetails.every((it) => it.status === "Approved");
 
-    if (allCompleted) {
-      mi.itemDetails = mi.itemDetails.map((it) => ({
-        ...it.toObject(),
-        status: "Yet to Check",
-      }));
-      mi.status = "In Progress";
+    const allCompleted = mi.itemDetails.every((it) =>
+      it.stages?.some((s) => s.stage === "Checking" && s.status === "Completed")
+    );
+
+    if (allReadyForStitching) {
+      mi.readyForStitching = true;
     }
-
-    if (allApproved) {
+    if (allReadyForChecking) {
+      mi.readyForChecking = true;
+    }
+    if (allCompleted) {
       mi.status = "Completed";
     }
 
-    // 4. Save changes
+    // 4. Save
     await mi.save();
 
     res.status(200).json({

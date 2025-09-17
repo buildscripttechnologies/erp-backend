@@ -15,6 +15,8 @@ const miSchema = new mongoose.Schema(
       type: String,
       default: "pending",
     },
+    readyForStitching: { type: Boolean, default: false },
+    readyForChecking: { type: Boolean, default: false },
     itemDetails: [
       {
         itemId: {
@@ -28,24 +30,50 @@ const miSchema = new mongoose.Schema(
         partName: String,
         height: Number,
         width: Number,
-        // depth: Number,
         category: String,
-        qty: {
-          type: Number,
-        },
-        grams: {
-          type: Number,
-        },
+        qty: Number,
+        grams: Number,
         rate: Number,
         sqInchRate: Number,
         baseQty: Number,
         itemRate: Number,
         assignee: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        status: {
-          type: String,
 
-          default: "pending",
+        // 👇 Instead of only one status, keep both
+        currentStatus: {
+          type: String,
+          default: "Pending",
         },
+
+        stages: [
+          {
+            stage: {
+              type: String,
+              enum: [
+                "Cutting",
+                "Printing",
+                "Stitching",
+                "Checking",
+                "Completed",
+              ],
+            },
+            status: {
+              type: String,
+              enum: [
+                "Yet to Start",
+                "In Progress",
+                "Paused",
+                "Completed",
+                "Approved",
+              ],
+              default: "Yet to Start",
+            },
+            startedAt: Date,
+            endedAt: Date,
+            note: String,
+          },
+        ],
+
         isPrint: { type: Boolean, default: false },
         cuttingType: String,
         jobWorkType: String,
