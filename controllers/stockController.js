@@ -316,6 +316,7 @@ exports.getAllStocks = async (req, res) => {
 };
 
 //For Material Inward
+
 exports.getAllStocksMerged = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -373,17 +374,33 @@ exports.getAllStocksMerged = async (req, res) => {
           ...stock.toObject(),
           stockQty: stock.stockQty || 0,
           damagedQty: stock.damagedQty || 0,
-          moq: stock.moq || 0, // include MOQ from first occurrence
+          moq: stock.moq || 0,
         });
       } else {
         const existing = mergedMap.get(key);
         existing.stockQty += stock.stockQty || 0;
         existing.damagedQty += stock.damagedQty || 0;
-        // moq remains same, assuming it’s constant per SKU
       }
     }
 
-    const mergedStocks = Array.from(mergedMap.values());
+    let mergedStocks = Array.from(mergedMap.values());
+
+    // ✅ Step 1: collect all skuCodes
+    const skuCodes = mergedStocks.map((s) => s.skuCode);
+
+    // ✅ Step 2: fetch RM stock qtys
+    const rawMaterials = await RawMaterial.find(
+      { skuCode: { $in: skuCodes } },
+      { skuCode: 1, stockQty: 1 }
+    );
+
+    const rmMap = new Map(rawMaterials.map((rm) => [rm.skuCode, rm.stockQty]));
+
+    // ✅ Step 3: attach availableQty from RM
+    mergedStocks = mergedStocks.map((s) => ({
+      ...s,
+      availableQty: rmMap.get(s.skuCode) || 0, // fallback if not found
+    }));
 
     const totalResults = mergedStocks.length;
     const totalPages = Math.ceil(totalResults / limit);

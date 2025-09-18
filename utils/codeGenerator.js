@@ -1,4 +1,5 @@
 const BOM = require("../models/BOM");
+const CO = require("../models/CO");
 const Customer = require("../models/Customer");
 const FG = require("../models/FG");
 const MI = require("../models/MI");
@@ -100,4 +101,20 @@ exports.generateNextProdNo = async () => {
   });
 
   return `PROD-${(max + 1).toString().padStart(3, "0")}`;
+};
+
+exports.generateNextCoNo = async () => {
+  const allCOs = await CO.findWithDeleted({}, { coNo: 1 }).lean(); // includes deleted
+
+  let max = 0;
+
+  allCOs.forEach((c) => {
+    const match = c.coNo?.toString().match(/CO-(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > max) max = num;
+    }
+  });
+
+  return `CO-${(max + 1).toString().padStart(3, "0")}`;
 };

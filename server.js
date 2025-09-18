@@ -23,6 +23,7 @@ const stockRoutes = require("./routes/stockRoutes");
 const poRoutes = require("./routes/poRoutes");
 const miRoutes = require("./routes/miRoutes");
 const mrRoutes = require("./routes/mrRoutes");
+const coRoutes = require("./routes/coRoutes");
 
 const healthRoutes = require("./routes/healthRoute");
 
@@ -97,6 +98,7 @@ app.use("/api/stocks", stockRoutes);
 app.use("/api/pos", poRoutes);
 app.use("/api/mi", miRoutes);
 app.use("/api/mr", mrRoutes);
+app.use("/api/cos", coRoutes);
 
 app.use("/api/health", healthRoutes);
 
