@@ -21,9 +21,18 @@ const bomSchema = new mongoose.Schema(
     bomNo: {
       type: String,
     },
+    prodNo: {
+      type: String,
+    },
     date: {
       type: Date,
       default: Date.now,
+    },
+    productionDate: {
+      type: Date,
+    },
+    deliveryDate: {
+      type: Date,
     },
     height: {
       type: Number,
