@@ -27,14 +27,14 @@ const router = express.Router();
 router.get(
   "/rm",
   auth,
-  checkPermission("RawMaterial", "read"),
+  checkPermission(["RawMaterial"], "read"),
   getAllRawMaterials
 );
 
 router.get(
   "/rm/:rmId",
   auth,
-  checkPermission("RawMaterial", "read"),
+  checkPermission(["RawMaterial"], "read"),
   getRawMaterialById
 );
 
@@ -43,7 +43,7 @@ router.post("/add-rm", auth, checkRole(["Admin"]), createRawMaterial);
 router.post(
   "/add-many-rm",
   auth,
-  checkPermission("RawMaterial", "write"),
+  checkPermission(["RawMaterial"], "write"),
   // checkRole(["Admin"]),
   setUploadType("rm_attachments"),
   uploadFile.array("attachments", 10),
@@ -54,16 +54,16 @@ router.post(
 router.patch(
   "/update-rm/:id",
   auth,
-  checkPermission("RawMaterial", "update"),
-  checkRole(["Admin"]),
+  checkPermission(["RawMaterial"], "update"),
+  // checkRole(["Admin"]),
   updateRawMaterial
 );
 
 router.patch(
   "/edit-rm/:id",
   auth,
-  checkPermission("RawMaterial", "update"),
-  checkRole(["Admin"]),
+  checkPermission(["RawMaterial"], "update"),
+  // checkRole(["Admin"]),
   setUploadType("rm_attachments"),
   uploadFile.array("attachments"),
   compressUploadedFiles,
@@ -73,8 +73,8 @@ router.patch(
 router.delete(
   "/delete-rm/:id",
   auth,
-  checkPermission("RawMaterial", "delete"),
-  checkRole(["Admin"]),
+  checkPermission(["RawMaterial"], "delete"),
+  // checkRole(["Admin"]),
   deleteRawMaterial
 );
 
@@ -83,6 +83,7 @@ router.get("/sample-excel", auth, downloadRawMaterialSample);
 router.post(
   "/upload-rm-excel",
   auth,
+  checkPermission(["RawMaterial"], "write"),
   uploadExcel.single("file"),
   uploadExcelRawMaterials
 );

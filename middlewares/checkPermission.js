@@ -1,6 +1,6 @@
 // middleware/checkPermission.js
 
-const checkPermission = (module, action) => {
+const checkPermission = (modules, action) => {
   return (req, res, next) => {
     const user = req.user;
 
@@ -13,26 +13,32 @@ const checkPermission = (module, action) => {
       return next();
     }
 
-    if (!user.permissions) {
+    if (!user.permissions || user.permissions.length === 0) {
       return res.json({
         status: 403,
         message: "Access denied: No permissions set",
       });
     }
 
-    const permission = user.permissions.find((p) => p.module === module);
+    // Convert single module to array for flexibility
+    const moduleList = Array.isArray(modules) ? modules : [modules];
 
-    if (!permission) {
-      return res.json({ status: 403, message: `Access denied to ${module}` });
-    }
+    // Check if user has permission for ANY of the modules
+    const hasPermission = moduleList.some((module) => {
+      const permission = user.permissions.find((p) => p.module === module);
+      return (
+        permission &&
+        (permission.actions.includes(action) ||
+          permission.actions.includes("*"))
+      );
+    });
 
-    if (
-      !permission.actions.includes(action) &&
-      !permission.actions.includes("*")
-    ) {
+    if (!hasPermission) {
       return res.json({
         status: 403,
-        message: `Action "${action}" not allowed on ${module}`,
+        message: `Action "${action}" not allowed on modules: ${moduleList.join(
+          ", "
+        )}`,
       });
     }
 

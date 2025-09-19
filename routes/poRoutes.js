@@ -11,13 +11,28 @@ const {
 } = require("../controllers/poController");
 const router = express.Router();
 
-router.get("/get-all", auth, checkPermission("PO", "read"), getAllPOs);
-router.post("/add-po", auth, checkPermission("PO", "write"), addPO);
-router.patch("/update/:id", auth, checkPermission("PO", "update"), updatePO);
+router.get(
+  "/get-all",
+  auth,
+  checkPermission(["Purchase Order", "PO Approval"], "read"),
+  getAllPOs
+);
+router.post(
+  "/add-po",
+  auth,
+  checkPermission(["Purchase Order", "PO Approval"], "write"),
+  addPO
+);
+router.patch(
+  "/update/:id",
+  auth,
+  checkPermission(["Purchase Order", "PO Approval"], "update"),
+  updatePO
+);
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("PO", "delete"),
+  checkPermission(["Purchase Order", "PO Approval"], "delete"),
   deletePO
 );
 

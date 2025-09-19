@@ -15,7 +15,7 @@ const router = express.Router();
 router.post(
   "/add",
   auth,
-  checkPermission("Material Inward", "write"),
+  checkPermission(["Material Inward"], "write"),
   createStockEntry
 );
 
@@ -23,14 +23,14 @@ router.post(
 router.get(
   "/get-all",
   auth,
-  checkPermission("Material Inward", "read"),
+  checkPermission(["Material Inward"], "read"),
   getAllStocks
 );
 
 router.get(
   "/get-all-merged",
   auth,
-  checkPermission("Stock", "read"),
+  checkPermission(["Stock"], "read"),
   getAllStocksMerged
 );
 
@@ -38,7 +38,7 @@ router.get(
 router.get(
   "/barcodes/:id",
   auth,
-  checkPermission("Material Inward", "read"),
+  checkPermission(["Material Inward"], "read"),
   getBarcodesByStockId
 );
 
@@ -46,7 +46,7 @@ router.get(
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("Material Inward", "delete"),
+  checkPermission(["Material Inward"], "delete"),
   deleteStock
 );
 

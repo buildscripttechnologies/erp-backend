@@ -8,7 +8,7 @@ const checkPermission = require("../middlewares/checkPermission");
 router.post(
   "/add-location",
   auth,
-  checkPermission("Location", "write"),
+  checkPermission(["Location"], "write"),
   locationController.createLocation
 );
 
@@ -16,7 +16,7 @@ router.post(
 router.post(
   "/add-many",
   auth,
-  checkPermission("Location", "write"),
+  checkPermission(["Location"], "write"),
   locationController.addManyLocations
 );
 
@@ -24,7 +24,7 @@ router.post(
 router.get(
   "/get-all",
   auth,
-  checkPermission("Location", "read"),
+  checkPermission(["Location"], "read"),
   locationController.getAllLocations
 );
 
@@ -32,7 +32,7 @@ router.get(
 router.patch(
   "/update-location/:id",
   auth,
-  checkPermission("Location", "update"),
+  checkPermission(["Location"], "update"),
   locationController.updateLocation
 );
 
@@ -40,7 +40,7 @@ router.patch(
 router.delete(
   "/delete-location/:id",
   auth,
-  checkPermission("Location", "delete"),
+  checkPermission(["Location"], "delete"),
   locationController.deleteLocation
 );
 

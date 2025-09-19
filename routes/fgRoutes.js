@@ -19,7 +19,7 @@ const checkPermission = require("../middlewares/checkPermission");
 router.post(
   "/add-many",
   auth,
-  checkPermission("FG", "write"),
+  checkPermission(["FG"], "write"),
   setUploadType("fg_attachments"),
   uploadFile.fields([
     { name: "files", maxCount: 10 },
@@ -28,12 +28,12 @@ router.post(
   // compressUploadedFiles,
   addMultipleFGs
 );
-router.get("/get-all", auth, checkPermission("FG", "read"), getAllFGs);
-router.patch("/update/:id", auth, checkPermission("FG", "update"), updateFG);
+router.get("/get-all", auth, checkPermission(["FG"], "read"), getAllFGs);
+router.patch("/update/:id", auth, checkPermission(["FG"], "update"), updateFG);
 router.patch(
   "/edit/:id",
   auth,
-  checkPermission("FG", "update"),
+  checkPermission(["FG"], "update"),
   setUploadType("fg_attachments"),
   uploadFile.fields([
     { name: "files", maxCount: 10 },
@@ -42,6 +42,6 @@ router.patch(
   // compressUploadedFiles,
   updateFGWithFiles
 );
-router.delete("/delete/:id", auth, checkPermission("FG", "delete"), deleteFG);
+router.delete("/delete/:id", auth, checkPermission(["FG"], "delete"), deleteFG);
 
 module.exports = router;

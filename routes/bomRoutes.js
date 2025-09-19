@@ -13,7 +13,7 @@ const {
 router.post(
   "/add",
   auth,
-  checkPermission("BOM", "write"),
+  checkPermission(["BOM"], "write"),
   setUploadType("bom_attachments"),
   uploadFile.fields([
     { name: "files", maxCount: 10 },
@@ -27,7 +27,7 @@ router.post(
 router.patch(
   "/update/:id",
   auth,
-  checkPermission("BOM", "update"),
+  checkPermission(["BOM"], "update"),
   setUploadType("bom_attachments"),
   uploadFile.fields([
     { name: "files", maxCount: 10 },
@@ -40,7 +40,7 @@ router.patch(
 router.patch(
   "/edit/:id",
   auth,
-  checkPermission("BOM", "update"),
+  checkPermission(["BOM"], "update"),
   bomController.editBom
 );
 
@@ -48,7 +48,7 @@ router.patch(
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("BOM", "delete"),
+  checkPermission(["BOM"], "delete"),
   bomController.deleteBom
 );
 
@@ -56,7 +56,7 @@ router.delete(
 router.get(
   "/get-all",
   auth,
-  checkPermission("BOM", "read"),
+  checkPermission(["BOM"], "read"),
   bomController.getAllBoms
 );
 
@@ -64,7 +64,7 @@ router.get(
 router.get(
   "/get/:id",
   auth,
-  checkPermission("BOM", "read"),
+  checkPermission(["BOM"], "read"),
   bomController.getBomById
 );
 

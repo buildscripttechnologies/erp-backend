@@ -14,24 +14,22 @@ const router = express.Router();
 router.get(
   "/get-all",
   auth,
-  checkPermission("Material Receive", "read"),
+  checkPermission(["Material Receive"], "read"),
   getAllMR
 );
 
 router.post(
   "/add",
   auth,
-  checkPermission("Material Receive", "write"),
+  checkPermission(["Material Receive"], "write"),
   createMR
 );
 // router.patch("/update/:id", auth, checkPermission("PMaterial IssueO", "update"), updateMI);
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("Material Issue", "delete"),
+  checkPermission(["Material Receive"], "delete"),
   deleteMR
 );
-
-
 
 module.exports = router;

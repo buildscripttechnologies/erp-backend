@@ -14,34 +14,34 @@ const router = express.Router();
 router.post(
   "/add-many",
   auth,
-  checkPermission("Customer", "write"),
+  checkPermission(["Customer"], "write"),
   addMultipleCustomers
 );
 
 router.get(
   "/get-all",
   auth,
-  checkPermission("Customer", "read"),
+  checkPermission(["Customer"], "read"),
   getAllCustomers
 );
 
 router.patch(
   "/update/:id",
   auth,
-  checkPermission("Customer", "update"),
+  checkPermission(["Customer"], "update"),
   updateCustomer
 );
 router.patch(
   "/update-status/:customerId/:type/:entryId",
   auth,
-  checkPermission("Customer", "update"),
+  checkPermission(["Customer"], "update"),
   updateContactOrDeliveryStatus
 );
 
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("Customer", "delete"),
+  checkPermission(["Customer"], "delete"),
   deleteCustomer
 );
 

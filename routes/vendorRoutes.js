@@ -12,23 +12,28 @@ const router = express.Router();
 router.post(
   "/add-many",
   auth,
-  checkPermission("Vendor", "write"),
+  checkPermission(["Vendor"], "write"),
   addMultipleVendors
 );
 
-router.get("/get-all", auth, checkPermission("Vendor", "read"), getAllVendors);
+router.get(
+  "/get-all",
+  auth,
+  checkPermission(["Vendor"], "read"),
+  getAllVendors
+);
 
 router.patch(
   "/update/:id",
   auth,
-  checkPermission("Vendor", "update"),
+  checkPermission(["Vendor"], "update"),
   updateVendor
 );
 
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("Vendor", "delete"),
+  checkPermission(["Vendor"], "delete"),
   deleteVendor
 );
 
