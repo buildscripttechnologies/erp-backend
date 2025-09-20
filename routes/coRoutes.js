@@ -13,7 +13,7 @@ const { addCO, getAllCOs } = require("../controllers/coController");
 router.post(
   "/add",
   auth,
-  checkPermission("Customer Order", "write"),
+  checkPermission(["Customer Order"], "write"),
   setUploadType("co_attachments"),
   uploadFile.fields([
     { name: "files", maxCount: 10 },
@@ -56,7 +56,7 @@ router.post(
 router.get(
   "/get-all",
   auth,
-  checkPermission("Customer Order", "read"),
+  checkPermission(["Customer Order"], "read"),
   getAllCOs
 );
 

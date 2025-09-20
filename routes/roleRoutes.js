@@ -12,18 +12,23 @@ const checkPermission = require("../middlewares/checkPermission");
 const router = express.Router();
 
 router.get("/all-roles", getAllRoles);
-router.get("/get-role/:roleId", auth, checkPermission("Role", "read"), getRole);
-router.post("/add-role", auth, checkPermission("Role", "write"), addRole);
+router.get(
+  "/get-role/:roleId",
+  auth,
+  checkPermission(["Role"], "read"),
+  getRole
+);
+router.post("/add-role", auth, checkPermission(["Role"], "write"), addRole);
 router.patch(
   "/update-role/:id",
   auth,
-  checkPermission("Role", "update"),
+  checkPermission(["Role"], "update"),
   updateRole
 );
 router.delete(
   "/delete-role/:id",
   auth,
-  checkPermission("Role", "delete"),
+  checkPermission(["Role"], "delete"),
   deleteRole
 );
 

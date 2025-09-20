@@ -729,10 +729,12 @@ exports.updateMiItem = async (req, res) => {
 
     // 3. Check overall MI status
     const allReadyForStitching = mi.itemDetails.every((it) => {
+      console.log("item", it);
+
       const last = it.stages[it.stages.length - 1];
       console.log("last", last);
 
-      return last.stage === "Stitching";
+      return last?.stage === "Stitching";
     });
 
     const allReadyForChecking = mi.itemDetails.every((it) =>

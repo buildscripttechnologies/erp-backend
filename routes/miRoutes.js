@@ -22,53 +22,66 @@ const router = express.Router();
 router.get(
   "/get-all",
   auth,
-  checkPermission("Material Issue", "read"),
+  checkPermission(["Material Issue", "Production List"], "read"),
   getAllMI
 );
-router.post("/add", auth, checkPermission("Material Issue", "write"), createMI);
+router.post(
+  "/add",
+  auth,
+  checkPermission(["Material Issue"], "write"),
+  createMI
+);
 router.patch(
   "/update/:id",
   auth,
-  checkPermission("PMaterial IssueO", "update"),
+  checkPermission(["Material Issue"], "update"),
   updateMI
 );
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("Material Issue", "delete"),
+  checkPermission(["Material Issue"], "delete"),
   deleteMI
 );
 
-router.get("/cutting", auth, checkPermission("Cutting", "read"), getInCutting);
+router.get(
+  "/cutting",
+  auth,
+  checkPermission(["Cutting"], "read"),
+  getInCutting
+);
 router.get(
   "/printing",
   auth,
-  checkPermission("Printing", "read"),
+  checkPermission(["Printing"], "read"),
   getInPrinting
 );
 router.get(
   "/outside-company",
   auth,
-  checkPermission("Outside Company", "read"),
+  checkPermission(["Outside Company"], "read"),
   getOutsideCompany
 );
 router.get(
   "/stitching",
   auth,
-  checkPermission("Stitching", "read"),
+  checkPermission(["Stitching"], "read"),
   getInStitching
 );
 router.get(
   "/quality-check",
   auth,
-  checkPermission("Quality Check", "read"),
+  checkPermission(["Quality Check"], "read"),
   getInQualityCheck
 );
 
 router.patch(
   "/next-stage",
   auth,
-  // checkPermission("Outside Company", "read"),
+  checkPermission(
+    ["Cutting", "Printing", "Stitching", "Quality Check", "Outside Company"],
+    "read"
+  ),
   updateMiItem
 );
 

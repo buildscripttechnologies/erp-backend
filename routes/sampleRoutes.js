@@ -13,7 +13,7 @@ const checkPermission = require("../middlewares/checkPermission");
 router.post(
   "/add",
   auth,
-  checkPermission("Sample", "write"),
+  checkPermission(["Sample"], "write"),
   setUploadType("sample_attachments"),
   uploadFile.fields([
     { name: "files", maxCount: 10 },
@@ -27,7 +27,7 @@ router.post(
 router.patch(
   "/update/:id",
   auth,
-  checkPermission("Sample", "update"),
+  checkPermission(["Sample"], "update"),
   setUploadType("sample_attachments"),
   uploadFile.fields([
     { name: "files", maxCount: 10 },
@@ -40,7 +40,7 @@ router.patch(
 router.patch(
   "/edit/:id",
   auth,
-  checkPermission("Sample", "update"),
+  checkPermission(["Sample"], "update"),
   sampleController.updateSample
 );
 
@@ -48,7 +48,7 @@ router.patch(
 router.delete(
   "/delete/:id",
   auth,
-  checkPermission("Sample", "delete"),
+  checkPermission(["Sample"], "delete"),
   sampleController.deleteSample
 );
 
@@ -56,7 +56,7 @@ router.delete(
 router.get(
   "/get-all",
   auth,
-  checkPermission("Sample", "read"),
+  checkPermission(["Sample"], "read"),
   sampleController.getAllSamples
 );
 
