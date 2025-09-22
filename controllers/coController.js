@@ -34,7 +34,7 @@ exports.addCO = async (req, res) => {
     const protocol =
       process.env.NODE_ENV === "production" ? "https" : req.protocol;
 
-    console.log("req.files", req.files);
+    // console.log("req.files", req.files);
 
     const attachments =
       req.files?.files?.map((file) => ({
@@ -77,6 +77,39 @@ exports.addCO = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to add CO" });
+  }
+};
+exports.updateCO = async (req, res) => {
+  try {
+    const updates = req.body;
+    const id = req.params.id;
+
+    if (!updates || Object.keys(updates).length === 0) {
+      return res
+        .status(400)
+        .json({ status: 400, success: false, message: "No updates provided" });
+    }
+
+    const co = await CO.findById(id);
+    if (!co) {
+      return res
+        .status(404)
+        .json({ status: 404, success: false, message: "CO Not Found" });
+    }
+
+    const updatedCO = await CO.findByIdAndUpdate(id, updates, { new: true });
+
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: "CO Updated Successfully",
+      data: updatedCO,
+    });
+  } catch (err) {
+    console.error("Update CO Error:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to update CO" });
   }
 };
 

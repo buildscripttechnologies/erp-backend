@@ -174,6 +174,11 @@ const bomSchema = new mongoose.Schema(
       },
     ],
 
+    status: {
+      type: String,
+      default: "Pending",
+    },
+
     isActive: {
       type: Boolean,
       default: true,

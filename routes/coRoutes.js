@@ -7,7 +7,7 @@ const {
   uploadFile,
   compressUploadedFiles,
 } = require("../middlewares/uploadFile");
-const { addCO, getAllCOs } = require("../controllers/coController");
+const { addCO, getAllCOs, updateCO } = require("../controllers/coController");
 
 // Add BOM
 router.post(
@@ -37,12 +37,12 @@ router.post(
 //   bomController.updateBom
 // );
 
-// router.patch(
-//   "/edit/:id",
-//   auth,
-//   checkPermission("BOM", "update"),
-//   bomController.editBom
-// );
+router.patch(
+  "/update/:id",
+  auth,
+  checkPermission("CO Pendency", "update"),
+  updateCO
+);
 
 // // Delete BOM (soft delete)
 // router.delete(
