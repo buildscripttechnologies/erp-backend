@@ -13,7 +13,7 @@ const miSchema = new mongoose.Schema(
     description: String,
     status: {
       type: String,
-      default: "pending",
+      default: "Pending",
     },
     readyForStitching: { type: Boolean, default: false },
     readyForChecking: { type: Boolean, default: false },

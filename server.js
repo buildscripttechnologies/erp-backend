@@ -24,6 +24,7 @@ const poRoutes = require("./routes/poRoutes");
 const miRoutes = require("./routes/miRoutes");
 const mrRoutes = require("./routes/mrRoutes");
 const coRoutes = require("./routes/coRoutes");
+const indiamartRoutes = require("./routes/indiamartRoutes");
 
 const healthRoutes = require("./routes/healthRoute");
 
@@ -34,6 +35,7 @@ const {
   sendBroadcastTemplateMessage,
   sendToUser,
 } = require("./utils/wati");
+const { startScheduler } = require("./utils/indiamartScheduler");
 
 const uploadDir = process.env.UPLOAD_DIR || path.join(__dirname, "uploads");
 
@@ -99,8 +101,11 @@ app.use("/api/pos", poRoutes);
 app.use("/api/mi", miRoutes);
 app.use("/api/mr", mrRoutes);
 app.use("/api/cos", coRoutes);
+app.use("/api/indiamart", indiamartRoutes);
 
 app.use("/api/health", healthRoutes);
+
+// startScheduler(process.env.INDIAMART_API_KEY);
 
 app.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);
