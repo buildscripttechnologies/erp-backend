@@ -105,7 +105,7 @@ app.use("/api/indiamart", indiamartRoutes);
 
 app.use("/api/health", healthRoutes);
 
-// startScheduler(process.env.INDIAMART_API_KEY);
+startScheduler(process.env.INDIAMART_API_KEY);
 
 app.listen(port, () => {
   console.log(`Server is running on port http://localhost:${port}`);
