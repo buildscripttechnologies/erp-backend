@@ -26,32 +26,33 @@ exports.createMI = async (req, res) => {
 
     // Loop through consumptionTable to update stock
     for (const item of consumptionTable) {
+      const { skuCode, type, qty, weight } = item;
+
+      // Parse numbers from qty/weight
+      const issueQty = qty && qty !== "N/A" ? parseFloat(qty) : 0;
+      const issueWeight = weight && weight !== "N/A" ? parseFloat(weight) : 0;
+
+      // Decide which collection to query
+      let Model;
+      if (type === "RawMaterial") Model = RawMaterial;
+      else if (type === "SFG") Model = SFG;
+      else if (type === "FG") Model = FG;
+      else continue; // skip unknown type
+
+      // Find the item by skuCode
+      const dbItem = await Model.findOne({ skuCode });
+      if (!dbItem) continue;
+
+      // Deduct issued quantity/weight from stock
+      let deduction = 0; // pick the applicable value
       if (item.isChecked) {
-        const { skuCode, type, qty, weight } = item;
-
-        // Parse numbers from qty/weight
-        const issueQty = qty && qty !== "N/A" ? parseFloat(qty) : 0;
-        const issueWeight = weight && weight !== "N/A" ? parseFloat(weight) : 0;
-
-        // Decide which collection to query
-        let Model;
-        if (type === "RawMaterial") Model = RawMaterial;
-        else if (type === "SFG") Model = SFG;
-        else if (type === "FG") Model = FG;
-        else continue; // skip unknown type
-
-        // Find the item by skuCode
-        const dbItem = await Model.findOne({ skuCode });
-        if (!dbItem) continue;
-
-        // Deduct issued quantity/weight from stock
-        const deduction = issueQty || issueWeight; // pick the applicable value
-        dbItem.stockQty = Math.max(0, (dbItem.stockQty || 0) - deduction);
-        await dbItem.save();
-
-        // Update stockQty in the consumptionTable
-        item.stockQty = dbItem.stockQty;
+        deduction = issueQty || issueWeight;
       }
+      dbItem.stockQty = Math.max(0, (dbItem.stockQty || 0) - deduction);
+      await dbItem.save();
+
+      // Update stockQty in the consumptionTable
+      item.stockQty = dbItem.stockQty;
     }
 
     // Create Material Issue
@@ -223,10 +224,17 @@ exports.updateMI = async (req, res) => {
             ci.skuCode === updatedItem.skuCode && ci.type === updatedItem.type
         );
 
+        console.log(
+          "qty",
+          updatedItem.stockQty,
+          oldItem.stockQty,
+          updatedItem.stockQty - oldItem.stockQty
+        );
+
         if (oldItem) {
           const diff = (updatedItem.stockQty || 0) - (oldItem.stockQty || 0);
 
-          if (diff !== 0) {
+          if (diff != 0) {
             let Model;
             if (updatedItem.type === "RawMaterial") Model = RawMaterial;
             else if (updatedItem.type === "SFG") Model = SFG;

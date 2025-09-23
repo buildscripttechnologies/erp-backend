@@ -423,8 +423,8 @@ exports.getAllBoms = async (req, res) => {
       {
         $lookup: {
           from: "fgs",
-          localField: "productName",
-          foreignField: "_id",
+          localField: "sampleNo",
+          foreignField: "skuCode",
           as: "product",
         },
       },
@@ -516,6 +516,7 @@ exports.getAllBoms = async (req, res) => {
           ...bom, // include ALL BOM fields (file, b2b, d2c, etc.)
           partyName: bom.party?.customerName || null,
           productName: bom.productName || null,
+          hsnOrSac: bom.product?.hsnOrSac || "",
           createdBy: {
             _id: bom.createdBy?._id,
             username: bom.createdBy?.username,
