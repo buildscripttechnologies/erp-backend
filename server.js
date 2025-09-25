@@ -25,6 +25,7 @@ const miRoutes = require("./routes/miRoutes");
 const mrRoutes = require("./routes/mrRoutes");
 const coRoutes = require("./routes/coRoutes");
 const indiamartRoutes = require("./routes/indiamartRoutes");
+const settingsRoutes = require("./routes/settingsRoutes");
 
 const healthRoutes = require("./routes/healthRoute");
 
@@ -53,6 +54,10 @@ app.use(
       res.setHeader("Access-Control-Allow-Origin", "*"); // You can replace * with your frontend origin
     },
   })
+);
+app.use(
+  "/letterpad",
+  express.static(path.join(__dirname, "uploads/letterpad"))
 );
 
 app.set("trust proxy", true);
@@ -102,6 +107,7 @@ app.use("/api/mi", miRoutes);
 app.use("/api/mr", mrRoutes);
 app.use("/api/cos", coRoutes);
 app.use("/api/indiamart", indiamartRoutes);
+app.use("/api/settings", settingsRoutes);
 
 app.use("/api/health", healthRoutes);
 
