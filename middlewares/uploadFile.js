@@ -21,7 +21,7 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => {
     // If it's a letterpad upload, always save as lp2
     if (req.uploadType === "letterpad") {
-      const ext = path.extname(file.originalname) || ".png";
+      const ext = path.extname(file.originalname) || ".pdf";
       file._customFilename = `lp2${ext}`;
       return cb(null, file._customFilename);
     }
