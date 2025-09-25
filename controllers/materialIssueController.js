@@ -680,8 +680,6 @@ exports.updateMiItem = async (req, res) => {
   try {
     const { miId, updates } = req.body;
 
-    console.log("updates", updates);
-
     if (!miId || !Array.isArray(updates) || updates.length === 0) {
       return res.status(400).json({
         success: false,
@@ -697,8 +695,6 @@ exports.updateMiItem = async (req, res) => {
 
     // 2. Apply updates
     updates.forEach((upd) => {
-      console.log("upd", upd);
-
       const { itemId, updateStage, completeStage, pushStage, note } = upd;
       const item = mi.itemDetails.id(itemId); // use Mongoose subdoc lookup
       if (!item) return;
@@ -739,10 +735,7 @@ exports.updateMiItem = async (req, res) => {
 
     // 3. Check overall MI status
     const allReadyForStitching = mi.itemDetails.every((it) => {
-      console.log("item", it);
-
       const last = it.stages[it.stages.length - 1];
-      console.log("last", last);
 
       return last?.stage === "Stitching";
     });

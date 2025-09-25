@@ -19,6 +19,13 @@ const storage = multer.diskStorage({
     cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
+    // If it's a letterpad upload, always save as lp2
+    if (req.uploadType === "letterpad") {
+      const ext = path.extname(file.originalname) || ".png";
+      file._customFilename = `lp2${ext}`;
+      return cb(null, file._customFilename);
+    }
+
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     file._customFilename = `${unique}-${file.originalname}`; // save for compression
     cb(null, file._customFilename);
