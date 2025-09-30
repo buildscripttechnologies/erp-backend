@@ -439,7 +439,7 @@ exports.getInPrinting = async (req, res) => {
     const filteredMIs = mis
       .map((mi) => {
         const filteredItems = mi.itemDetails.filter((item) =>
-          item.stages?.some((s) => s.stage === "Printing")
+          item.stages?.some((s) => ["Printing"].includes(s.stage))
         );
 
         if (filteredItems.length === 0) return null;
@@ -575,7 +575,9 @@ exports.getInStitching = async (req, res) => {
     const filteredMIs = mis
       .map((mi) => {
         const filteredItems = mi.itemDetails.filter((item) =>
-          item.stages?.some((s) => s.stage === "Stitching")
+          item.stages?.some((s) =>
+            ["Stitching", "Cutting", "Printing"].includes(s.stage)
+          )
         );
 
         if (filteredItems.length === 0) return null;
@@ -643,7 +645,9 @@ exports.getInQualityCheck = async (req, res) => {
     const filteredMIs = mis
       .map((mi) => {
         const filteredItems = mi.itemDetails.filter((item) =>
-          item.stages?.some((s) => s.stage === "Checking")
+          item.stages?.some((s) =>
+            ["Cutting", "Printing", "Stitching", "Checking"].includes(s.stage)
+          )
         );
 
         if (filteredItems.length === 0) return null;
