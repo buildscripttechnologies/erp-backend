@@ -391,16 +391,29 @@ exports.getAllStocksMerged = async (req, res) => {
     // ✅ Step 2: fetch RM stock qtys
     const rawMaterials = await RawMaterial.find(
       { skuCode: { $in: skuCodes } },
-      { skuCode: 1, stockQty: 1 }
+      { skuCode: 1, stockQty: 1, totalRate: 1 }
     );
 
-    const rmMap = new Map(rawMaterials.map((rm) => [rm.skuCode, rm.stockQty]));
+    const rmMap = new Map(
+      rawMaterials.map((rm) => [
+        rm.skuCode,
+        { stockQty: rm.stockQty, totalRate: rm.totalRate },
+      ])
+    );
 
     // ✅ Step 3: attach availableQty from RM
-    mergedStocks = mergedStocks.map((s) => ({
-      ...s,
-      availableQty: rmMap.get(s.skuCode) || 0, // fallback if not found
-    }));
+    mergedStocks = mergedStocks.map((s) => {
+      // 1. Look up the entire RM data object using the correct key: s.skuCode
+      const rmData = rmMap.get(s.skuCode);
+
+      return {
+        ...s,
+        // 2. Safely access stockQty for availableQty
+        availableQty: rmData?.stockQty || 0,
+        // 3. ⭐ FIX: Safely access totalRate for amount
+        amount: rmData?.totalRate || 0,
+      };
+    });
 
     const totalResults = mergedStocks.length;
     const totalPages = Math.ceil(totalResults / limit);

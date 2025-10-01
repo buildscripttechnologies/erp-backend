@@ -7,6 +7,14 @@ const settingsSchema = new mongoose.Schema(
     letterpad: {
       type: String,
     },
+    vendors: [
+      {
+        name: { type: String },
+        gst: { type: String },
+        address: { type: String },
+        mobile: { type: String },
+      },
+    ],
   },
 
   {

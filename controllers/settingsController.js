@@ -44,3 +44,57 @@ exports.getLetterpad = async (req, res) => {
     res.status(500).json({ success: false, error: "Server error" });
   }
 };
+
+exports.addVendor = async (req, res) => {
+  try {
+    const { name, gst, address, mobile } = req.body;
+    let settings = await Settings.findOne();
+
+    if (!settings) {
+      settings = new Settings({ vendors: [] });
+    }
+
+    settings.vendors.push({ name, gst, address, mobile });
+    await settings.save();
+
+    res.json(settings.vendors);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+exports.getVendors = async (req, res) => {
+  try {
+    const settings = await Settings.findOne();
+    if (!settings || !settings.vendors) {
+      return res.status(404).json({ message: "No Vendors Found" });
+    }
+    res.status(200).json({
+      status: 200,
+      success: true,
+      message: "Vendors Fetched Successfully",
+      vendors: settings.vendors,
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, error: "Server error" });
+  }
+};
+
+exports.deleteVendor = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const settings = await Settings.findOne();
+
+    if (!settings) return res.status(404).json({ error: "Settings not found" });
+
+    settings.vendors = settings.vendors.filter(
+      (vendor) => vendor._id.toString() !== id
+    );
+
+    await settings.save();
+    res.json(settings.vendors);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
