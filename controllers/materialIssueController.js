@@ -224,12 +224,12 @@ exports.updateMI = async (req, res) => {
             ci.skuCode === updatedItem.skuCode && ci.type === updatedItem.type
         );
 
-        console.log(
-          "qty",
-          updatedItem.stockQty,
-          oldItem.stockQty,
-          updatedItem.stockQty - oldItem.stockQty
-        );
+        // console.log(
+        //   "qty",
+        //   updatedItem.stockQty,
+        //   oldItem.stockQty,
+        //   updatedItem.stockQty - oldItem.stockQty
+        // );
 
         if (oldItem) {
           const diff = (updatedItem.stockQty || 0) - (oldItem.stockQty || 0);
@@ -366,22 +366,22 @@ exports.getInCutting = async (req, res) => {
       .sort({ updatedAt: -1, _id: -1 });
 
     // Filter itemDetails inside each MI
-    const filteredMIs = mis
-      .map((mi) => {
-        const filteredItems = mi.itemDetails.filter(
-          (item) =>
-            item.stages?.some((s) => s.stage === "Cutting") &&
-            item.jobWorkType === "Inside Company"
-        );
+    const filteredMIs = mis;
+    // .map((mi) => {
+    //   const filteredItems = mi.itemDetails.filter(
+    //     (item) =>
+    //       item.stages?.some((s) => s.stage === "Cutting") &&
+    //       item.jobWorkType === "Inside Company"
+    //   );
 
-        if (filteredItems.length === 0) return null;
+    //   if (filteredItems.length === 0) return null;
 
-        return {
-          ...mi.toObject(),
-          itemDetails: filteredItems,
-        };
-      })
-      .filter(Boolean);
+    //   return {
+    //     ...mi.toObject(),
+    //     itemDetails: filteredItems,
+    //   };
+    // })
+    // .filter(Boolean);
 
     // Pagination
     const totalResults = filteredMIs.length;
