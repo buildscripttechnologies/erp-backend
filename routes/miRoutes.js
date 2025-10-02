@@ -15,6 +15,7 @@ const {
   updateMiItem,
   getInStitching,
   getInQualityCheck,
+  getInPasting,
 } = require("../controllers/materialIssueController");
 
 const router = express.Router();
@@ -55,6 +56,12 @@ router.get(
   auth,
   checkPermission(["Printing"], "read"),
   getInPrinting
+);
+router.get(
+  "/pasting",
+  auth,
+  checkPermission(["Pasting"], "read"),
+  getInPasting
 );
 router.get(
   "/outside-company",

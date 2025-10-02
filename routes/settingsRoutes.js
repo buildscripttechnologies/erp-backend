@@ -21,6 +21,7 @@ router.post(
 router.get("/letterpad", settingsController.getLetterpad);
 router.post("/vendor", settingsController.addVendor);
 router.get("/vendor", settingsController.getVendors);
+router.put("/vendor/:id", settingsController.editVendor);
 router.delete("/vendor/:id", settingsController.deleteVendor);
 
 module.exports = router;

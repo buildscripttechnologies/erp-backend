@@ -117,6 +117,7 @@ exports.addSample = async (req, res) => {
             baseQty: d.baseQty,
             itemRate: d.itemRate,
             isPrint: d.isPrint,
+            isPasting: d.isPasting,
             cuttingType: d.cuttingType,
           })),
         sfg: productDetails
@@ -133,6 +134,7 @@ exports.addSample = async (req, res) => {
             baseQty: d.baseQty,
             itemRate: d.itemRate,
             isPrint: d.isPrint,
+            isPasting: d.isPasting,
             cuttingType: d.cuttingType,
           })),
         isSample: true,

@@ -7,7 +7,7 @@ const PO = require("../models/PO");
 const Sample = require("../models/Sample");
 
 exports.generateBulkFgSkuCodes = async (count) => {
-  const all = await FG.find({}, { skuCode: 1 }).lean();
+  const all = await FG.findWithDeleted({}, { skuCode: 1 }).lean();
   let max = 0;
 
   all.forEach((item) => {
@@ -25,7 +25,10 @@ exports.generateBulkFgSkuCodes = async (count) => {
 };
 
 exports.generateBulkCustomerCodes = async (count) => {
-  const allCust = await Customer.find({}, { customerCode: 1 }).lean();
+  const allCust = await Customer.findWithDeleted(
+    {},
+    { customerCode: 1 }
+  ).lean();
   let maxNumber = 0;
 
   allCust.forEach((item) => {
@@ -43,7 +46,7 @@ exports.generateBulkCustomerCodes = async (count) => {
 };
 
 exports.generateNextBomNo = async () => {
-  const allBOMs = await BOM.find({}, { bomNo: 1 }).lean();
+  const allBOMs = await BOM.findWithDeleted({}, { bomNo: 1 }).lean();
   let max = 0;
 
   allBOMs.forEach((bom) => {
@@ -58,7 +61,7 @@ exports.generateNextBomNo = async () => {
 };
 
 exports.generateNextSampleNo = async () => {
-  const allBOMs = await Sample.find({}, { sampleNo: 1 }).lean();
+  const allBOMs = await Sample.findWithDeleted({}, { sampleNo: 1 }).lean();
   let max = 0;
 
   allBOMs.forEach((bom) => {
