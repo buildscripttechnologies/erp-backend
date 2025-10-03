@@ -171,6 +171,37 @@ exports.setCompanyDetails = async (req, res) => {
   }
 };
 
+exports.editCompanyDetails = async (req, res) => {
+  try {
+    const { companyName, gst, pan, mobile, warehouses, bankDetails } = req.body;
+
+    const settings = await Settings.findOne();
+
+    if (!settings || !settings.companyDetails) {
+      return res.status(404).json({ message: "Company details not found" });
+    }
+
+    // Update only provided fields
+    if (companyName) settings.companyDetails.companyName = companyName;
+    if (gst) settings.companyDetails.gst = gst;
+    if (pan) settings.companyDetails.pan = pan;
+    if (mobile) settings.companyDetails.mobile = mobile;
+    if (warehouses) settings.companyDetails.warehouses = warehouses;
+    if (bankDetails) settings.companyDetails.bankDetails = bankDetails;
+
+    await settings.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Company details updated successfully",
+      companyDetails: settings.companyDetails,
+    });
+  } catch (err) {
+    console.error("Error editing company details:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 // Add warehouse
 exports.addWarehouse = async (req, res) => {
   try {
@@ -182,6 +213,36 @@ exports.addWarehouse = async (req, res) => {
     settings.companyDetails.warehouses.push({ name, address });
     await settings.save();
     res.json(settings.companyDetails.warehouses);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Edit warehouse
+exports.editWarehouse = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, address } = req.body;
+
+    const updatedSettings = await Settings.findOneAndUpdate(
+      {},
+      {
+        $set: {
+          "companyDetails.warehouses.$[elem].name": name,
+          "companyDetails.warehouses.$[elem].address": address,
+        },
+      },
+      {
+        arrayFilters: [{ "elem._id": id }],
+        new: true,
+      }
+    );
+
+    if (!updatedSettings) {
+      return res.status(404).json({ message: "Warehouse not found" });
+    }
+
+    res.json(updatedSettings.companyDetails.warehouses);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -224,6 +285,39 @@ exports.addBankDetail = async (req, res) => {
     });
     await settings.save();
     res.json(settings.companyDetails.bankDetails);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// Edit bank detail
+exports.editBankDetail = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { accountNo, ifsc, upiId, bankName, branch } = req.body;
+
+    const updatedSettings = await Settings.findOneAndUpdate(
+      {},
+      {
+        $set: {
+          "companyDetails.bankDetails.$[elem].accountNo": accountNo,
+          "companyDetails.bankDetails.$[elem].ifsc": ifsc,
+          "companyDetails.bankDetails.$[elem].upiId": upiId,
+          "companyDetails.bankDetails.$[elem].bankName": bankName,
+          "companyDetails.bankDetails.$[elem].branch": branch,
+        },
+      },
+      {
+        arrayFilters: [{ "elem._id": id }],
+        new: true,
+      }
+    );
+
+    if (!updatedSettings) {
+      return res.status(404).json({ message: "Bank detail not found" });
+    }
+
+    res.json(updatedSettings.companyDetails.bankDetails);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
