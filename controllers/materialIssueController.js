@@ -366,22 +366,25 @@ exports.getInCutting = async (req, res) => {
       .sort({ updatedAt: -1, _id: -1 });
 
     // Filter itemDetails inside each MI
-    const filteredMIs = mis;
-    // .map((mi) => {
-    //   const filteredItems = mi.itemDetails.filter(
-    //     (item) =>
-    //       item.stages?.some((s) => s.stage === "Cutting") &&
-    //       item.jobWorkType === "Inside Company"
-    //   );
+    const filteredMIs = mis
+      .map((mi) => {
+        const filteredItems = mi.itemDetails.filter(
+          (item) =>
+            (item.stages?.some((s) =>
+              ["Material Issue", "Cutting"].includes(s.stage)
+            ) &&
+              item.jobWorkType === "Inside Company") ||
+            item.stages?.some((s) => ["Material Issue"].includes(s.stage))
+        );
 
-    //   if (filteredItems.length === 0) return null;
+        if (filteredItems.length === 0) return null;
 
-    //   return {
-    //     ...mi.toObject(),
-    //     itemDetails: filteredItems,
-    //   };
-    // })
-    // .filter(Boolean);
+        return {
+          ...mi.toObject(),
+          itemDetails: filteredItems,
+        };
+      })
+      .filter(Boolean);
 
     // Pagination
     const totalResults = filteredMIs.length;
@@ -439,7 +442,9 @@ exports.getInPrinting = async (req, res) => {
     const filteredMIs = mis
       .map((mi) => {
         const filteredItems = mi.itemDetails.filter((item) =>
-          item.stages?.some((s) => ["Printing"].includes(s.stage))
+          item.stages?.some(
+            (s) => ["Printing"].includes(s.stage) || s.isPrint == "true"
+          )
         );
 
         if (filteredItems.length === 0) return null;
@@ -467,6 +472,75 @@ exports.getInPrinting = async (req, res) => {
     });
   } catch (err) {
     console.error("Error fetching itemDetails in printing:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+exports.getInPasting = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const skip = (page - 1) * limit;
+
+    // Search
+    const search = req.query.search || "";
+    const filters = {};
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filters.$or = [
+        { productName: regex }, // ✅ denormalized field
+        { prodNo: regex },
+        { bomNo: regex },
+        { type: regex },
+        { "itemDetails.partName": regex },
+      ];
+    }
+
+    // Fetch all MIs with filters + population
+    const mis = await MI.find(filters)
+      .populate("bom", "bomNo productName printingFile")
+      .populate({
+        path: "itemDetails.itemId",
+        select: "skuCode itemName description location",
+        populate: { path: "location", select: "locationId" },
+      })
+      .populate("createdBy", "_id fullName username")
+      .sort({ updatedAt: -1, _id: -1 });
+
+    // Filter itemDetails inside each MI
+    const filteredMIs = mis
+      .map((mi) => {
+        const filteredItems = mi.itemDetails.filter((item) =>
+          item.stages?.some(
+            (s) => ["Pasting"].includes(s.stage) || s.isPasting == "true"
+          )
+        );
+
+        if (filteredItems.length === 0) return null;
+
+        return {
+          ...mi.toObject(),
+          itemDetails: filteredItems,
+        };
+      })
+      .filter(Boolean);
+
+    // Pagination
+    const totalResults = filteredMIs.length;
+    const totalPages = Math.ceil(totalResults / limit);
+    const paginatedItems = filteredMIs.slice(skip, skip + limit);
+
+    res.status(200).json({
+      success: true,
+      status: 200,
+      totalResults,
+      totalPages,
+      currentPage: page,
+      limit,
+      data: paginatedItems,
+    });
+  } catch (err) {
+    console.error("Error fetching itemDetails in pasting:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };
@@ -552,7 +626,7 @@ exports.getInStitching = async (req, res) => {
     if (search) {
       const regex = new RegExp(search, "i");
       filters.$or = [
-        { productName: regex }, // ✅ denormalized field
+        { productName: regex },
         { prodNo: regex },
         { bomNo: regex },
         { type: regex },
@@ -576,7 +650,13 @@ exports.getInStitching = async (req, res) => {
       .map((mi) => {
         const filteredItems = mi.itemDetails.filter((item) =>
           item.stages?.some((s) =>
-            ["Stitching", "Cutting", "Printing"].includes(s.stage)
+            [
+              "Material Issue",
+              "Cutting",
+              "Printing",
+              "Pasting",
+              "Stitching",
+            ].includes(s.stage)
           )
         );
 
@@ -646,7 +726,14 @@ exports.getInQualityCheck = async (req, res) => {
       .map((mi) => {
         const filteredItems = mi.itemDetails.filter((item) =>
           item.stages?.some((s) =>
-            ["Cutting", "Printing", "Stitching", "Checking"].includes(s.stage)
+            [
+              "Material Issue",
+              "Cutting",
+              "Printing",
+              "Pasting",
+              "Stitching",
+              "Checking",
+            ].includes(s.stage)
           )
         );
 

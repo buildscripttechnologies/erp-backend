@@ -291,6 +291,7 @@ exports.getAllSFGs = async (req, res) => {
         itemRate: r.itemRate,
         baseQty: r.baseQty,
         isPrint: r.isPrint,
+        isPasting: r.isPasting,
         cuttingType: r.cuttingType,
       })),
       sfg: sfg.sfg.map((sub) => {
@@ -318,6 +319,7 @@ exports.getAllSFGs = async (req, res) => {
           itemRate: sub.itemRate,
           baseQty: sub.baseQty,
           isPrint: sub.isPrint,
+          isPasting: sub.isPasting,
           cuttingType: sub.cuttingType,
           rm: (nested.rm || []).map((r) => ({
             id: r.rmid?._id || r.rmid,
@@ -341,6 +343,7 @@ exports.getAllSFGs = async (req, res) => {
             itemRate: r.itemRate,
             baseQty: r.baseQty,
             isPrint: r.isPrint,
+            isPasting: r.isPasting,
             cuttingType: r.cuttingType,
           })),
         };

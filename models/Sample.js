@@ -152,6 +152,7 @@ const somSchema = new mongoose.Schema(
         itemRate: Number,
         cuttingType: String,
         isPrint: Boolean,
+        isPasting: Boolean,
       },
     ],
     consumptionTable: [

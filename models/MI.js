@@ -50,8 +50,10 @@ const miSchema = new mongoose.Schema(
             stage: {
               type: String,
               enum: [
+                "Material Issue",
                 "Cutting",
                 "Printing",
+                "Pasting",
                 "Stitching",
                 "Checking",
                 "Completed",
@@ -60,6 +62,7 @@ const miSchema = new mongoose.Schema(
             status: {
               type: String,
               enum: [
+                "Pending",
                 "Yet to Start",
                 "In Progress",
                 "Paused",
@@ -75,6 +78,7 @@ const miSchema = new mongoose.Schema(
         ],
 
         isPrint: { type: Boolean, default: false },
+        isPasting: { type: Boolean, default: false },
         cuttingType: String,
         jobWorkType: String,
         note: { type: String, default: "" },

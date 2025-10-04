@@ -308,20 +308,90 @@ const getAllPOs = async (req, res) => {
 };
 
 // Update PO
+// const updatePO = async (req, res) => {
+//   try {
+//     // Just take payload as it is
+//     const updateData = {
+//       ...req.body,
+//       updatedAt: new Date(),
+//     };
+
+//     const updatedPO = await PO.findByIdAndUpdate(req.params.id, updateData, {
+//       new: true,
+//     });
+
+//     if (!updatedPO) {
+//       return res.status(404).json({ success: false, message: "PO not found." });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: "PO updated successfully.",
+//       data: updatedPO,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
+const { sendVendorMail } = require("../utils/sendVendorMail");
+
+const fs = require("fs");
+const path = require("path");
+
 const updatePO = async (req, res) => {
   try {
-    // Just take payload as it is
-    const updateData = {
-      ...req.body,
-      updatedAt: new Date(),
-    };
+    const { pdfBase64, status } = req.body;
 
-    const updatedPO = await PO.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
-    });
+    // Update PO first
+    const updatedPO = await PO.findByIdAndUpdate(
+      req.params.id,
+      {
+        ...req.body,
+        updatedAt: new Date(),
+      },
+      { new: true }
+    );
 
     if (!updatedPO) {
       return res.status(404).json({ success: false, message: "PO not found." });
+    }
+
+    // ✅ If approved, send email to vendor
+    if (status == "approved" && pdfBase64) {
+      // const vendorEmail = updatedPO.vendor.email;
+      const poNumber = updatedPO.poNo || updatedPO._id;
+
+      // Convert base64 PDF to Buffer
+      const pdfBuffer = Buffer.from(pdfBase64, "base64");
+
+      // Prepare email options
+      const subject = `Purchase Order ${poNumber} - Approved`;
+      const html = `
+        <p>Dear Vendor},</p>
+        <p>Purchase Order <strong>${poNumber}</strong> has been approved.</p>
+        <p>Please find the attached PDF for your reference.</p>
+      `;
+
+      try {
+        await sendVendorMail({
+          to: "divyeshvariya1692@gmail.com",
+          cc: "mangukianisarg@gmail.com", // optional
+          subject,
+          html,
+          attachments: [
+            {
+              filename: `${poNumber}.pdf`,
+              content: pdfBuffer,
+              contentType: "application/pdf",
+            },
+          ],
+        });
+
+        console.log(`✅ Email sent to vendor`);
+      } catch (emailErr) {
+        console.error("❌ Error sending email:", emailErr.message);
+      }
     }
 
     res.status(200).json({
@@ -330,6 +400,7 @@ const updatePO = async (req, res) => {
       data: updatedPO,
     });
   } catch (err) {
+    console.error("Error updating PO:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 };

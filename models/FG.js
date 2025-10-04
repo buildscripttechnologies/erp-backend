@@ -188,6 +188,7 @@ const fgSchema = new mongoose.Schema(
         itemRate: Number,
         cuttingType: String,
         isPrint: Boolean,
+        isPasting: Boolean,
       },
     ],
     sfg: [
@@ -208,6 +209,7 @@ const fgSchema = new mongoose.Schema(
         itemRate: Number,
         cuttingType: String,
         isPrint: Boolean,
+        isPasting: Boolean,
       },
     ],
 
