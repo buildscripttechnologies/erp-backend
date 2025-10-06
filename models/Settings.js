@@ -19,25 +19,25 @@ const settingsSchema = new mongoose.Schema(
     ],
 
     companyDetails: {
-      companyName: { type: String, required: true },
+      companyName: { type: String },
       gst: { type: String },
       pan: { type: String },
       mobile: { type: String },
 
       warehouses: [
         {
-          name: { type: String, required: true },
-          address: { type: String, required: true },
+          name: { type: String },
+          address: { type: String },
         },
       ],
 
       bankDetails: [
         {
-          accountNo: { type: String, required: true },
-          ifsc: { type: String, required: true },
+          accountNo: { type: String },
+          ifsc: { type: String },
           upiId: { type: String },
-          bankName: { type: String, required: true },
-          branch: { type: String, required: true },
+          bankName: { type: String },
+          branch: { type: String },
         },
       ],
     },

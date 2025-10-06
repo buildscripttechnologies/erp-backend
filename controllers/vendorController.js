@@ -60,7 +60,7 @@ exports.addVendor = async (req, res) => {
 exports.addMultipleVendors = async (req, res) => {
   try {
     const vendors = req.body.vendors;
-    console.log("vendors", vendors);
+    // console.log("vendors", vendors);
 
     if (!Array.isArray(vendors) || vendors.length === 0) {
       return res
