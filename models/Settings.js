@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const softDeletePlugin = require("../utils/softDeletePlugin");
 
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
+const { type } = require("os");
 
 const settingsSchema = new mongoose.Schema(
   {
@@ -41,6 +42,8 @@ const settingsSchema = new mongoose.Schema(
         },
       ],
     },
+
+    categories: [{ type: String }],
   },
   {
     timestamps: true,

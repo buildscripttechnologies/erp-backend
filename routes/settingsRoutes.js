@@ -42,4 +42,29 @@ router.post("/company-details/bank", settingsController.addBankDetail);
 router.put("/company-details/bank/:id", settingsController.editBankDetail);
 router.delete("/company-details/bank/:id", settingsController.deleteBankDetail);
 
+router.get(
+  "/categories",
+  auth,
+  checkPermission(["Settings"], "read"),
+  settingsController.getCategories
+);
+router.post(
+  "/categories",
+  auth,
+  checkPermission(["Settings"], "write"),
+  settingsController.addCategory
+);
+router.put(
+  "/categories",
+  auth,
+  checkPermission(["Settings"], "write"),
+  settingsController.editCategory
+);
+router.delete(
+  "/categories/:name",
+  auth,
+  checkPermission(["Settings"], "write"),
+  settingsController.deleteCategory
+);
+
 module.exports = router;
