@@ -349,9 +349,8 @@ exports.deleteBankDetail = async (req, res) => {
 exports.getCategories = async (req, res) => {
   try {
     const settings = await Settings.findOne();
-    if (!settings) {
+    if (!settings)
       return res.status(404).json({ message: "Settings not found" });
-    }
     res.json({ categories: settings.categories || [] });
   } catch (err) {
     console.error(err);
@@ -364,21 +363,21 @@ exports.getCategories = async (req, res) => {
  */
 exports.addCategory = async (req, res) => {
   try {
-    const { name } = req.body;
-    if (!name || !name.trim()) {
-      return res.status(400).json({ message: "Category name is required" });
+    const { name, type } = req.body;
+    if (!name?.trim() || !type) {
+      return res
+        .status(400)
+        .json({ message: "Category name and type are required" });
     }
 
     let settings = await Settings.findOne();
-    if (!settings) {
-      settings = new Settings({ categories: [name] });
-    } else {
-      if (settings.categories.includes(name)) {
-        return res.status(400).json({ message: "Category already exists" });
-      }
-      settings.categories.push(name);
+    if (!settings) settings = new Settings({ categories: [] });
+
+    if (settings.categories.some((c) => c.name === name && c.type === type)) {
+      return res.status(400).json({ message: "Category already exists" });
     }
 
+    settings.categories.push({ name, type });
     await settings.save();
     res.json({ categories: settings.categories });
   } catch (err) {
@@ -392,24 +391,22 @@ exports.addCategory = async (req, res) => {
  */
 exports.editCategory = async (req, res) => {
   try {
-    const { oldName, newName } = req.body;
-    if (!oldName || !newName) {
+    const { oldName, newName, newType } = req.body;
+    if (!oldName || !newName || !newType) {
       return res
         .status(400)
-        .json({ message: "Old and new category names required" });
+        .json({ message: "Old name, new name, and type are required" });
     }
 
     const settings = await Settings.findOne();
-    if (!settings) {
+    if (!settings)
       return res.status(404).json({ message: "Settings not found" });
-    }
 
-    const index = settings.categories.findIndex((c) => c === oldName);
-    if (index === -1) {
+    const index = settings.categories.findIndex((c) => c.name === oldName);
+    if (index === -1)
       return res.status(404).json({ message: "Category not found" });
-    }
 
-    settings.categories[index] = newName;
+    settings.categories[index] = { name: newName, type: newType };
     await settings.save();
     res.json({ categories: settings.categories });
   } catch (err) {
@@ -423,14 +420,17 @@ exports.editCategory = async (req, res) => {
  */
 exports.deleteCategory = async (req, res) => {
   try {
-    const { name } = req.params;
-    const settings = await Settings.findOne();
-    if (!settings) {
-      return res.status(404).json({ message: "Settings not found" });
-    }
+    const { name, type } = req.params; // pass type as query param
 
-    settings.categories = settings.categories.filter((c) => c !== name);
+    const settings = await Settings.findOne();
+    if (!settings)
+      return res.status(404).json({ message: "Settings not found" });
+
+    settings.categories = settings.categories.filter(
+      (c) => !(c.name === name && c.type === type)
+    );
     await settings.save();
+
     res.json({ categories: settings.categories });
   } catch (err) {
     console.error(err);
