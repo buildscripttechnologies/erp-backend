@@ -48,20 +48,23 @@ router.get(
   checkPermission(["Settings"], "read"),
   settingsController.getCategories
 );
+
 router.post(
   "/categories",
   auth,
   checkPermission(["Settings"], "write"),
   settingsController.addCategory
 );
+
 router.put(
   "/categories",
   auth,
   checkPermission(["Settings"], "write"),
   settingsController.editCategory
 );
+
 router.delete(
-  "/categories/:name",
+  "/categories/:name/:type",
   auth,
   checkPermission(["Settings"], "write"),
   settingsController.deleteCategory

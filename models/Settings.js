@@ -43,7 +43,14 @@ const settingsSchema = new mongoose.Schema(
       ],
     },
 
-    categories: [{ type: String }],
+    categories: [
+      {
+        name: { type: String, required: true },
+        type: {
+          type: String,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
