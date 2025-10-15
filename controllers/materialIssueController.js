@@ -3,7 +3,10 @@ const FG = require("../models/FG");
 const MI = require("../models/MI");
 const RawMaterial = require("../models/RawMaterial");
 const SFG = require("../models/SFG");
-const { generateNextProdNo } = require("../utils/codeGenerator");
+const {
+  generateNextProdNo,
+  generateNextInvoiceNo,
+} = require("../utils/codeGenerator");
 
 const modelMap = {
   RawMaterial,
@@ -278,6 +281,38 @@ exports.deleteMI = async (req, res) => {
     const mi = await MI.findById(req.params.id);
     if (!mi)
       return res.status(404).json({ message: "Material Issue not found" });
+
+    const consumptionTable = mi.consumptionTable;
+
+    for (const item of consumptionTable) {
+      if (item.isChecked) {
+        let Model;
+        if (item.type === "RawMaterial") Model = RawMaterial;
+        else if (item.type === "SFG") Model = SFG;
+        else if (item.type === "FG") Model = FG;
+        else continue;
+
+        let diff = 0;
+
+        // handle qty first
+        if (item.qty && item.qty !== "N/A") {
+          // remove "m" and spaces, then parse as float
+          const numericQty = parseFloat(item.qty.replace(/[^\d.-]/g, ""));
+          if (!isNaN(numericQty)) diff = numericQty;
+        }
+
+        // if you also want to handle weight
+        if (item.weight && item.weight !== "N/A") {
+          const numericWeight = parseFloat(item.weight.replace(/[^\d.-]/g, ""));
+          if (!isNaN(numericWeight)) diff = numericWeight;
+        }
+
+        await Model.updateOne(
+          { skuCode: item.skuCode },
+          { $inc: { stockQty: diff } }
+        );
+      }
+    }
 
     await mi.delete({ _id: req.params.id }); // uses your soft delete plugin
     res
@@ -849,6 +884,11 @@ exports.updateMiItem = async (req, res) => {
     }
     if (allCompleted) {
       mi.status = "Completed";
+      let b = await BOM.findOne({ bomNo: mi.bomNo });
+      const newInvoiceNo = await generateNextInvoiceNo();
+      b.invoiceNo = newInvoiceNo;
+      await b.save();
+      console.log(b.invoiceNo);
     }
 
     // 4. Save

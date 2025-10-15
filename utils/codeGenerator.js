@@ -121,3 +121,20 @@ exports.generateNextCoNo = async () => {
 
   return `CO-${(max + 1).toString().padStart(3, "0")}`;
 };
+
+exports.generateNextInvoiceNo = async () => {
+  // Fetch all BOMs (including deleted, if using mongoose-delete plugin)
+  const allBOMs = await BOM.findWithDeleted({}, { invoiceNo: 1 }).lean();
+
+  let max = 1000; // start from 1001
+
+  allBOMs.forEach((b) => {
+    const match = b.invoiceNo?.toString().match(/(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > max) max = num;
+    }
+  });
+
+  return `${max + 1}`;
+};

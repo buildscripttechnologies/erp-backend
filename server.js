@@ -26,6 +26,7 @@ const mrRoutes = require("./routes/mrRoutes");
 const coRoutes = require("./routes/coRoutes");
 const indiamartRoutes = require("./routes/indiamartRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
+const pdfWhatsappRoutes = require("./routes/pdfWhatsappRoutes");
 
 const healthRoutes = require("./routes/healthRoute");
 
@@ -69,7 +70,7 @@ app.get("/", (req, res) => {
 app.post("/sendmsg", async (req, res) => {
   try {
     await sendTemplateMessage(
-      "918160276496", // WhatsApp number (with country code)
+      "7359286348", // WhatsApp number (with country code)
       "test_msg", // Template name
       { name: "nisarg mangukiya" }, // Template params
       "test_msg" // Broadcast name (optional)
@@ -108,6 +109,7 @@ app.use("/api/mr", mrRoutes);
 app.use("/api/cos", coRoutes);
 app.use("/api/indiamart", indiamartRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/wati/pdf", pdfWhatsappRoutes);
 
 app.use("/api/health", healthRoutes);
 
