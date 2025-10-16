@@ -1,5 +1,6 @@
 const axios = require("axios");
 require("dotenv").config();
+const FormData = require("form-data");
 /**
  * Send template message to a WhatsApp number (or broadcast)
  * @param {string} whatsappNumber - Target WhatsApp number (with or without country code)
@@ -70,5 +71,40 @@ exports.sendToUser = async (whatsappNumber, templateName, parameters) => {
       error.response?.data || error.message
     );
     throw error;
+  }
+};
+exports.sendFileMessage = async (phone, base64Data, fileName, caption = "") => {
+  try {
+    const url = `https://live-mt-server.wati.io/102906/api/v1/sendSessionFile/${phone}?caption=${caption}`;
+
+    // Convert base64 to binary buffer
+    const fileBuffer = Buffer.from(base64Data, "base64");
+
+    // Prepare multipart form
+    const formData = new FormData();
+    formData.append("file", fileBuffer, {
+      filename: fileName,
+      contentType: "application/pdf",
+    });
+    // if (caption) formData.append("caption", caption);
+
+    // Send via WATI
+    const res = await axios.post(url, formData, {
+      headers: {
+        ...formData.getHeaders(),
+        Authorization: `Bearer ${process.env.WATI_API_KEY}`,
+      },
+    });
+
+    console.log("wati res", res);
+
+    console.log("✅ PDF sent via WATI:", res.data);
+    return res.data;
+  } catch (err) {
+    console.error(
+      "❌ Error sending file via WATI:",
+      err.response?.data || err.message
+    );
+    throw err;
   }
 };
