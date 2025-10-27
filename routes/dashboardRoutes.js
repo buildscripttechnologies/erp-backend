@@ -1,5 +1,4 @@
 const express = require("express");
-
 const { getDashboardData } = require("../controllers/dashBoardController");
 
 const router = express.Router();
