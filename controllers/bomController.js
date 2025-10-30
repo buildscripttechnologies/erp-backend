@@ -513,7 +513,7 @@ exports.getAllBoms = async (req, res) => {
         }
 
         let totalAmountWithGst =
-          bom.totalRate + (bom.totalRate * bom.product?.gst) / 100;
+          bom.totalD2CRate + (bom.totalD2CRate * bom.product?.gst) / 100;
 
         return {
           ...bom, // include ALL BOM fields (file, b2b, d2c, etc.)

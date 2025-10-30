@@ -145,12 +145,12 @@ exports.generateNextQuotationNo = async () => {
   let max = 0;
 
   allQuotations.forEach((b) => {
-    const match = b.qNo?.toString().match(/QUOT-(\d+)/i);
+    const match = b.qNo?.toString().match(/Quotation-(\d+)/i);
     if (match) {
       const num = parseInt(match[1]);
       if (num > max) max = num;
     }
   });
 
-  return `QUOT-${(max + 1).toString().padStart(3, "0")}`;
+  return `Quotation-${(max + 1).toString().padStart(3, "0")}`;
 };

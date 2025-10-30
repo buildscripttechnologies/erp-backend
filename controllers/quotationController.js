@@ -246,7 +246,7 @@ exports.getAllQuotations = async (req, res) => {
         );
 
         let totalAmountWithGst =
-          q.totalRate + (q.totalRate * q.product?.gst) / 100;
+          q.totalD2CRate + (q.totalD2CRate * q.product?.gst) / 100;
 
         return {
           ...q, // include ALL BOM fields (file, b2b, d2c, etc.)

@@ -56,10 +56,14 @@ const poSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ["pending", "approved", "partially-approved","rejected"],
+      enum: ["pending", "approved", "partially-approved", "rejected"],
       default: "pending",
     },
-
+    emailSent: {
+      type: Boolean,
+      default: false,
+    },
+    
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
