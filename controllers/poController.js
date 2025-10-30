@@ -223,6 +223,7 @@ const getAllPOs = async (req, res) => {
           totalGstAmount: 1,
           totalAmountWithGst: 1,
           status: 1,
+          emailSent:1,
           deleted: 1,
           createdAt: 1,
           updatedAt: 1,
@@ -308,40 +309,40 @@ const getAllPOs = async (req, res) => {
 };
 
 // Update PO
-// const updatePO = async (req, res) => {
-//   try {
-//     // Just take payload as it is
-//     const updateData = {
-//       ...req.body,
-//       updatedAt: new Date(),
-//     };
+const updatePO = async (req, res) => {
+  try {
+    // Just take payload as it is
+    const updateData = {
+      ...req.body,
+      updatedAt: new Date(),
+    };
 
-//     const updatedPO = await PO.findByIdAndUpdate(req.params.id, updateData, {
-//       new: true,
-//     });
+    const updatedPO = await PO.findByIdAndUpdate(req.params.id, updateData, {
+      new: true,
+    });
 
-//     if (!updatedPO) {
-//       return res.status(404).json({ success: false, message: "PO not found." });
-//     }
+    if (!updatedPO) {
+      return res.status(404).json({ success: false, message: "PO not found." });
+    }
 
-//     res.status(200).json({
-//       success: true,
-//       message: "PO updated successfully.",
-//       data: updatedPO,
-//     });
-//   } catch (err) {
-//     res.status(500).json({ success: false, message: err.message });
-//   }
-// };
+    res.status(200).json({
+      success: true,
+      message: "PO updated successfully.",
+      data: updatedPO,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 const { sendVendorMail } = require("../utils/sendVendorMail");
 
 const fs = require("fs");
 const path = require("path");
 
-const updatePO = async (req, res) => {
+const updatePoAndSendMail = async (req, res) => {
   try {
-    const { pdfBase64, status } = req.body;
+    const { pdfBase64, status, ccEmail } = req.body;
 
     // Update PO first
     const updatedPO = await PO.findByIdAndUpdate(
@@ -351,7 +352,7 @@ const updatePO = async (req, res) => {
         updatedAt: new Date(),
       },
       { new: true }
-    );
+    ).populate({ path: "vendor", select: "contactPersons" });
 
     if (!updatedPO) {
       return res.status(404).json({ success: false, message: "PO not found." });
@@ -359,24 +360,29 @@ const updatePO = async (req, res) => {
 
     // ✅ If approved, send email to vendor
     if (status == "approved" && pdfBase64) {
-      // const vendorEmail = updatedPO.vendor.email;
+      const vendorEmail = updatedPO.vendor.contactPersons[0]?.email;
       const poNumber = updatedPO.poNo || updatedPO._id;
 
       // Convert base64 PDF to Buffer
       const pdfBuffer = Buffer.from(pdfBase64, "base64");
 
       // Prepare email options
-      const subject = `Purchase Order ${poNumber} - Approved`;
+      const subject = `Purchase Order ${poNumber} Approved`;
       const html = `
-        <p>Dear Vendor},</p>
-        <p>Purchase Order <strong>${poNumber}</strong> has been approved.</p>
-        <p>Please find the attached PDF for your reference.</p>
+        <p>Dear Vendor,</p>
+        <p>We are pleased to inform you that Purchase Order <strong>${poNumber}</strong> has been approved.</p>
+        </br>
+        <p>Please find the attached PDF copy of the Purchase Order for your reference.
+           Kindly review and proceed with the necessary actions as per the terms mentioned.</p>
+        </br><p>If you have any questions or require further clarification, please feel free to contact us.</p>
+        </br><p>Thank you for your cooperation.</p>    
       `;
 
       try {
         await sendVendorMail({
-          to: "divyeshvariya1692@gmail.com",
-          cc: "mangukianisarg@gmail.com", // optional
+          to: vendorEmail,
+          // cc: ccEmail || "mangukianisarg@gmail.com", // optional
+          cc: ccEmail || "account@ikhodalbag.com", // optional
           subject,
           html,
           attachments: [
@@ -387,6 +393,9 @@ const updatePO = async (req, res) => {
             },
           ],
         });
+
+        updatedPO.emailSent = true;
+        await updatedPO.save();
 
         console.log(`✅ Email sent to vendor`);
       } catch (emailErr) {
@@ -430,4 +439,5 @@ module.exports = {
   getAllPOs,
   updatePO,
   deletePO,
+  updatePoAndSendMail,
 };

@@ -8,6 +8,7 @@ const {
   addPO,
   updatePO,
   deletePO,
+  updatePoAndSendMail,
 } = require("../controllers/poController");
 const router = express.Router();
 
@@ -28,6 +29,12 @@ router.patch(
   auth,
   checkPermission(["Purchase Order", "PO Approval"], "update"),
   updatePO
+);
+router.patch(
+  "/update-status/:id",
+  auth,
+  checkPermission(["Purchase Order", "PO Approval"], "update"),
+  updatePoAndSendMail
 );
 router.delete(
   "/delete/:id",
