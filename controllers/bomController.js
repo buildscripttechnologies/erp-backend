@@ -512,16 +512,21 @@ exports.getAllBoms = async (req, res) => {
           bom.status = mi?.status || null;
         }
 
+        let totalAmountWithGst =
+          bom.totalRate + (bom.totalRate * bom.product?.gst) / 100;
+
         return {
           ...bom, // include ALL BOM fields (file, b2b, d2c, etc.)
           partyName: bom.party?.customerName || null,
           productName: bom.productName || null,
           hsnOrSac: bom.product?.hsnOrSac || "",
+          gst: bom.product?.gst || null,
           createdBy: {
             _id: bom.createdBy?._id,
             username: bom.createdBy?.username,
             fullName: bom.createdBy?.fullName,
           },
+          totalAmountWithGst: totalAmountWithGst,
           productDetails: enrichedDetails,
           consumptionTable: bom.consumptionTable,
         };

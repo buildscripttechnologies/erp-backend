@@ -4,6 +4,7 @@ const Customer = require("../models/Customer");
 const FG = require("../models/FG");
 const MI = require("../models/MI");
 const PO = require("../models/PO");
+const Quotation = require("../models/Quotation");
 const Sample = require("../models/Sample");
 
 exports.generateBulkFgSkuCodes = async (count) => {
@@ -137,4 +138,19 @@ exports.generateNextInvoiceNo = async () => {
   });
 
   return `${max + 1}`;
+};
+exports.generateNextQuotationNo = async () => {
+  const allQuotations = await Quotation.findWithDeleted({}, { qNo: 1 }).lean();
+
+  let max = 0;
+
+  allQuotations.forEach((b) => {
+    const match = b.qNo?.toString().match(/QUOT-(\d+)/i);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > max) max = num;
+    }
+  });
+
+  return `QUOT-${(max + 1).toString().padStart(3, "0")}`;
 };

@@ -17,7 +17,18 @@ const somSchema = new mongoose.Schema(
       pId: { type: mongoose.Schema.Types.ObjectId, ref: "FG" },
       name: String,
     },
+    description: {
+      type: String,
+      default: "-",
+    },
     sampleNo: {
+      type: String,
+    },
+    gst: {
+      type: Number,
+      default: 0,
+    },
+    hsnOrSac: {
       type: String,
     },
     date: {

@@ -28,6 +28,7 @@ const indiamartRoutes = require("./routes/indiamartRoutes");
 const settingsRoutes = require("./routes/settingsRoutes");
 const pdfWhatsappRoutes = require("./routes/pdfWhatsappRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
+const quotationRoutes = require("./routes/quotationRoutes");
 
 const healthRoutes = require("./routes/healthRoute");
 
@@ -112,6 +113,7 @@ app.use("/api/indiamart", indiamartRoutes);
 app.use("/api/settings", settingsRoutes);
 app.use("/api/wati/pdf", pdfWhatsappRoutes);
 app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/quotation", quotationRoutes);
 
 app.use("/api/health", healthRoutes);
 
