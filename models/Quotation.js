@@ -2,68 +2,40 @@ const mongoose = require("mongoose");
 const softDeletePlugin = require("../utils/softDeletePlugin");
 
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
-const sfgSchema = new mongoose.Schema(
+
+const quotationSchema = new mongoose.Schema(
   {
-    skuCode: {
-      type: String,
-      trim: true,
-      // unique: true,
-    },
-    itemName: {
-      type: String,
-      trim: true,
-    },
-    itemCategory: {
-      type: String,
-      default: "",
-    },
-    description: {
-      type: String,
-      default: "-",
-    },
-    hsnOrSac: {
-      type: String,
-    },
-    qualityInspectionNeeded: {
-      type: Boolean,
-      default: false,
-    },
-    location: {
+    partyName: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: "Location",
+      ref: "Customer",
     },
-    basePrice: {
+    orderQty: {
       type: Number,
-      default: 0,
     },
-    gst: {
-      type: Number,
-      default: 0,
-    },
-    moq: {
-      type: Number,
-      default: 1,
-    },
-    type: {
+    productName: {
       type: String,
-      enum: ["SFG"],
     },
-    UOM: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "UOM",
-    },
-    baseUOM: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "UOM",
-    },
-    conversionFactor: {
-      type: Number,
-      default: 1, // Example: 1 box = 10 kg
-    },
-    status: {
+    sampleNo: {
       type: String,
-      enum: ["Active", "Inactive"],
-      default: "Active",
+    },
+    qNo: {
+      type: String,
+    },
+    prodNo: {
+      type: String,
+    },
+    invoiceNo: {
+      type: String,
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+    },
+    productionDate: {
+      type: Date,
+    },
+    deliveryDate: {
+      type: Date,
     },
     height: {
       type: Number,
@@ -162,10 +134,58 @@ const sfgSchema = new mongoose.Schema(
       default: 0,
     },
 
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    productDetails: [
+      {
+        itemId: {
+          type: mongoose.Schema.Types.ObjectId,
+          refPath: "productDetails.type",
+        },
+        type: {
+          type: String,
+          enum: ["RawMaterial", "SFG", "FG"],
+        },
+        partName: String,
+        height: Number,
+        width: Number,
+        // depth: Number,
+        category: String,
+        qty: {
+          type: Number,
+        },
+        grams: {
+          type: Number,
+        },
+        rate: Number,
+        sqInchRate: Number,
+        baseQty: Number,
+        itemRate: Number,
+        cuttingType: String,
+        isPrint: Boolean,
+        isPasting: Boolean,
+      },
+    ],
+    consumptionTable: [
+      {
+        skuCode: String,
+        itemName: String,
+        category: String,
+        weight: { type: String }, // in kg if applicable
+        qty: { type: String }, // in meters, pcs, etc.
+      },
+    ],
+
     status: {
       type: String,
-      enum: ["Active", "Inactive"],
-      default: "Active",
+      default: "Pending",
+    },
+
+    isActive: {
+      type: Boolean,
+      default: true,
     },
     file: [
       {
@@ -179,62 +199,14 @@ const sfgSchema = new mongoose.Schema(
         fileUrl: String,
       },
     ],
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-    },
-    rm: [
-      {
-        rmid: { type: mongoose.Schema.Types.ObjectId, ref: "RawMaterial" },
-        partName: String,
-        qty: Number,
-        grams: {
-          type: Number,
-        },
-        height: Number,
-        width: Number,
-        // depth: Number,
-        rate: Number,
-        category: String,
-        sqInchRate: Number,
-        baseQty: Number,
-        itemRate: Number,
-        cuttingType: String,
-        isPrint: Boolean,
-        isPasting: Boolean,
-      },
-    ],
-    sfg: [
-      {
-        sfgid: { type: mongoose.Schema.Types.ObjectId, ref: "SFG" },
-        partName: String,
-        qty: Number,
-        grams: {
-          type: Number,
-        },
-        height: Number,
-        width: Number,
-        // depth: Number,
-        rate: Number,
-        category: String,
-        sqInchRate: Number,
-        baseQty: Number,
-        itemRate: Number,
-        cuttingType: String,
-        isPrint: Boolean,
-        isPasting: Boolean,
-      },
-    ],
 
     deletedAt: { type: Date, default: null },
   },
-  {
-    timestamps: true,
-  }
+  { timestamps: true }
 );
 
-applySoftDelete(sfgSchema);
+applySoftDelete(quotationSchema);
 
-const SFG = mongoose.model("SFG", sfgSchema);
+const Quotation = mongoose.model("Quotation", quotationSchema);
 
-module.exports = SFG;
+module.exports = Quotation;

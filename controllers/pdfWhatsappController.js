@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { sendFileMessage } = require("../utils/wati");
+const { sendFileMessage, sendTemplateMessage } = require("../utils/wati");
 /**
  * Expects body: { phone, fileName, base64Data, caption }
  */
@@ -35,8 +35,15 @@ exports.sendFileViaWhatsapp = async (req, res) => {
     const { phone, fileName, base64Data, caption } = req.body;
     console.log("req.body", req.body);
 
-   let response =  await sendFileMessage(phone, base64Data, fileName, caption);
-    console.log("res",response);
+    await sendTemplateMessage(
+      "9157425585",
+      "test_msg",
+      { name: "Divyesh Variya" },
+      "test_msg"
+    );
+
+    let response = await sendFileMessage(phone, base64Data, fileName, caption);
+    console.log("res", response);
 
     res.json({ success: true, message: "PDF sent to WhatsApp successfully!" });
   } catch (err) {

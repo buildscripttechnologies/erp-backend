@@ -228,6 +228,7 @@ exports.getAllSFGs = async (req, res) => {
       id: sfg._id,
       skuCode: sfg.skuCode,
       itemName: sfg.itemName,
+      itemCategory: sfg.itemCategory,
       description: sfg.description,
       hsnOrSac: sfg.hsnOrSac,
       qualityInspectionNeeded: sfg.qualityInspectionNeeded,

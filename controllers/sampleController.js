@@ -16,7 +16,10 @@ exports.addSample = async (req, res) => {
       productName,
       productDetails,
       consumptionTable,
+      description,
       date,
+      gst,
+      hsnOrSac,
       height,
       width,
       depth,
@@ -79,6 +82,8 @@ exports.addSample = async (req, res) => {
         skuCode: sampleNo,
         itemName: productName,
         qualityInspectionNeeded: false,
+        gst,
+        hsnOrSac,
         type: "FG",
         file: attachments,
         printingFile: printingAttachments,
@@ -157,6 +162,9 @@ exports.addSample = async (req, res) => {
       product: { pId: fg._id, name: productName },
       sampleNo,
       date,
+      gst,
+      description,
+      hsnOrSac,
       height,
       width,
       depth,
@@ -495,9 +503,13 @@ exports.getAllSamples = async (req, res) => {
               "skuCode itemName itemCategory panno attachments"
             );
           } else if (type === "SFG") {
-            item = await SFG.findById(itemId).select("skuCode itemName");
+            item = await SFG.findById(itemId).select(
+              "skuCode itemName itemCategory file"
+            );
           } else if (type === "FG") {
-            item = await FG.findById(itemId).select("skuCode itemName");
+            item = await FG.findById(itemId).select(
+              "skuCode itemName itemCategory file"
+            );
           }
 
           if (item) {
@@ -505,7 +517,7 @@ exports.getAllSamples = async (req, res) => {
             detail.itemName = item.itemName;
             detail.category = item.itemCategory;
             (detail.panno = item.panno),
-              (detail.attachments = item.attachments);
+              (detail.attachments = item.attachments || item.file);
           } else {
             detail.skuCode = null;
             detail.itemName = null;
