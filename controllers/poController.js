@@ -76,6 +76,7 @@ const getAllPOs = async (req, res) => {
           { "items.item.skuCode": regex },
           { "createdBy.fullName": regex }, // ✅ allow search by user fullName
           { "createdBy.username": regex }, // ✅ allow search by username
+          { status: regex }, // ✅ allow search by username
         ],
       };
     }
@@ -150,6 +151,7 @@ const getAllPOs = async (req, res) => {
                 rejected: "$$it.rejected",
                 itemStatus: "$$it.itemStatus",
                 rejectionReason: "$$it.rejectionReason",
+                inwardStatus: "$$it.inwardStatus",
                 item: {
                   $let: {
                     vars: {
@@ -177,6 +179,7 @@ const getAllPOs = async (req, res) => {
                       moq: "$$raw.moq",
                       gst: "$$raw.gst",
                       stockQty: "$$raw.stockQty",
+                      qualityInspectionNeeded: "$$raw.qualityInspectionNeeded",
                       purchaseUOM: {
                         $arrayElemAt: [
                           {
@@ -223,7 +226,7 @@ const getAllPOs = async (req, res) => {
           totalGstAmount: 1,
           totalAmountWithGst: 1,
           status: 1,
-          emailSent:1,
+          emailSent: 1,
           deleted: 1,
           createdAt: 1,
           updatedAt: 1,
@@ -258,6 +261,7 @@ const getAllPOs = async (req, res) => {
             rejected: 1,
             itemStatus: 1,
             rejectionReason: 1,
+            inwardStatus: 1,
             item: {
               _id: 1,
               skuCode: 1,
@@ -269,6 +273,7 @@ const getAllPOs = async (req, res) => {
               moq: 1,
               gst: 1,
               stockQty: 1,
+              qualityInspectionNeeded: 1,
               purchaseUOM: { _id: 1, unitName: 1 },
               stockUOM: { _id: 1, unitName: 1 },
             },
