@@ -43,6 +43,7 @@ const poSchema = new mongoose.Schema(
           enum: ["approved", "rejected", "pending"],
           default: "pending",
         },
+        inwardStatus: { type: Boolean, default: false },
         rejectionReason: { type: String, default: "" },
         // date: { type: Date, default: Date.now },
       },
@@ -63,7 +64,7 @@ const poSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    
+
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

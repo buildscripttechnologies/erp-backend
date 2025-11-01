@@ -4,6 +4,7 @@ const FG = require("../models/FG");
 const Barcode = require("../models/Barcode");
 const Stock = require("../models/Stock");
 const dayjs = require("dayjs");
+const PO = require("../models/PO");
 
 exports.createStockEntry = async (req, res) => {
   try {
@@ -16,6 +17,7 @@ exports.createStockEntry = async (req, res) => {
       qualityApproved = false,
       qualityNote = "",
       manualEntries = [], // ✅ NEW
+      poId,
     } = req.body;
 
     const modelMap = { RM: RawMaterial, SFG: SFG, FG: FG };
@@ -82,6 +84,18 @@ exports.createStockEntry = async (req, res) => {
         { $inc: { stockQty: finalStockQty } },
         { new: true }
       );
+    }
+
+    if (poId) {
+      let po = await PO.findById(poId);
+      if (po) {
+        let poItems = po.items;
+        poItems.forEach((i) => {
+          if (i.item == itemId) i.inwardStatus = true;
+        });
+        await po.save();
+        // console.log("status updated");
+      }
     }
 
     // Step 4: Send response
