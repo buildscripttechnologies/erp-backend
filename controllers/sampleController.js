@@ -14,6 +14,7 @@ exports.addSample = async (req, res) => {
       partyName,
       orderQty,
       productName,
+      sampleNo,
       productDetails,
       consumptionTable,
       description,
@@ -74,7 +75,7 @@ exports.addSample = async (req, res) => {
     // Step 2: Get FG by product name
     let fg = await FG.findOne({ itemName: productName });
 
-    const sampleNo = await generateNextSampleNo();
+    // const sampleNo = await generateNextSampleNo();
 
     // Step 3: If FG doesn't exist, create new one
     if (!fg) {
@@ -247,6 +248,7 @@ exports.updateSampleWithFiles = async (req, res) => {
       partyName,
       orderQty,
       productName,
+      sampleNo,
       date,
       height,
       width,
@@ -325,6 +327,7 @@ exports.updateSampleWithFiles = async (req, res) => {
     // 📝 Update fields
     sample.partyName = customer?._id || sample.partyName;
     sample.orderQty = orderQty;
+    sample.sampleNo = sampleNo;
     sample.product = { pId: fg?._id || null, name: productName };
     sample.productDetails = productDetails;
     sample.consumptionTable = consumptionTable;

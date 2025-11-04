@@ -29,6 +29,10 @@ const settingsRoutes = require("./routes/settingsRoutes");
 const pdfWhatsappRoutes = require("./routes/pdfWhatsappRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const quotationRoutes = require("./routes/quotationRoutes");
+const accessoryRoutes = require("./routes/accessoryRoutes");
+const accessoryInwardRoutes = require("./routes/accessoryInwardRoutes");
+const accessoryIssueRoutes = require("./routes/accessoryIssueRoutes");
+const accessoryReceiveRoutes = require("./routes/accessoryReceiveRoutes");
 
 const healthRoutes = require("./routes/healthRoute");
 
@@ -114,6 +118,10 @@ app.use("/api/settings", settingsRoutes);
 app.use("/api/wati/pdf", pdfWhatsappRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/quotation", quotationRoutes);
+app.use("/api/accessories", accessoryRoutes);
+app.use("/api/accessory-inward", accessoryInwardRoutes);
+app.use("/api/accessory-issue", accessoryIssueRoutes);
+app.use("/api/accessory-receive", accessoryReceiveRoutes);
 
 app.use("/api/health", healthRoutes);
 
