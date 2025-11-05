@@ -98,7 +98,7 @@ exports.getAllQuotations = async (req, res) => {
     const quotations = await Quotation.find(matchStage)
       .populate({
         path: "partyName",
-        select: "customerName customerCode pan gst address",
+        select: "customerName customerCode pan gst address state",
       })
       .populate({
         path: "createdBy",
@@ -191,6 +191,7 @@ exports.getAllQuotations = async (req, res) => {
                 pan: doc.partyName.pan,
                 address: doc.partyName.address,
                 gst: doc.partyName.gst,
+                state: doc.partyName.state,
               }
             : null,
           quotations: enrichedQuotations,

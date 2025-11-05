@@ -28,7 +28,13 @@ const quotationSchema = new mongoose.Schema(
         sampleNo: {
           type: String,
         },
-
+        hsnOrSac: {
+          type: String,
+        },
+        gst: {
+          type: Number,
+          default: 0,
+        },
         prodNo: {
           type: String,
         },
