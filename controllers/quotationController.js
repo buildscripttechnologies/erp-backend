@@ -1,47 +1,13 @@
 const Customer = require("../models/Customer");
 const Quotation = require("../models/Quotation");
-const {
-  generateNextQuotationNo,
-  generateNextBomNo,
-} = require("../utils/codeGenerator");
+const { generateNextQuotationNo } = require("../utils/codeGenerator");
 
 exports.addQuotation = async (req, res) => {
   try {
     const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
-    const {
-      partyName,
-      orderQty,
-      productName,
-      productDetails,
-      consumptionTable,
-      sampleNo = "",
-      date,
-      deliveryDate,
-      height,
-      width,
-      depth,
-      B2B,
-      D2C,
-      rejection,
-      QC,
-      machineMaintainance,
-      materialHandling,
-      packaging,
-      shipping,
-      companyOverHead,
-      indirectExpense,
-      stitching,
-      printing,
-      others,
-      unitRate,
-      unitB2BRate,
-      unitD2CRate,
-      totalRate,
-      totalB2BRate,
-      totalD2CRate,
-    } = parsed;
+    const { partyName, date, quotations } = parsed;
 
-    // Step 1: Get or create Customer
+    // Step 1: Ensure customer exists
     let customer = await Customer.findOne({ customerName: partyName });
     if (!customer) {
       const [newCode] = await generateBulkCustomerCodes(1);
@@ -52,281 +18,231 @@ exports.addQuotation = async (req, res) => {
       });
     }
 
-    // Step 4: Handle file uploads
-    const protocol =
-      process.env.NODE_ENV === "production" ? "https" : req.protocol;
+    const newQuotations = await Promise.all(
+      quotations.map(async (q) => {
+        const resolvedProductDetails = (q.productDetails || []).map((d) => ({
+          ...d,
+          type: d.type === "RM" ? "RawMaterial" : d.type,
+        }));
 
-    console.log("req.files", req.files);
+        return {
+          ...q,
 
-    const attachments =
-      req.files?.files?.map((file) => ({
-        fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
-      })) || [];
+          productDetails: resolvedProductDetails,
+          date: q.date || new Date(),
+        };
+      })
+    );
 
-    const printingAttachments =
-      req.files?.printingFiles?.map((file) => ({
-        fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
-      })) || [];
+    // Step 2: Check if quotation document exists for this customer
+    let existingDoc = await Quotation.findOne({ partyName: customer._id });
 
-    // const bomNo = await generateNextBomNo();
-
-    const resolvedProductDetails = productDetails.map((d) => ({
-      ...d,
-      type: d.type === "RM" ? "RawMaterial" : d.type, // normalize if needed
-    }));
-
-    // Step 6: Create Sample
+    // if (existingDoc) {
+    //   // append quotations
+    //   existingDoc.quotations.push(...newQuotations);
+    //   await existingDoc.save();
+    //   return res
+    //     .status(200)
+    //     .json({ success: true, message: "Quotations added to existing party", data: existingDoc });
+    // } else {
+    // create new quotation document for this party
     const qNo = await generateNextQuotationNo();
-
-    const newBom = await Quotation.create({
+    const newDoc = await Quotation.create({
       partyName: customer._id,
-      orderQty,
-      productName,
-      sampleNo,
-      qNo,
       date,
-      deliveryDate,
-      height,
-      width,
-      depth,
-      B2B,
-      D2C,
-      rejection,
-      QC,
-      machineMaintainance,
-      materialHandling,
-      packaging,
-      shipping,
-      companyOverHead,
-      indirectExpense,
-      stitching,
-      printing,
-      others,
-      unitRate,
-      unitB2BRate,
-      unitD2CRate,
-      totalRate,
-      totalB2BRate,
-      totalD2CRate,
-      productDetails: resolvedProductDetails,
-      consumptionTable: consumptionTable,
-      file: attachments,
-      printingFile: printingAttachments,
+      qNo,
+      quotations: newQuotations,
       createdBy: req.user?._id,
     });
-
-    return res.status(201).json({ success: true, data: newBom });
+    return res.status(201).json({
+      success: true,
+      message: "New quotation document created",
+      data: newDoc,
+    });
+    // }
   } catch (err) {
     console.error("Add Quotation Error:", err);
     return res
       .status(500)
-      .json({ success: false, message: "Failed to add Quotation" });
+      .json({ success: false, message: "Failed to add quotation(s)" });
   }
 };
 
 exports.getAllQuotations = async (req, res) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10000;
-    const skip = (page - 1) * limit;
-    const { search = "" } = req.query;
+    const {
+      search = "",
+      page = 1,
+      limit = 20,
+      sortBy = "createdAt",
+      sortOrder = "desc",
+    } = req.query;
 
-    const searchRegex = new RegExp(search, "i");
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
 
-    const matchStage = search
-      ? {
-          $or: [
-            { qNo: { $regex: searchRegex } },
-            { sampleNo: { $regex: searchRegex } },
-            { "party.customerName": { $regex: searchRegex } },
-            { "product.itemName": { $regex: searchRegex } },
-          ],
-        }
-      : {};
+    // --- Search condition ---
+    const matchStage = { deletedAt: null };
+    if (search && search.trim() !== "") {
+      const regex = new RegExp(search, "i");
+      matchStage.$or = [
+        { qNo: regex },
+        { "quotations.productName": regex },
+        { "quotations.sampleNo": regex },
+        { "partyName.customerName": regex },
+      ];
+    }
 
-    const aggregationPipeline = [
-      {
-        $lookup: {
-          from: "customers",
-          localField: "partyName",
-          foreignField: "_id",
-          as: "party",
-        },
-      },
-      { $unwind: { path: "$party", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "samples",
-          localField: "sampleNo",
-          foreignField: "sampleNo",
-          as: "product",
-        },
-      },
-      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "users",
-          localField: "createdBy",
-          foreignField: "_id",
-          as: "createdBy",
-        },
-      },
-      { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
-      { $match: matchStage },
-      { $sort: { createdAt: -1, _id: -1 } },
-      {
-        $facet: {
-          data: [{ $skip: skip }, { $limit: limit }],
-          total: [{ $count: "count" }],
-        },
-      },
-    ];
+    // --- Fetch quotations ---
+    const quotations = await Quotation.find(matchStage)
+      .populate({
+        path: "partyName",
+        select: "customerName customerCode pan gst address state",
+      })
+      .populate({
+        path: "createdBy",
+        select: "username fullName",
+      })
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
 
-    const result = await Quotation.aggregate(aggregationPipeline);
+    const totalCount = await Quotation.countDocuments(matchStage);
 
-    const enrichedData = await Promise.all(
-      result[0].data.map(async (q) => {
-        const enrichedDetails = await Promise.all(
-          (q.productDetails || []).map(async (detail) => {
-            let collectionName;
-            if (detail.type === "RawMaterial") collectionName = "rawmaterials";
-            else if (detail.type === "SFG") collectionName = "sfgs";
-            else if (detail.type === "FG") collectionName = "fgs";
-            else return detail;
+    // --- Enrich productDetails inside each quotation ---
+    const enriched = await Promise.all(
+      quotations.map(async (doc) => {
+        const enrichedQuotations = await Promise.all(
+          (doc.quotations || []).map(async (q) => {
+            const enrichedProductDetails = await Promise.all(
+              (q.productDetails || []).map(async (detail) => {
+                if (!detail.itemId) return detail;
 
-            const [item] = await Quotation.db
-              .collection(collectionName)
-              .aggregate([
-                { $match: { _id: detail.itemId } },
-                {
-                  $lookup: {
-                    from: "locations", // collection name
-                    localField: "location", // field in RawMaterial/SFG/FG
-                    foreignField: "_id", // field in Location
-                    as: "location",
-                  },
-                },
-                {
-                  $unwind: {
-                    path: "$location",
-                    preserveNullAndEmptyArrays: true,
-                  },
-                },
-                {
-                  $project: {
-                    skuCode: 1,
-                    itemName: 1,
-                    itemCategory: 1,
-                    "location.locationId": 1,
-                    panno: 1,
-                    attachments: 1,
-                    stockQty: 1,
-                  },
-                },
-              ])
-              .toArray();
+                let collectionName;
+                if (detail.type === "RawMaterial")
+                  collectionName = "rawmaterials";
+                else if (detail.type === "SFG") collectionName = "sfgs";
+                else if (detail.type === "FG") collectionName = "fgs";
+                else return detail;
+
+                const [item] = await Quotation.db
+                  .collection(collectionName)
+                  .aggregate([
+                    { $match: { _id: detail.itemId } },
+                    {
+                      $lookup: {
+                        from: "locations",
+                        localField: "location",
+                        foreignField: "_id",
+                        as: "location",
+                      },
+                    },
+                    {
+                      $unwind: {
+                        path: "$location",
+                        preserveNullAndEmptyArrays: true,
+                      },
+                    },
+                    {
+                      $project: {
+                        skuCode: 1,
+                        itemName: 1,
+                        itemCategory: 1,
+                        location: 1,
+                        panno: 1,
+                        stockQty: 1,
+                        attachments: 1,
+                      },
+                    },
+                  ])
+                  .toArray();
+
+                return {
+                  ...detail,
+                  skuCode: item?.skuCode || null,
+                  itemName: item?.itemName || null,
+                  category: item?.itemCategory || detail.category || null,
+                  location: item?.location || null,
+                  panno: item?.panno || null,
+                  stockQty: item?.stockQty || null,
+                  attachments: item?.attachments || [],
+                };
+              })
+            );
 
             return {
-              ...detail,
-              skuCode: item?.skuCode || null,
-              itemName: item?.itemName || null,
-              category: item?.itemCategory || null,
-              location: item?.location || null, // now an object { name, code }
-              panno: item?.panno,
-              attachments: item?.attachments,
-              stockQty: item?.stockQty,
+              ...q,
+              productDetails: enrichedProductDetails,
             };
           })
         );
 
-        let totalAmountWithGst =
-          q.totalD2CRate + (q.totalD2CRate * q.product?.gst) / 100;
-
         return {
-          ...q, // include ALL BOM fields (file, b2b, d2c, etc.)
-          partyName: q.party?.customerName || null,
-          productName: q.productName || null,
-          hsnOrSac: q.product?.hsnOrSac || "",
-          gst: q.product?.gst || null,
-          createdBy: {
-            _id: q.createdBy?._id,
-            username: q.createdBy?.username,
-            fullName: q.createdBy?.fullName,
-          },
-          totalAmountWithGst: totalAmountWithGst,
-          productDetails: enrichedDetails,
-          consumptionTable: q.consumptionTable,
-          description: q.product?.description,
+          _id: doc._id,
+          qNo: doc.qNo,
+          date: doc.date,
+          party: doc.partyName
+            ? {
+                _id: doc.partyName._id,
+                customerName: doc.partyName.customerName,
+                customerCode: doc.partyName.customerCode,
+                pan: doc.partyName.pan,
+                address: doc.partyName.address,
+                gst: doc.partyName.gst,
+                state: doc.partyName.state,
+              }
+            : null,
+          quotations: enrichedQuotations,
+          createdBy: doc.createdBy
+            ? {
+                _id: doc.createdBy._id,
+                username: doc.createdBy.username,
+                fullName: doc.createdBy.fullName,
+              }
+            : null,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt,
+          deletedAt: doc.deletedAt,
         };
       })
     );
 
-    const totalResults = result[0].total[0]?.count || 0;
-
     res.status(200).json({
       success: true,
-      totalResults,
-      totalPages: Math.ceil(totalResults / limit),
-      currentPage: page,
-      limit,
-      data: enrichedData,
+      totalResults: totalCount,
+      totalPages: Math.ceil(totalCount / limitNum),
+      currentPage: pageNum,
+      limit: limitNum,
+      data: enriched,
     });
   } catch (err) {
     console.error("Get All Quotations Error:", err);
     res
       .status(500)
-      .json({ success: false, message: "Failed to fetch Quotations" });
+      .json({ success: false, message: "Failed to fetch quotations" });
   }
 };
 
 exports.updateQuotation = async (req, res) => {
   try {
+    const quotationId = req.params.id;
+    if (!quotationId)
+      return res
+        .status(400)
+        .json({ success: false, message: "Quotation ID required" });
+
     const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
-    const {
-      _id, // frontend must send this
-      partyName,
-      orderQty,
-      productName,
-      productDetails,
-      consumptionTable,
-      sampleNo = "",
-      date,
-      deliveryDate,
-      height,
-      width,
-      depth,
-      B2B,
-      D2C,
-      rejection,
-      QC,
-      machineMaintainance,
-      materialHandling,
-      packaging,
-      shipping,
-      companyOverHead,
-      indirectExpense,
-      stitching,
-      printing,
-      others,
-      unitRate,
-      unitB2BRate,
-      unitD2CRate,
-      totalRate,
-      totalB2BRate,
-      totalD2CRate,
-      deletedFiles = [],
-      deletedPrintingFiles = [],
-    } = parsed;
+    const { partyName, date, quotations } = parsed;
 
-    // console.log("deletedFiles", deletedFiles);
+    if (!partyName || !quotations)
+      return res.status(400).json({
+        success: false,
+        message: "Party name and quotations are required",
+      });
 
-    // Step 1: Ensure customer exists (create if missing)
+    // ✅ Step 1: Ensure customer exists or create
     let customer = await Customer.findOne({ customerName: partyName });
     if (!customer) {
       const [newCode] = await generateBulkCustomerCodes(1);
@@ -337,114 +253,60 @@ exports.updateQuotation = async (req, res) => {
       });
     }
 
-    // Step 2: Handle new file uploads
-    const protocol =
-      process.env.NODE_ENV === "production" ? "https" : req.protocol;
+    // ✅ Step 2: Prepare quotation items
+    const updatedQuotations = (quotations || []).map((q) => {
+      const resolvedProductDetails = (q.productDetails || []).map((d) => ({
+        ...d,
+        type: d.type === "RM" ? "RawMaterial" : d.type,
+      }));
 
-    const newFiles =
-      req.files?.files?.map((file) => ({
-        fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
-      })) || [];
+      return {
+        ...q,
+        productDetails: resolvedProductDetails,
+        date: q.date || new Date(),
+      };
+    });
 
-    const newPrintingFiles =
-      req.files?.printingFiles?.map((file) => ({
-        fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
-      })) || [];
-
-    // Step 3: Normalize productDetails
-    const resolvedProductDetails = productDetails.map((d) => ({
-      ...d,
-      type: d.type === "RM" ? "RawMaterial" : d.type,
-    }));
-
-    // Step 4: Fetch existing BOM
-    const existingQuotation = await Quotation.findById(_id);
-    if (!existingQuotation) {
+    // ✅ Step 3: Find and update
+    const existingQuotation = await Quotation.findById(quotationId);
+    if (!existingQuotation)
       return res
         .status(404)
         .json({ success: false, message: "Quotation not found" });
-    }
 
-    // Step 5: Merge files (remove deleted ones, add new ones)
-    let updatedFiles = existingQuotation.file || [];
-    let updatedPrintingFiles = existingQuotation.printingFile || [];
+    // ✅ Step 4: Apply updates
+    existingQuotation.partyName = customer._id;
+    existingQuotation.date = date || existingQuotation.date;
+    existingQuotation.quotations = updatedQuotations;
+    // existingQuotation.updatedBy = req.user?._id;
+    // existingQuotation.updatedAt = new Date();
 
-    if (deletedFiles.length > 0) {
-      updatedFiles = updatedFiles.filter(
-        (f) =>
-          !deletedFiles.some(
-            (deletedFile) => deletedFile._id.toString() === f._id.toString()
-          )
-      );
-    }
-    if (deletedPrintingFiles.length > 0) {
-      updatedPrintingFiles = updatedPrintingFiles.filter(
-        (f) =>
-          !deletedPrintingFiles.some(
-            (file) => file._id.toString() === f._id.toString()
-          )
-      );
-    }
+    await existingQuotation.save();
 
-    updatedFiles = [...updatedFiles, ...newFiles];
-    updatedPrintingFiles = [...updatedPrintingFiles, ...newPrintingFiles];
+    // ✅ Step 5: Populate before sending response
+    // const populatedQuotation = await Quotation.findById(quotationId)
+    //   .populate("partyName", "customerName customerCode")
+    //   .populate("createdBy", "name email")
+    //   .populate("updatedBy", "name email");
 
-    // console.log("updated files", updatedFiles);
-
-    // Step 6: Update BOM
-    const updatedQuotation = await Quotation.findByIdAndUpdate(
-      _id,
-      {
-        partyName: customer._id,
-        orderQty,
-        productName,
-        sampleNo,
-        date,
-        deliveryDate,
-        height,
-        width,
-        depth,
-        B2B,
-        D2C,
-        rejection,
-        QC,
-        machineMaintainance,
-        materialHandling,
-        packaging,
-        shipping,
-        companyOverHead,
-        indirectExpense,
-        stitching,
-        printing,
-        others,
-        unitRate,
-        unitB2BRate,
-        unitD2CRate,
-        totalRate,
-        totalB2BRate,
-        totalD2CRate,
-        productDetails: resolvedProductDetails,
-        consumptionTable: consumptionTable,
-        file: updatedFiles,
-        printingFile: updatedPrintingFiles,
-        updatedBy: req.user?._id,
-        updatedAt: new Date(),
-      },
-      { new: true }
-    );
-
-    return res.status(200).json({ success: true, data: updatedQuotation });
+    return res.status(200).json({
+      success: true,
+      message: "Quotation updated successfully",
+      // data: {
+      //   party: populatedQuotation.partyName,
+      //   qNo: populatedQuotation.qNo,
+      //   date: populatedQuotation.date,
+      //   quotations: populatedQuotation.quotations,
+      //   createdBy: populatedQuotation.createdBy,
+      //   createdAt: populatedQuotation.createdAt,
+      //   deletedAt: populatedQuotation.deletedAt || null,
+      // },
+    });
   } catch (err) {
     console.error("Update Quotation Error:", err);
     return res
       .status(500)
-      .json({ success: false, message: "Failed to update Quotation" });
+      .json({ success: false, message: "Failed to update quotation" });
   }
 };
 
