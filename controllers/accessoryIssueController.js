@@ -1,5 +1,9 @@
 const Accessory = require("../models/Accessory");
 const AccessoryIssue = require("../models/AccessoryIssue");
+const {
+  generateNextIssueNo,
+  generateBulkIssueNos,
+} = require("../utils/codeGenerator");
 
 exports.issueAccessory = async (req, res) => {
   try {
@@ -31,25 +35,84 @@ exports.issueAccessory = async (req, res) => {
 
 exports.issueManyAccessories = async (req, res) => {
   try {
-    const createdBy = req.user?._id;
-    const accessories = req.body.map((a) => ({
-      ...a,
-      createdBy,
-    }));
+    const createdBy = req.user?._id; // from auth middleware
+    const issues = req.body;
 
-    await AccessoryIssue.insertMany(accessories);
+    if (!Array.isArray(issues) || issues.length === 0) {
+      return res
+        .status(400)
+        .json({ status: 400, message: "No accessories to issue" });
+    }
+
+    const issuedAccessories = [];
+    const issueNos = await generateBulkIssueNos(issues.length); // e.g. ["ACC-001", "ACC-002", ...]
+
+    // 🧩 Loop through all issues
+    for (let i = 0; i < issues.length; i++) {
+      const item = issues[i];
+      const {
+        accessory,
+        issueQty,
+        remarks,
+        personName,
+        department,
+        issueReason,
+        receivedBy,
+      } = item;
+
+      if (!accessory || !issueQty || issueQty <= 0) {
+        console.warn(`Skipping invalid item at index ${i}`);
+        continue; // skip invalid entries
+      }
+
+      const foundAccessory = await Accessory.findById(accessory);
+      if (!foundAccessory) {
+        console.warn(`Accessory not found: ${accessory}`);
+        continue;
+      }
+
+      // 🧾 Create new issue record
+      const accessoryIssue = new AccessoryIssue({
+        accessory,
+        issueQty,
+        issueNo: issueNos[i], // ✅ Correct index access
+        remarks,
+        personName,
+        department,
+        issueReason,
+        receivedBy,
+        createdBy,
+      });
+
+      await accessoryIssue.save();
+
+      // 📉 Update stock
+      foundAccessory.stockQty =
+        Number(foundAccessory.stockQty) - Number(issueQty);
+
+      await foundAccessory.save();
+
+      issuedAccessories.push({
+        accessory: foundAccessory,
+        issueQty,
+        issueNo: issueNos[i],
+      });
+    }
 
     res.json({
       status: 200,
-      message: "Accessories issueed successfully",
+      message: "Accessories issued successfully",
+      data: issuedAccessories,
     });
   } catch (err) {
-    console.error("Issue many accessories error:", err);
-    res.status(500).json({ status: 500, message: "Server error" });
+    console.error("Bulk issue accessory error:", err);
+    res
+      .status(500)
+      .json({ status: 500, message: "Server error", error: err.message });
   }
 };
 
-exports.getAllIssueedAccessories = async (req, res) => {
+exports.getAllIssuedAccessories = async (req, res) => {
   try {
     let { page = 1, limit = 1000, search = "" } = req.query;
 
@@ -57,23 +120,26 @@ exports.getAllIssueedAccessories = async (req, res) => {
     limit = parseInt(limit);
     const skip = (page - 1) * limit;
 
-    // Build match filter dynamically
+    // 🔍 Dynamic search filter
     let matchStage = {};
-    if (search) {
+    if (search?.trim()) {
       matchStage = {
         $or: [
           { "accessory.accessoryName": { $regex: search, $options: "i" } },
           { "accessory.category": { $regex: search, $options: "i" } },
           { "accessory.description": { $regex: search, $options: "i" } },
+          { personName: { $regex: search, $options: "i" } },
+          { department: { $regex: search, $options: "i" } },
+          { issueNo: { $regex: search, $options: "i" } },
         ],
       };
     }
 
-    // Use aggregation to search within populated Accessory fields
-    const pipeline = [
+    // 📊 Main aggregation pipeline
+    const basePipeline = [
       {
         $lookup: {
-          from: "accessories", // collection name in MongoDB
+          from: "accessories",
           localField: "accessory",
           foreignField: "_id",
           as: "accessory",
@@ -90,13 +156,28 @@ exports.getAllIssueedAccessories = async (req, res) => {
         },
       },
       { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "uoms",
+          localField: "accessory.UOM",
+          foreignField: "_id",
+          as: "UOM",
+        },
+      },
+      { $unwind: { path: "$UOM", preserveNullAndEmptyArrays: true } },
       { $sort: { updatedAt: -1, _id: -1 } },
       { $skip: skip },
       { $limit: limit },
       {
         $project: {
           _id: 1,
+          issueNo: 1,
           issueQty: 1,
+          remarks: 1,
+          personName: 1,
+          department: 1,
+          issueReason: 1,
+          receivedBy: 1,
           createdAt: 1,
           updatedAt: 1,
           "accessory._id": 1,
@@ -105,6 +186,7 @@ exports.getAllIssueedAccessories = async (req, res) => {
           "accessory.description": 1,
           "accessory.price": 1,
           "accessory.stockQty": 1,
+          "UOM.unitName": 1,
           "createdBy._id": 1,
           "createdBy.fullName": 1,
           "createdBy.username": 1,
@@ -112,8 +194,8 @@ exports.getAllIssueedAccessories = async (req, res) => {
       },
     ];
 
-    const [accessories, countResult] = await Promise.all([
-      AccessoryIssue.aggregate(pipeline),
+    const [issuedAccessories, totalCountArr] = await Promise.all([
+      AccessoryIssue.aggregate(basePipeline),
       AccessoryIssue.aggregate([
         {
           $lookup: {
@@ -129,21 +211,22 @@ exports.getAllIssueedAccessories = async (req, res) => {
       ]),
     ]);
 
-    const totalResults = countResult[0]?.total || 0;
+    const totalResults = totalCountArr[0]?.total || 0;
     const totalPages = Math.ceil(totalResults / limit);
 
     res.json({
       status: 200,
-      message: "Accessory Issue fetched successfully",
-      data: accessories,
-
+      message: "Accessory Issues fetched successfully",
+      data: issuedAccessories,
       totalResults,
       totalPages,
       currentPage: page,
       limit,
     });
   } catch (err) {
-    console.error("Get all accessories issue error:", err);
-    res.status(500).json({ status: 500, message: "Server error" });
+    console.error("Get all issued accessories error:", err);
+    res
+      .status(500)
+      .json({ status: 500, message: "Server error", error: err.message });
   }
 };

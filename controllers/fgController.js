@@ -512,7 +512,6 @@ exports.updateFGWithFiles = async (req, res) => {
           fileName: cleanedFileName,
           fileUrl,
         };
-        s;
       });
 
       fg.file.push(...uploadedFiles);

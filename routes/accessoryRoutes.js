@@ -9,6 +9,8 @@ const {
 } = require("../controllers/accessoryController");
 const auth = require("../middlewares/authMiddleware");
 const checkPermission = require("../middlewares/checkPermission");
+const setUploadType = require("../middlewares/setUploadType");
+const { uploadFile } = require("../middlewares/uploadFile");
 
 router.post(
   "/add-accessory",
@@ -20,6 +22,8 @@ router.post(
   "/add-many",
   auth,
   checkPermission(["Accessory List"], "write"),
+  setUploadType("accessory_attachments"),
+  uploadFile.fields([{ name: "files", maxCount: 10 }]),
   addManyAccessories
 );
 router.get(
@@ -32,6 +36,8 @@ router.put(
   "/update/:id",
   auth,
   checkPermission(["Accessory List"], "update"),
+  setUploadType("accessory_attachments"),
+  uploadFile.fields([{ name: "files", maxCount: 10 }]),
   updateAccessory
 );
 router.delete(

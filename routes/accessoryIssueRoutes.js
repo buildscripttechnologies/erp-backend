@@ -5,7 +5,8 @@ const auth = require("../middlewares/authMiddleware");
 const checkPermission = require("../middlewares/checkPermission");
 const {
   issueAccessory,
-  getAllIssueedAccessories,
+  getAllIssuedAccessories,
+  issueManyAccessories,
 } = require("../controllers/accessoryIssueController");
 
 router.post(
@@ -14,17 +15,17 @@ router.post(
   checkPermission(["Accessory Issue"], "write"),
   issueAccessory
 );
-// router.post(
-//   "/add-many",
-//   auth,
-//   checkPermission(["Accessory List"], "write"),
-//   addManyAccessories
-// );
+router.post(
+  "/add-many",
+  auth,
+  checkPermission(["Accessory List"], "write"),
+  issueManyAccessories
+);
 router.get(
   "/get-all",
   auth,
   checkPermission(["Accessory Issue"], "read"),
-  getAllIssueedAccessories
+  getAllIssuedAccessories
 );
 // router.put(
 //   "/update/:id",
