@@ -41,6 +41,10 @@ const accessoryIssueSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    supervisor: {
+      type: String,
+      default: "",
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
