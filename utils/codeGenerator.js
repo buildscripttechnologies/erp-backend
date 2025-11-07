@@ -1,4 +1,3 @@
-const Accessory = require("../models/Accessory");
 const AccessoryIssue = require("../models/AccessoryIssue");
 const BOM = require("../models/BOM");
 const CO = require("../models/CO");
@@ -159,15 +158,12 @@ exports.generateNextQuotationNo = async () => {
 
 exports.generateNextIssueNo = async () => {
   // Fetch all BOMs (including deleted, if using mongoose-delete plugin)
-  const allBOMs = await AccessoryIssue.findWithDeleted(
-    {},
-    { issueNo: 1 }
-  ).lean();
+  const all = await AccessoryIssue.findWithDeleted({}, { issueNo: 1 }).lean();
 
   let max = 0; // start from 1
 
-  allBOMs.forEach((b) => {
-    const match = b.invoiceNo?.toString().match(/(\d+)$/);
+  all.forEach((b) => {
+    const match = b.issueNo?.toString().match(/(\d+)$/);
     if (match) {
       const num = parseInt(match[1]);
       if (num > max) max = num;
@@ -182,7 +178,7 @@ exports.generateBulkIssueNos = async (count) => {
   let max = 0;
 
   all.forEach((item) => {
-    const match = item.skuCode?.match(/(\d+)/);
+    const match = item.issueNo?.match(/(\d+)/);
     if (match) {
       const num = parseInt(match[1]);
       if (num > max) max = num;

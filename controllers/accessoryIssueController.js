@@ -7,29 +7,51 @@ const {
 
 exports.issueAccessory = async (req, res) => {
   try {
-    const createdBy = req.user?._id; // comes from auth middleware
+    const createdBy = req.user?._id; // from auth middleware
+    const issues = req.body;
+
+    const issueNo = await generateNextIssueNo(); // e.g. ["ACC-001", "ACC-002", ...]
+
+    // 🧩 Loop through all issues
+    for (let i = 0; i < issues.accessories.length; i++) {
+      const item = issues.accessories[i];
+      const { accessory, issueQty, remarks } = item;
+
+      if (!accessory || !issueQty || issueQty <= 0) {
+        console.warn(`Skipping invalid item at index ${i}`);
+        continue; // skip invalid entries
+      }
+
+      const foundAccessory = await Accessory.findById(accessory);
+      if (!foundAccessory) {
+        console.warn(`Accessory not found: ${accessory}`);
+        continue;
+      }
+      // 📉 Update stock
+      foundAccessory.stockQty =
+        Number(foundAccessory.stockQty) - Number(issueQty);
+
+      await foundAccessory.save();
+    }
 
     const accessoryIssue = new AccessoryIssue({
-      ...req.body,
+      ...issues,
+      issueNo,
       createdBy,
     });
+    // console.log("accessory issued", accessoryIssue);
 
     await accessoryIssue.save();
-
-    let accessory = await Accessory.findById(req.body.accessory);
-
-    accessory.stockQty = accessory.stockQty - accessoryIssue.issueQty;
-
-    await accessory.save();
-
     res.json({
       status: 200,
-      message: "Accessory added successfully",
-      data: accessory,
+      message: "Accessories issued successfully",
+      data: accessoryIssue,
     });
   } catch (err) {
-    console.error("Add accessory error:", err);
-    res.status(500).json({ status: 500, message: "Server error" });
+    console.error("Bulk issue accessory error:", err);
+    res
+      .status(500)
+      .json({ status: 500, message: "Server error", error: err.message });
   }
 };
 
@@ -120,14 +142,26 @@ exports.getAllIssuedAccessories = async (req, res) => {
     limit = parseInt(limit);
     const skip = (page - 1) * limit;
 
-    // 🔍 Dynamic search filter
+    // 🔍 Search filter
     let matchStage = {};
     if (search?.trim()) {
       matchStage = {
         $or: [
-          { "accessory.accessoryName": { $regex: search, $options: "i" } },
-          { "accessory.category": { $regex: search, $options: "i" } },
-          { "accessory.description": { $regex: search, $options: "i" } },
+          {
+            "accessories.accessory.accessoryName": {
+              $regex: search,
+              $options: "i",
+            },
+          },
+          {
+            "accessories.accessory.category": { $regex: search, $options: "i" },
+          },
+          {
+            "accessories.accessory.description": {
+              $regex: search,
+              $options: "i",
+            },
+          },
           { personName: { $regex: search, $options: "i" } },
           { department: { $regex: search, $options: "i" } },
           { issueNo: { $regex: search, $options: "i" } },
@@ -135,18 +169,57 @@ exports.getAllIssuedAccessories = async (req, res) => {
       };
     }
 
-    // 📊 Main aggregation pipeline
-    const basePipeline = [
+    // 📊 Aggregation for flattened accessories, merged with accessory info
+    const pipeline = [
+      { $unwind: "$accessories" },
       {
         $lookup: {
           from: "accessories",
-          localField: "accessory",
+          localField: "accessories.accessory",
           foreignField: "_id",
-          as: "accessory",
+          as: "accessoryDetail",
         },
       },
-      { $unwind: { path: "$accessory", preserveNullAndEmptyArrays: true } },
-      { $match: matchStage },
+      {
+        $unwind: { path: "$accessoryDetail", preserveNullAndEmptyArrays: true },
+      },
+      {
+        $lookup: {
+          from: "uoms",
+          localField: "accessoryDetail.UOM",
+          foreignField: "_id",
+          as: "UOM",
+        },
+      },
+      { $unwind: { path: "$UOM", preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          "accessories.accessory": {
+            _id: "$accessoryDetail._id",
+            accessoryName: "$accessoryDetail.accessoryName",
+            category: "$accessoryDetail.category",
+            description: "$accessoryDetail.description",
+            price: "$accessoryDetail.price",
+            stockQty: "$accessoryDetail.stockQty",
+            UOM: "$UOM",
+          },
+        },
+      },
+      {
+        $group: {
+          _id: "$_id",
+          issueNo: { $first: "$issueNo" },
+          personName: { $first: "$personName" },
+          department: { $first: "$department" },
+          issueReason: { $first: "$issueReason" },
+          receivedBy: { $first: "$receivedBy" },
+          supervisor: { $first: "$supervisor" },
+          createdBy: { $first: "$createdBy" },
+          createdAt: { $first: "$createdAt" },
+          updatedAt: { $first: "$updatedAt" },
+          accessories: { $push: "$accessories" },
+        },
+      },
       {
         $lookup: {
           from: "users",
@@ -156,15 +229,7 @@ exports.getAllIssuedAccessories = async (req, res) => {
         },
       },
       { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
-      {
-        $lookup: {
-          from: "uoms",
-          localField: "accessory.UOM",
-          foreignField: "_id",
-          as: "UOM",
-        },
-      },
-      { $unwind: { path: "$UOM", preserveNullAndEmptyArrays: true } },
+      { $match: matchStage },
       { $sort: { updatedAt: -1, _id: -1 } },
       { $skip: skip },
       { $limit: limit },
@@ -172,21 +237,14 @@ exports.getAllIssuedAccessories = async (req, res) => {
         $project: {
           _id: 1,
           issueNo: 1,
-          issueQty: 1,
-          remarks: 1,
           personName: 1,
           department: 1,
           issueReason: 1,
           receivedBy: 1,
+          supervisor: 1,
           createdAt: 1,
           updatedAt: 1,
-          "accessory._id": 1,
-          "accessory.accessoryName": 1,
-          "accessory.category": 1,
-          "accessory.description": 1,
-          "accessory.price": 1,
-          "accessory.stockQty": 1,
-          "UOM.unitName": 1,
+          accessories: 1,
           "createdBy._id": 1,
           "createdBy.fullName": 1,
           "createdBy.username": 1,
@@ -194,29 +252,35 @@ exports.getAllIssuedAccessories = async (req, res) => {
       },
     ];
 
-    const [issuedAccessories, totalCountArr] = await Promise.all([
-      AccessoryIssue.aggregate(basePipeline),
+    const [issuedAccessories, countArr] = await Promise.all([
+      AccessoryIssue.aggregate(pipeline),
       AccessoryIssue.aggregate([
+        { $unwind: "$accessories" },
         {
           $lookup: {
             from: "accessories",
-            localField: "accessory",
+            localField: "accessories.accessory",
             foreignField: "_id",
-            as: "accessory",
+            as: "accessoryDetail",
           },
         },
-        { $unwind: { path: "$accessory", preserveNullAndEmptyArrays: true } },
+        {
+          $unwind: {
+            path: "$accessoryDetail",
+            preserveNullAndEmptyArrays: true,
+          },
+        },
         { $match: matchStage },
         { $count: "total" },
       ]),
     ]);
 
-    const totalResults = totalCountArr[0]?.total || 0;
+    const totalResults = countArr[0]?.total || 0;
     const totalPages = Math.ceil(totalResults / limit);
 
     res.json({
       status: 200,
-      message: "Accessory Issues fetched successfully",
+      message: "Accessory issues fetched successfully",
       data: issuedAccessories,
       totalResults,
       totalPages,
@@ -225,8 +289,51 @@ exports.getAllIssuedAccessories = async (req, res) => {
     });
   } catch (err) {
     console.error("Get all issued accessories error:", err);
-    res
-      .status(500)
-      .json({ status: 500, message: "Server error", error: err.message });
+    res.status(500).json({
+      status: 500,
+      message: "Server error",
+      error: err.message,
+    });
+  }
+};
+
+exports.deleteIssuedAccessory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // 🔍 Find issue record
+    const issue = await AccessoryIssue.findById(id);
+    if (!issue) {
+      return res
+        .status(404)
+        .json({ status: 404, message: "Accessory issue not found" });
+    }
+
+    // 🧮 Restore stock quantities
+    for (const item of issue.accessories) {
+      if (item.accessory && item.issueQty > 0) {
+        const acc = await Accessory.findById(item.accessory);
+        if (acc) {
+          acc.stockQty = Number(acc.stockQty || 0) + Number(item.issueQty);
+          await acc.save();
+        }
+      }
+    }
+
+    // 🗑️ Soft delete the issue (to preserve logs)
+
+    await AccessoryIssue.delete({ _id: id });
+
+    res.json({
+      status: 200,
+      message: "Accessory issue deleted and stock restored successfully",
+    });
+  } catch (err) {
+    console.error("Delete issued accessory error:", err);
+    res.status(500).json({
+      status: 500,
+      message: "Server error while deleting issue",
+      error: err.message,
+    });
   }
 };
