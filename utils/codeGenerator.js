@@ -1,3 +1,5 @@
+const Accessory = require("../models/Accessory");
+const AccessoryIssue = require("../models/AccessoryIssue");
 const BOM = require("../models/BOM");
 const CO = require("../models/CO");
 const Customer = require("../models/Customer");
@@ -153,4 +155,42 @@ exports.generateNextQuotationNo = async () => {
   });
 
   return `Quotation-${(max + 1).toString().padStart(3, "0")}`;
+};
+
+exports.generateNextIssueNo = async () => {
+  // Fetch all BOMs (including deleted, if using mongoose-delete plugin)
+  const allBOMs = await AccessoryIssue.findWithDeleted(
+    {},
+    { issueNo: 1 }
+  ).lean();
+
+  let max = 0; // start from 1
+
+  allBOMs.forEach((b) => {
+    const match = b.invoiceNo?.toString().match(/(\d+)$/);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > max) max = num;
+    }
+  });
+
+  return `${max + 1}`;
+};
+
+exports.generateBulkIssueNos = async (count) => {
+  const all = await AccessoryIssue.findWithDeleted({}, { issueNo: 1 }).lean();
+  let max = 0;
+
+  all.forEach((item) => {
+    const match = item.skuCode?.match(/(\d+)/);
+    if (match) {
+      const num = parseInt(match[1]);
+      if (num > max) max = num;
+    }
+  });
+
+  return Array.from(
+    { length: count },
+    (_, i) => `${(max + i + 1).toString().padStart(3, "0")}`
+  );
 };

@@ -12,6 +12,29 @@ const accessoryIssueSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    issueNo: {
+      type: Number,
+    },
+    remarks: {
+      type: String,
+      default: "",
+    },
+    personName: {
+      type: String,
+      default: "",
+    },
+    receivedBy: {
+      type: String,
+      default: "",
+    },
+    department: {
+      type: String,
+      default: "",
+    },
+    issueReason: {
+      type: String,
+      default: "",
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -21,9 +44,6 @@ const accessoryIssueSchema = new mongoose.Schema(
 );
 applySoftDelete(accessoryIssueSchema);
 
-const AccessoryIssue = mongoose.model(
-  "AccessoryIssue",
-  accessoryIssueSchema
-);
+const AccessoryIssue = mongoose.model("AccessoryIssue", accessoryIssueSchema);
 
 module.exports = AccessoryIssue;

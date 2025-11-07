@@ -16,6 +16,10 @@ const accessorySchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    UOM: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "UOM",
+    },
     price: {
       type: Number,
       default: 0,
@@ -29,6 +33,12 @@ const accessorySchema = new mongoose.Schema(
       ref: "Vendor",
       default: null,
     },
+    file: [
+      {
+        fileName: String,
+        fileUrl: String,
+      },
+    ],
     isActive: {
       type: Boolean,
       default: true,
