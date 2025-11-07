@@ -3,22 +3,28 @@ const mongoose = require("mongoose");
 const applySoftDelete = require("../plugins/mongooseDeletePlugin");
 const accessoryIssueSchema = new mongoose.Schema(
   {
-    accessory: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Accessory",
-      default: null,
-    },
-    issueQty: {
-      type: Number,
-      default: 0,
-    },
+    accessories: [
+      {
+        accessory: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Accessory",
+          default: null,
+        },
+        issueQty: {
+          type: Number,
+          default: 0,
+        },
+        remarks: {
+          type: String,
+          default: "",
+        },
+      },
+    ],
+
     issueNo: {
       type: Number,
     },
-    remarks: {
-      type: String,
-      default: "",
-    },
+
     personName: {
       type: String,
       default: "",

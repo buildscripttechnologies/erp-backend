@@ -7,6 +7,7 @@ const {
   issueAccessory,
   getAllIssuedAccessories,
   issueManyAccessories,
+  deleteIssuedAccessory,
 } = require("../controllers/accessoryIssueController");
 
 router.post(
@@ -18,7 +19,7 @@ router.post(
 router.post(
   "/add-many",
   auth,
-  checkPermission(["Accessory List"], "write"),
+  checkPermission(["Accessory Issue"], "write"),
   issueManyAccessories
 );
 router.get(
@@ -30,14 +31,14 @@ router.get(
 // router.put(
 //   "/update/:id",
 //   auth,
-//   checkPermission(["Accessory List"], "update"),
+//   checkPermission(["Accessory Issue"], "update"),
 //   updateAccessory
 // );
-// router.delete(
-//   "/delete/:id",
-//   auth,
-//   checkPermission(["Accessory List"], "delete"),
-//   deleteAccessory
-// );
+router.delete(
+  "/delete/:id",
+  auth,
+  checkPermission(["Accessory Issue"], "delete"),
+  deleteIssuedAccessory
+);
 
 module.exports = router;
