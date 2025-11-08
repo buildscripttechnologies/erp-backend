@@ -249,6 +249,8 @@ exports.updateSampleWithFiles = async (req, res) => {
       orderQty,
       productName,
       sampleNo,
+      gst,
+      hsnOrSac,
       date,
       height,
       width,
@@ -328,6 +330,8 @@ exports.updateSampleWithFiles = async (req, res) => {
     sample.partyName = customer?._id || sample.partyName;
     sample.orderQty = orderQty;
     sample.sampleNo = sampleNo;
+    sample.gst = gst;
+    sample.hsnOrSac = hsnOrSac;
     sample.product = { pId: fg?._id || null, name: productName };
     sample.productDetails = productDetails;
     sample.consumptionTable = consumptionTable;
@@ -446,6 +450,8 @@ exports.getAllSamples = async (req, res) => {
                 sampleNo: 1,
                 bomNo: 1,
                 date: 1,
+                gst: 1,
+                hsnOrSac: 1,
                 orderQty: 1,
                 isActive: 1,
                 createdAt: 1,
