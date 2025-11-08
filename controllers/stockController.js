@@ -78,10 +78,27 @@ exports.createStockEntry = async (req, res) => {
     await stockDoc.save();
 
     // Step 3.5: Update RM's stockQty
-    if (itemType === "RM") {
+    // if (itemType === "RM") {
+    //   await RawMaterial.findByIdAndUpdate(
+    //     itemId,
+    //     { $inc: { stockQty: finalStockQty }, },
+    //     { new: true }
+    //   );
+    // }
+
+    if (itemType == "RM") {
+      let item = await RawMaterial.findById(itemId);
+      if (!item) throw new Error("Item not found");
+
+      const newStockQty = item.stockQty + finalStockQty;
+      const totalRate = newStockQty * item.rate;
+
       await RawMaterial.findByIdAndUpdate(
         itemId,
-        { $inc: { stockQty: finalStockQty } },
+        {
+          stockQty: newStockQty,
+          totalRate,
+        },
         { new: true }
       );
     }
@@ -529,6 +546,7 @@ exports.deleteStock = async (req, res) => {
       const rm = await RawMaterial.findOne({ skuCode: stock.skuCode });
       if (rm) {
         rm.stockQty = Math.max(0, rm.stockQty - stock.stockQty); // prevent negative qty
+        rm.totalRate = rm.stockQty * rm.rate;
         await rm.save();
       }
     }
