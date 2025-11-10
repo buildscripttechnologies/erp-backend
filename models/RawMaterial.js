@@ -63,6 +63,10 @@ const rawMaterialSchema = new mongoose.Schema(
       ref: "UOM",
     },
 
+    baseRate: {
+      type: Number,
+      default: 0,
+    },
     rate: {
       type: Number,
       default: 0,
