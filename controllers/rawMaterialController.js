@@ -61,6 +61,7 @@ exports.getAllRawMaterials = async (req, res) => {
       moq: rm.moq,
       panno: rm.panno,
       sqInchRate: rm.sqInchRate,
+      baseRate: rm.baseRate,
       rate: rm.rate,
       purchaseUOM: rm.purchaseUOM ? rm.purchaseUOM.unitName : null,
       gst: rm.gst,
@@ -320,8 +321,9 @@ exports.downloadRawMaterialSample = async (req, res) => {
         moq: "1",
         panno: "",
         sqInchRate: "",
-        rate: "",
         gst: "",
+        baseRate: "",
+        rate: "",
         stockQty: "",
         baseQty: "",
         pkgQty: "",
@@ -446,7 +448,9 @@ exports.uploadExcelRawMaterials = async (req, res) => {
       const baseQty = Number(row["baseQty"] || 0);
       const pkgQty = Number(row["pkgQty"] || 0);
       const moq = Number(row["moq"] || 0);
-      const rate = Number(row["rate"] || 0);
+      const gst = Number(row["gst"] || 0);
+      const baseRate = Number(row["rate"] || 0);
+      const rate = baseRate + (gst * baseRate) / 100;
       const stockQty = Number(row["stockQty"] || 0);
       const itemCategory = row["itemCategory"]?.trim() || "";
       let sqInchRate = 0;

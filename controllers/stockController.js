@@ -422,13 +422,19 @@ exports.getAllStocksMerged = async (req, res) => {
     // ✅ Step 2: fetch RM stock qtys
     const rawMaterials = await RawMaterial.find(
       { skuCode: { $in: skuCodes } },
-      { skuCode: 1, stockQty: 1, totalRate: 1 }
+      { skuCode: 1, stockQty: 1, totalRate: 1, baseRate: 1, gst: 1, rate: 1 }
     );
 
     const rmMap = new Map(
       rawMaterials.map((rm) => [
         rm.skuCode,
-        { stockQty: rm.stockQty, totalRate: rm.totalRate },
+        {
+          stockQty: rm.stockQty,
+          totalRate: rm.totalRate,
+          baseRate: rm.baseRate,
+          gst: rm.gst,
+          rate: rm.rate,
+        },
       ])
     );
 
@@ -437,11 +443,18 @@ exports.getAllStocksMerged = async (req, res) => {
       // 1. Look up the entire RM data object using the correct key: s.skuCode
       const rmData = rmMap.get(s.skuCode);
 
+      const baseAmount = rmData?.baseRate * rmData?.stockQty;
+      const gstAmount = (baseAmount * rmData?.gst) / 100;
+
       return {
         ...s,
-        // 2. Safely access stockQty for availableQty
+
         availableQty: rmData?.stockQty || 0,
-        // 3. ⭐ FIX: Safely access totalRate for amount
+        baseRate: rmData?.baseRate || 0,
+        rate: rmData?.rate || 0,
+        gst: rmData?.gst || 0,
+        baseAmount,
+        gstAmount,
         amount: rmData?.totalRate || 0,
       };
     });
