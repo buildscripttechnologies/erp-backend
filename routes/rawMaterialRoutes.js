@@ -10,6 +10,10 @@ const {
   downloadRawMaterialSample,
   uploadExcelRawMaterials,
   editRawMaterial,
+  getAllDeletedRawMaterials,
+  deleteRawMaterialPermanently,
+
+  restoreRawMaterials,
 } = require("../controllers/rawMaterialController");
 const checkRole = require("../middlewares/checkRole");
 const uploadExcel = require("../middlewares/upload");
@@ -87,5 +91,10 @@ router.post(
   uploadExcel.single("file"),
   uploadExcelRawMaterials
 );
+
+router.get("/deleted", auth, getAllDeletedRawMaterials);
+
+router.post("/permanent-delete", auth, deleteRawMaterialPermanently);
+router.patch("/restore", auth, restoreRawMaterials);
 
 module.exports = router;

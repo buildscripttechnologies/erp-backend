@@ -509,3 +509,116 @@ exports.uploadExcelRawMaterials = async (req, res) => {
     res.status(500).json({ message: "Upload failed", error: err.message });
   }
 };
+
+//  Deleted raw materials
+
+exports.getAllDeletedRawMaterials = async (req, res) => {
+  try {
+    const { page = 1, limit = "", search = "" } = req.query;
+    const query = {
+      $or: [
+        { itemName: { $regex: search, $options: "i" } },
+        { skuCode: { $regex: search, $options: "i" } },
+        { description: { $regex: search, $options: "i" } },
+      ],
+    };
+
+    const total = await RawMaterial.findDeleted(query).countDocuments();
+
+    let rawMaterials = await RawMaterial.findDeleted(query)
+      .populate("purchaseUOM stockUOM createdBy location")
+      .sort({ updatedAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(Number(limit));
+
+    rawMaterials = rawMaterials.map((rm) => ({
+      id: rm._id,
+      skuCode: rm.skuCode,
+      itemName: rm.itemName,
+      description: rm.description,
+      hsnOrSac: rm.hsnOrSac,
+      type: rm.type,
+      itemCategory: rm.itemCategory,
+      itemColor: rm.itemColor,
+      qualityInspectionNeeded: rm.qualityInspectionNeeded,
+      location: rm.location?.locationId || null,
+      baseQty: rm.baseQty,
+      pkgQty: rm.pkgQty,
+      moq: rm.moq,
+      panno: rm.panno,
+      sqInchRate: rm.sqInchRate,
+      baseRate: rm.baseRate,
+      rate: rm.rate,
+      purchaseUOM: rm.purchaseUOM ? rm.purchaseUOM.unitName : null,
+      gst: rm.gst,
+      stockQty: rm.stockQty,
+      stockUOM: rm.stockUOM ? rm.stockUOM.unitName : null,
+      totalRate: rm.totalRate,
+      attachments: rm.attachments,
+      status: rm.status,
+      createdBy: rm.createdBy?.userType ? rm.createdBy.userType : "",
+      createdByName: rm.createdBy?.fullName || "",
+      createdAt: rm.createdAt,
+      updatedAt: rm.updatedAt,
+    }));
+
+    res.status(200).json({
+      status: 200,
+      totalResults: total,
+      totalPages: Math.ceil(total / limit) || 1,
+      currentPage: Number(page),
+      limit: Number(limit),
+      rawMaterials,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.deleteRawMaterialPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await RawMaterial.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await RawMaterial.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} raw material(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreRawMaterials = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+
+    const result = await RawMaterial.restore({
+      _id: { $in: ids },
+    });
+
+    await RawMaterial.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "Raw material(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
+  }
+};
