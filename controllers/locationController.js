@@ -75,12 +75,7 @@ exports.addManyLocations = async (req, res) => {
 
 exports.getAllLocations = async (req, res) => {
   try {
-    const {
-      page = 1,
-      limit = "",
-      search = "",
-      isActive = "true",
-    } = req.query;
+    const { page = 1, limit = "", search = "", isActive = "true" } = req.query;
     const skip = (Number(page) - 1) * Number(limit);
 
     const searchRegex = new RegExp(search, "i");
@@ -108,7 +103,58 @@ exports.getAllLocations = async (req, res) => {
 
     const locations = await Location.find(finalFilter)
       .populate("createdBy", "fullName userType")
-      .sort({ createdAt: -1 })
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    res.status(200).json({
+      status: 200,
+      message: "Fetched locations successfully",
+      totalResults: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+      limit: Number(limit),
+      data: locations,
+    });
+  } catch (err) {
+    console.error("Get Locations Error:", err);
+    res
+      .status(500)
+      .json({ message: "Failed to fetch locations", error: err.message });
+  }
+};
+
+exports.getAllDeletedLocations = async (req, res) => {
+  try {
+    const { page = 1, limit = "", search = "", isActive = "true" } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const searchRegex = new RegExp(search, "i");
+
+    const baseFilter = {
+      $or: [
+        { locationId: searchRegex },
+        { storeNo: searchRegex },
+        { storeRno: searchRegex },
+        { binNo: searchRegex },
+      ],
+    };
+
+    let finalFilter = baseFilter;
+
+    // Only apply isActive filter if explicitly not "all"
+    if (isActive !== "all") {
+      finalFilter = {
+        ...baseFilter,
+        isActive: isActive === "true", // convert to boolean
+      };
+    }
+
+    const total = await Location.countDocuments(finalFilter);
+
+    const locations = await Location.findDeleted(finalFilter)
+      .populate("createdBy", "fullName userType")
+      .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(Number(limit));
 
@@ -169,5 +215,54 @@ exports.deleteLocation = async (req, res) => {
     res
       .status(500)
       .json({ message: "Failed to delete location", error: err.message });
+  }
+};
+
+exports.deleteLocationPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await Location.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await Location.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} Location(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreLocation = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+    console.log("ids", ids);
+
+    const result = await Location.restore({
+      _id: { $in: ids },
+    });
+
+    await Location.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "Location(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
   }
 };
