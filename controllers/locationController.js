@@ -150,7 +150,7 @@ exports.getAllDeletedLocations = async (req, res) => {
       };
     }
 
-    const total = await Location.countDocuments(finalFilter);
+    const total = await Location.findDeleted(finalFilter).countDocuments();
 
     const locations = await Location.findDeleted(finalFilter)
       .populate("createdBy", "fullName userType")

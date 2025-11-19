@@ -8,6 +8,9 @@ const {
   updateFG,
   updateFGWithFiles,
   deleteFG,
+  getAllDeletedFGs,
+  deleteFGPermanently,
+  restoreFG,
 } = require("../controllers/fgController");
 const setUploadType = require("../middlewares/setUploadType");
 const {
@@ -43,5 +46,11 @@ router.patch(
   updateFGWithFiles
 );
 router.delete("/delete/:id", auth, checkPermission(["FG"], "delete"), deleteFG);
+
+router.get("/deleted", auth, getAllDeletedFGs);
+
+router.post("/permanent-delete", auth, deleteFGPermanently);
+
+router.patch("/restore", auth, restoreFG);
 
 module.exports = router;

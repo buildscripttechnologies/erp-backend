@@ -553,6 +553,189 @@ exports.getAllSamples = async (req, res) => {
       .json({ success: false, message: "Failed to fetch Samples" });
   }
 };
+exports.getAllDeletedSamples = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 1000000000;
+    const skip = (page - 1) * limit;
+    const { search = "" } = req.query;
+
+    const searchRegex = new RegExp(search, "i");
+
+    const matchStage = search
+      ? {
+          $or: [
+            { sampleNo: { $regex: searchRegex } },
+            { bomNo: { $regex: searchRegex } },
+            { "party.customerName": { $regex: searchRegex } },
+            { "product.name": { $regex: searchRegex } },
+          ],
+        }
+      : {};
+
+    const aggregationPipeline = [
+      {
+        $lookup: {
+          from: "customers",
+          localField: "partyName",
+          foreignField: "_id",
+          as: "party",
+        },
+      },
+      {
+        $unwind: {
+          path: "$party",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $lookup: {
+          from: "users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
+      {
+        $unwind: {
+          path: "$createdBy",
+          preserveNullAndEmptyArrays: true,
+        },
+      },
+      {
+        $addFields: {
+          createdBy: {
+            _id: "$createdBy._id",
+            username: "$createdBy.username",
+            fullName: "$createdBy.fullName",
+          },
+        },
+      },
+      {
+        $match: matchStage,
+      },
+      {
+        $sort: { createdAt: -1, _id: -1 },
+      },
+      {
+        $facet: {
+          data: [
+            { $skip: skip },
+            { $limit: limit },
+            {
+              $addFields: {
+                partyName: "$party.customerName",
+              },
+            },
+            {
+              $project: {
+                _id: 1,
+                sampleNo: 1,
+                bomNo: 1,
+                date: 1,
+                gst: 1,
+                hsnOrSac: 1,
+                orderQty: 1,
+                isActive: 1,
+                createdAt: 1,
+                updatedAt: 1,
+                file: 1,
+                printingFile: 1,
+                partyName: "$party.customerName",
+                product: 1,
+                height: 1,
+                width: 1,
+                depth: 1,
+                B2B: 1,
+                D2C: 1,
+                rejection: 1,
+                QC: 1,
+                machineMaintainance: 1,
+                materialHandling: 1,
+                packaging: 1,
+                shipping: 1,
+                companyOverHead: 1,
+                indirectExpense: 1,
+                stitching: 1,
+                printing: 1,
+                others: 1,
+                unitRate: 1,
+                unitB2BRate: 1,
+                unitD2CRate: 1,
+
+                productDetails: 1,
+                consumptionTable: 1,
+                createdBy: {
+                  _id: "$createdBy._id",
+                  username: "$createdBy.username",
+                  fullName: "$createdBy.fullName",
+                },
+              },
+            },
+          ],
+          total: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await Sample.aggregateDeleted(aggregationPipeline);
+    // console.log("result", result[0]);
+
+    const samples = result[0].data;
+
+    // Enrich productDetails with skuCode and itemName
+    for (const sample of samples) {
+      if (sample.productDetails?.length > 0) {
+        for (const detail of sample.productDetails) {
+          const { itemId, type } = detail;
+
+          let item = null;
+          if (type === "RawMaterial") {
+            item = await RawMaterial.findById(itemId).select(
+              "skuCode itemName itemCategory panno attachments"
+            );
+          } else if (type === "SFG") {
+            item = await SFG.findById(itemId).select(
+              "skuCode itemName itemCategory file"
+            );
+          } else if (type === "FG") {
+            item = await FG.findById(itemId).select(
+              "skuCode itemName itemCategory file"
+            );
+          }
+
+          if (item) {
+            detail.skuCode = item.skuCode;
+            detail.itemName = item.itemName;
+            detail.category = item.itemCategory;
+            (detail.panno = item.panno),
+              (detail.attachments = item.attachments || item.file);
+          } else {
+            detail.skuCode = null;
+            detail.itemName = null;
+            detail.category = null;
+          }
+        }
+      }
+    }
+
+    const totalResults = result[0].total[0]?.count || 0;
+
+    return res.status(200).json({
+      success: true,
+      totalResults,
+      totalPages: Math.ceil(totalResults / limit),
+      currentPage: page,
+      limit,
+      data: samples,
+    });
+  } catch (err) {
+    console.error("Get All Samples Error:", err);
+    return res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch Samples" });
+  }
+};
 
 // ✅ DELETE (Soft Delete)
 exports.deleteSample = async (req, res) => {
@@ -571,5 +754,54 @@ exports.deleteSample = async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Failed to delete Sample" });
+  }
+};
+
+exports.deleteSamplePermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await Sample.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await Sample.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} FG(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreSample = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+    console.log("ids", ids);
+
+    const result = await Sample.restore({
+      _id: { $in: ids },
+    });
+
+    await Sample.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "Sample(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
   }
 };
