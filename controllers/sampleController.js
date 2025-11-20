@@ -775,7 +775,7 @@ exports.deleteSamplePermanently = async (req, res) => {
 
     res.status(200).json({
       status: 200,
-      message: `${ids.length} FG(s) permanently deleted`,
+      message: `${ids.length} Sample(s) permanently deleted`,
       deletedCount: ids.length,
     });
   } catch (err) {
