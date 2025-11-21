@@ -10,13 +10,21 @@ const {
   updateUOM,
   deleteUOM,
   createBulkUOMs,
+  getAllDeletedUOMs,
+  deleteUOMPermanently,
+  restoreUOM,
 } = require("../controllers/uomController");
 const checkPermission = require("../middlewares/checkPermission");
 
 router.get("/all-uoms", auth, checkPermission(["UOM"], "read"), getAllUOMs);
 router.get("/uom/:uomId", auth, checkPermission(["UOM"], "read"), getUOMById);
 router.post("/add-uom", auth, checkPermission(["UOM"], "write"), createUOM);
-router.post("/add-many", auth, checkPermission(["UOM"], "write"), createBulkUOMs);
+router.post(
+  "/add-many",
+  auth,
+  checkPermission(["UOM"], "write"),
+  createBulkUOMs
+);
 router.patch(
   "/update-uom/:id",
   auth,
@@ -29,5 +37,11 @@ router.delete(
   checkPermission(["UOM"], "delete"),
   deleteUOM
 );
+
+router.get("/deleted", auth, getAllDeletedUOMs);
+
+router.post("/permanent-delete", auth, deleteUOMPermanently);
+
+router.patch("/restore", auth, restoreUOM);
 
 module.exports = router;

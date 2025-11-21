@@ -6,6 +6,9 @@ const {
   addRole,
   updateRole,
   deleteRole,
+  getAllDeletedRoles,
+  deleteRolePermanently,
+  restoreRole,
 } = require("../controllers/roleController");
 const checkRole = require("../middlewares/checkRole");
 const checkPermission = require("../middlewares/checkPermission");
@@ -31,5 +34,11 @@ router.delete(
   checkPermission(["Role"], "delete"),
   deleteRole
 );
+
+router.get("/deleted", auth, getAllDeletedRoles);
+
+router.post("/permanent-delete", auth, deleteRolePermanently);
+
+router.patch("/restore", auth, restoreRole);
 
 module.exports = router;
