@@ -246,7 +246,7 @@ exports.deleteUOMPermanently = async (req, res) => {
 exports.restoreUOM = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+   
 
     const result = await UOM.restore({
       _id: { $in: ids },

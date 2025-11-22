@@ -9,6 +9,9 @@ const {
   updatePO,
   deletePO,
   updatePoAndSendMail,
+  getAllDeletedPOs,
+  deletePOPermanently,
+  restorePO,
 } = require("../controllers/poController");
 const router = express.Router();
 
@@ -42,5 +45,11 @@ router.delete(
   checkPermission(["Purchase Order", "PO Approval"], "delete"),
   deletePO
 );
+
+router.get("/deleted", auth, getAllDeletedPOs);
+
+router.post("/permanent-delete", auth, deletePOPermanently);
+
+router.patch("/restore", auth, restorePO);
 
 module.exports = router;

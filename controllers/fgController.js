@@ -924,7 +924,7 @@ exports.deleteFGPermanently = async (req, res) => {
 exports.restoreFG = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+  
 
     const result = await FG.restore({
       _id: { $in: ids },

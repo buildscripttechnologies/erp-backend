@@ -761,7 +761,7 @@ exports.deleteBOMPermanently = async (req, res) => {
 exports.restoreBOM = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+   
 
     const result = await BOM.restore({
       _id: { $in: ids },

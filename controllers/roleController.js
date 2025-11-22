@@ -199,7 +199,7 @@ const deleteRolePermanently = async (req, res) => {
 const restoreRole = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+  
 
     const result = await Role.restore({
       _id: { $in: ids },

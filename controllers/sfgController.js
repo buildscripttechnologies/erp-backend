@@ -757,7 +757,7 @@ exports.deleteSFGPermanently = async (req, res) => {
 exports.restoreSFG = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+  
 
     const result = await SFG.restore({
       _id: { $in: ids },

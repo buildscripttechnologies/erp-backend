@@ -384,7 +384,7 @@ exports.deleteVendorPermanently = async (req, res) => {
 exports.restoreVendor = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+   
 
     const result = await Vendor.restore({
       _id: { $in: ids },

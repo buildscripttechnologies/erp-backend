@@ -4,6 +4,9 @@ const {
   deleteUser,
   getAllUsers,
   updatePermission,
+  getAllDeletedUsers,
+  deleteUserPermanently,
+  restoreUser,
 } = require("../controllers/UserController");
 const express = require("express");
 const router = express.Router();
@@ -34,5 +37,11 @@ router.delete(
   checkPermission(["User"], "delete"),
   deleteUser
 );
+
+router.get("/deleted", auth, getAllDeletedUsers);
+
+router.post("/permanent-delete", auth, deleteUserPermanently);
+
+router.patch("/restore", auth, restoreUser);
 
 module.exports = router;

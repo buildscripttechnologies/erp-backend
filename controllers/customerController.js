@@ -331,7 +331,7 @@ exports.deleteCustomerPermanently = async (req, res) => {
 exports.restoreCustomer = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+   
 
     const result = await Customer.restore({
       _id: { $in: ids },

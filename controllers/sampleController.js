@@ -786,7 +786,7 @@ exports.deleteSamplePermanently = async (req, res) => {
 exports.restoreSample = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+  
 
     const result = await Sample.restore({
       _id: { $in: ids },

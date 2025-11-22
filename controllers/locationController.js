@@ -247,7 +247,7 @@ exports.deleteLocationPermanently = async (req, res) => {
 exports.restoreLocation = async (req, res) => {
   try {
     const ids = req.body.ids;
-    console.log("ids", ids);
+  
 
     const result = await Location.restore({
       _id: { $in: ids },

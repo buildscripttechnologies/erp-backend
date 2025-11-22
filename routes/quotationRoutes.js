@@ -12,6 +12,9 @@ const {
   getAllQuotations,
   deleteQuotation,
   updateQuotation,
+  getAllDeletedQuotations,
+  deleteQuotationPermanently,
+  restoreQuotation,
 } = require("../controllers/quotationController");
 
 // Add BOM
@@ -72,5 +75,11 @@ router.get(
 //   checkPermission(["BOM"], "read"),
 //   bomController.getBomById
 // );
+
+router.get("/deleted", auth, getAllDeletedQuotations);
+
+router.post("/permanent-delete", auth, deleteQuotationPermanently);
+
+router.patch("/restore", auth, restoreQuotation);
 
 module.exports = router;
