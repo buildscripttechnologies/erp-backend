@@ -60,6 +60,16 @@ router.get(
   sampleController.getAllSamples
 );
 
+router.get("/deleted", auth, sampleController.getAllDeletedSamples);
+
+router.post(
+  "/permanent-delete",
+  auth,
+  sampleController.deleteSamplePermanently
+);
+
+router.patch("/restore", auth, sampleController.restoreSample);
+
 // // Get Single Sample
 // router.get("/get/:id", bomController.getBomById);
 

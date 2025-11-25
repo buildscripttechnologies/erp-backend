@@ -136,7 +136,101 @@ exports.getAllVendors = async (req, res) => {
     let vendors = await Vendor.find(filter)
       .populate("createdBy", "fullName userType")
       .populate("rm.uom", "unitName")
-      .sort({ venderCode: -1 })
+      .sort({ updatedAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .lean();
+
+    for (const vendor of vendors) {
+      for (const rmEntry of vendor.rm) {
+        if (!rmEntry?.item || !rmEntry?.type) continue;
+
+        let model = null;
+        let selectFields = "";
+        let populateFields = [];
+
+        switch (rmEntry.type) {
+          case "RawMaterial":
+            model = RawMaterial;
+            selectFields =
+              "skuCode itemName description hsnOrSac type stockUOM status";
+            populateFields = [{ path: "stockUOM", select: "unitName" }];
+            break;
+          case "SFG":
+            model = SFG;
+            selectFields =
+              "skuCode itemName description hsnOrSac type UOM status";
+            populateFields = [{ path: "UOM", select: "unitName" }];
+            break;
+          case "FG":
+            model = FG;
+            selectFields =
+              "skuCode itemName description hsnOrSac type UOM status";
+            populateFields = [{ path: "UOM", select: "unitName" }];
+            break;
+        }
+
+        if (!model) continue;
+
+        const rmItem = await model
+          .findById(rmEntry.item)
+          .select(selectFields)
+          .populate(populateFields);
+
+        rmEntry.item = rmItem || null;
+      }
+    }
+
+    res.status(200).json({
+      status: 200,
+      message: "Vendors fetched successfully",
+      totalResults: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+      limit: Number(limit),
+      data: vendors,
+    });
+  } catch (err) {
+    console.error("Get vendors error:", err);
+    res.status(500).json({
+      status: 500,
+      message: "Failed to fetch vendors",
+      error: err.message,
+    });
+  }
+};
+
+exports.getAllDeletedVendors = async (req, res) => {
+  try {
+    const { page = 1, limit = "", status = "", search = "" } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    let filter = {};
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filter.$or = [
+        { vendorName: regex },
+        { venderCode: regex },
+        { natureOfBusiness: regex },
+        { address: regex },
+        { city: regex },
+        { state: regex },
+        { country: regex },
+        { gst: regex },
+        { postalCode: regex },
+      ];
+    }
+
+    if (status === "active") filter.isActive = true;
+    else if (status === "inactive") filter.isActive = false;
+
+    const total = await Vendor.findDeleted(filter).countDocuments();
+
+    let vendors = await Vendor.findDeleted(filter)
+      .populate("createdBy", "fullName userType")
+      .populate("rm.uom", "unitName")
+      .sort({ updatedAt: -1, _id: -1 })
       .skip(skip)
       .limit(Number(limit))
       .lean();
@@ -258,5 +352,54 @@ exports.deleteVendor = async (req, res) => {
     res
       .status(500)
       .json({ status: 500, message: "Delete failed", error: err.message });
+  }
+};
+
+exports.deleteVendorPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await Vendor.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await Vendor.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} Vendor(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreVendor = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+   
+
+    const result = await Vendor.restore({
+      _id: { $in: ids },
+    });
+
+    await Vendor.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "Vendor(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
   }
 };

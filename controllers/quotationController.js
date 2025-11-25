@@ -74,7 +74,7 @@ exports.getAllQuotations = async (req, res) => {
       search = "",
       page = 1,
       limit = 20,
-      sortBy = "createdAt",
+      sortBy = "updatedAt",
       sortOrder = "desc",
     } = req.query;
 
@@ -110,6 +110,162 @@ exports.getAllQuotations = async (req, res) => {
       .lean();
 
     const totalCount = await Quotation.countDocuments(matchStage);
+
+    // --- Enrich productDetails inside each quotation ---
+    const enriched = await Promise.all(
+      quotations.map(async (doc) => {
+        const enrichedQuotations = await Promise.all(
+          (doc.quotations || []).map(async (q) => {
+            const enrichedProductDetails = await Promise.all(
+              (q.productDetails || []).map(async (detail) => {
+                if (!detail.itemId) return detail;
+
+                let collectionName;
+                if (detail.type === "RawMaterial")
+                  collectionName = "rawmaterials";
+                else if (detail.type === "SFG") collectionName = "sfgs";
+                else if (detail.type === "FG") collectionName = "fgs";
+                else return detail;
+
+                const [item] = await Quotation.db
+                  .collection(collectionName)
+                  .aggregate([
+                    { $match: { _id: detail.itemId } },
+                    {
+                      $lookup: {
+                        from: "locations",
+                        localField: "location",
+                        foreignField: "_id",
+                        as: "location",
+                      },
+                    },
+                    {
+                      $unwind: {
+                        path: "$location",
+                        preserveNullAndEmptyArrays: true,
+                      },
+                    },
+                    {
+                      $project: {
+                        skuCode: 1,
+                        itemName: 1,
+                        itemCategory: 1,
+                        location: 1,
+                        panno: 1,
+                        stockQty: 1,
+                        attachments: 1,
+                      },
+                    },
+                  ])
+                  .toArray();
+
+                return {
+                  ...detail,
+                  skuCode: item?.skuCode || null,
+                  itemName: item?.itemName || null,
+                  category: item?.itemCategory || detail.category || null,
+                  location: item?.location || null,
+                  panno: item?.panno || null,
+                  stockQty: item?.stockQty || null,
+                  attachments: item?.attachments || [],
+                };
+              })
+            );
+
+            return {
+              ...q,
+              productDetails: enrichedProductDetails,
+            };
+          })
+        );
+
+        return {
+          _id: doc._id,
+          qNo: doc.qNo,
+          date: doc.date,
+          party: doc.partyName
+            ? {
+                _id: doc.partyName._id,
+                customerName: doc.partyName.customerName,
+                customerCode: doc.partyName.customerCode,
+                pan: doc.partyName.pan,
+                address: doc.partyName.address,
+                gst: doc.partyName.gst,
+                state: doc.partyName.state,
+              }
+            : null,
+          quotations: enrichedQuotations,
+          createdBy: doc.createdBy
+            ? {
+                _id: doc.createdBy._id,
+                username: doc.createdBy.username,
+                fullName: doc.createdBy.fullName,
+              }
+            : null,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt,
+          deletedAt: doc.deletedAt,
+        };
+      })
+    );
+
+    res.status(200).json({
+      success: true,
+      totalResults: totalCount,
+      totalPages: Math.ceil(totalCount / limitNum),
+      currentPage: pageNum,
+      limit: limitNum,
+      data: enriched,
+    });
+  } catch (err) {
+    console.error("Get All Quotations Error:", err);
+    res
+      .status(500)
+      .json({ success: false, message: "Failed to fetch quotations" });
+  }
+};
+exports.getAllDeletedQuotations = async (req, res) => {
+  try {
+    const {
+      search = "",
+      page = 1,
+      limit = 20,
+      sortBy = "updatedAt",
+      sortOrder = "desc",
+    } = req.query;
+
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // --- Search condition ---
+    const matchStage = {};
+    if (search && search.trim() !== "") {
+      const regex = new RegExp(search, "i");
+      matchStage.$or = [
+        { qNo: regex },
+        { "quotations.productName": regex },
+        { "quotations.sampleNo": regex },
+        { "partyName.customerName": regex },
+      ];
+    }
+
+    // --- Fetch quotations ---
+    const quotations = await Quotation.findDeleted(matchStage)
+      .populate({
+        path: "partyName",
+        select: "customerName customerCode pan gst address state",
+      })
+      .populate({
+        path: "createdBy",
+        select: "username fullName",
+      })
+      .sort({ [sortBy]: sortOrder === "desc" ? -1 : 1 })
+      .skip(skip)
+      .limit(limitNum)
+      .lean();
+
+    const totalCount = await Quotation.findDeleted(matchStage).countDocuments();
 
     // --- Enrich productDetails inside each quotation ---
     const enriched = await Promise.all(
@@ -326,5 +482,54 @@ exports.deleteQuotation = async (req, res) => {
     res
       .status(500)
       .json({ success: false, message: "Failed to delete Quotation" });
+  }
+};
+
+exports.deleteQuotationPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await Quotation.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await Quotation.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} Quotation(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreQuotation = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+   
+
+    const result = await Quotation.restore({
+      _id: { $in: ids },
+    });
+
+    await Quotation.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "Quotation(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
   }
 };

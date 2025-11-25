@@ -5,6 +5,9 @@ const {
   updateVendor,
   deleteVendor,
   addMultipleVendors,
+  getAllDeletedVendors,
+  deleteVendorPermanently,
+  restoreVendor,
 } = require("../controllers/vendorController");
 const checkPermission = require("../middlewares/checkPermission");
 const router = express.Router();
@@ -36,5 +39,11 @@ router.delete(
   checkPermission(["Vendor"], "delete"),
   deleteVendor
 );
+
+router.get("/deleted", auth, getAllDeletedVendors);
+
+router.post("/permanent-delete", auth, deleteVendorPermanently);
+
+router.patch("/restore", auth, restoreVendor);
 
 module.exports = router;

@@ -6,6 +6,9 @@ const {
   updateCustomer,
   deleteCustomer,
   updateContactOrDeliveryStatus,
+  getAllDeletedCustomers,
+  deleteCustomerPermanently,
+  restoreCustomer,
 } = require("../controllers/customerController");
 const checkPermission = require("../middlewares/checkPermission");
 
@@ -44,5 +47,11 @@ router.delete(
   checkPermission(["Customer"], "delete"),
   deleteCustomer
 );
+
+router.get("/deleted", auth, getAllDeletedCustomers);
+
+router.post("/permanent-delete", auth, deleteCustomerPermanently);
+
+router.patch("/restore", auth, restoreCustomer);
 
 module.exports = router;

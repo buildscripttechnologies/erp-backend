@@ -114,6 +114,57 @@ exports.getAllCustomers = async (req, res) => {
   }
 };
 
+exports.getAllDeletedCustomers = async (req, res) => {
+  try {
+    const { page = 1, limit = "", search = "", status = "" } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const filter = {};
+
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filter.$or = [
+        { customerCode: regex },
+        { customerName: regex },
+        { aliasName: regex },
+        { natureOfBusiness: regex },
+        { address: regex },
+        { city: regex },
+        { state: regex },
+        { country: regex },
+        { postalCode: regex },
+        { gst: regex },
+      ];
+    }
+
+    if (status === "active") filter.isActive = true;
+    else if (status === "inactive") filter.isActive = false;
+
+    const total = await Customer.findDeleted(filter).countDocuments();
+    const customers = await Customer.findDeleted(filter)
+      .populate("createdBy", "fullName userType")
+      .sort({ updatedAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    res.status(200).json({
+      status: 200,
+      message: "Customers fetched successfully",
+      totalResults: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: Number(page),
+      limit: Number(limit),
+      data: customers,
+    });
+  } catch (err) {
+    res.status(500).json({
+      status: 500,
+      message: "Failed to fetch customers",
+      error: err.message,
+    });
+  }
+};
+
 // Update customer by ID
 exports.updateCustomer = async (req, res) => {
   try {
@@ -248,5 +299,54 @@ exports.deleteCustomer = async (req, res) => {
       message: "Failed to soft-delete customer",
       error: err.message,
     });
+  }
+};
+
+exports.deleteCustomerPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await Customer.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await Customer.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} Customer(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreCustomer = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+   
+
+    const result = await Customer.restore({
+      _id: { $in: ids },
+    });
+
+    await Customer.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "Customer(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
   }
 };

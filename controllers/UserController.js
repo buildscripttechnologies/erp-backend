@@ -111,7 +111,69 @@ const getAllUsers = async (req, res) => {
 
     // Fetch paginated users
     const users = await User.find(filter)
-      .sort({ createdAt: -1, _id: -1 })
+      .sort({ updatedAt: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit);
+
+    res.status(200).json({
+      status: 200,
+      users: users.map((user) => ({
+        id: user._id,
+        fullName: user.fullName,
+        username: user.username,
+        email: user.email,
+        mobile: user.mobile,
+        userType: user.userType,
+        userGroup: user.userGroup,
+        isVerified: user.isVerified,
+        twoStepEnabled: user.twoStepEnabled,
+        status: user.status,
+        permissions: user.permissions,
+      })),
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(totalResults / limit),
+        totalResults,
+        limit,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+};
+const getAllDeletedUsers = async (req, res) => {
+  try {
+    let { page = 1, limit = 10, searchText = "", userType, status } = req.query;
+
+    // console.log("req.query", req.query);
+
+    page = parseInt(page);
+    limit = parseInt(limit);
+
+    const filter = {};
+
+    // Add filters if present
+    if (userType) filter.userType = userType;
+    if (status) filter.status = status;
+
+    // Add search conditions (case-insensitive, partial match)
+    if (searchText) {
+      const searchRegex = new RegExp(searchText, "i");
+      filter.$or = [
+        { fullName: searchRegex },
+        { username: searchRegex },
+        { userType: searchRegex },
+        { email: searchRegex },
+        { mobile: searchRegex },
+      ];
+    }
+
+    // Count total results for pagination
+    const totalResults = await User.findDeleted(filter).countDocuments();
+
+    // Fetch paginated users
+    const users = await User.findDeleted(filter)
+      .sort({ updatedAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(limit);
 
@@ -181,10 +243,62 @@ const updatePermission = async (req, res) => {
   }
 };
 
+const deleteUserPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await User.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await User.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} User(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+const restoreUser = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+    
+
+    const result = await User.restore({
+      _id: { $in: ids },
+    });
+
+    await User.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "User(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
+  }
+};
+
 module.exports = {
   updateUser,
   deleteUser,
   getUser,
   getAllUsers,
   updatePermission,
+  getAllDeletedUsers,
+  deleteUserPermanently,
+  restoreUser,
 };

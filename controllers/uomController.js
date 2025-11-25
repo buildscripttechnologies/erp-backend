@@ -102,6 +102,57 @@ exports.getAllUOMs = async (req, res) => {
   }
 };
 
+exports.getAllDeletedUOMs = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || "";
+    const skip = (page - 1) * limit;
+    const { status = true, search = "" } = req.query;
+
+    let filter = {};
+    if (status === "true" || status === true) {
+      filter.status = true;
+    } else if (status === "false" || status === false) {
+      filter.status = false;
+    } else if (status == "all") {
+      filter = {};
+    }
+
+    // Add search condition
+    if (search.trim() !== "") {
+      const searchRegex = new RegExp(search, "i");
+      filter.$or = [
+        { unitName: searchRegex },
+        { unitDescription: searchRegex },
+      ];
+    }
+
+    const [uoms, total] = await Promise.all([
+      UOM.findDeleted(filter)
+        .populate({
+          path: "createdBy",
+          select: "_id username fullName",
+        })
+        .sort({ updatedAt: -1, _id: -1 })
+        .skip(skip)
+        .limit(limit),
+      UOM.findDeleted(filter).countDocuments(),
+    ]);
+
+    return res.status(200).json({
+      status: 200,
+      totalResults: total,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      limit,
+      data: uoms,
+    });
+  } catch (err) {
+    console.error("Error fetching UOMs:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 // Get UOM by ID
 exports.getUOMById = async (req, res) => {
   try {
@@ -163,5 +214,54 @@ exports.deleteUOM = async (req, res) => {
       message: "Failed to delete UOM.",
       error: error.message,
     });
+  }
+};
+
+exports.deleteUOMPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await UOM.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await UOM.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} UOM(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreUOM = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+   
+
+    const result = await UOM.restore({
+      _id: { $in: ids },
+    });
+
+    await UOM.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "UOM(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
   }
 };

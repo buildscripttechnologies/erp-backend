@@ -6,6 +6,9 @@ const {
   updateSFG,
   updateSFGWithFiles,
   deleteSFG,
+  deleteSFGPermanently,
+  restoreSFG,
+  getAllDeletedSFGs,
 } = require("../controllers/sfgController");
 // const upload = require("../utils/multer");
 const auth = require("../middlewares/authMiddleware");
@@ -29,7 +32,12 @@ router.post(
   addMultipleSFGs
 );
 router.get("/get-all", auth, checkPermission(["SFG"], "read"), getAllSFGs);
-router.patch("/update/:id", auth, checkPermission(["SFG"], "update"), updateSFG);
+router.patch(
+  "/update/:id",
+  auth,
+  checkPermission(["SFG"], "update"),
+  updateSFG
+);
 router.patch(
   "/edit/:id",
   auth,
@@ -42,6 +50,17 @@ router.patch(
   // compressUploadedFiles,
   updateSFGWithFiles
 );
-router.delete("/delete/:id", auth, checkPermission(["SFG"], "delete"), deleteSFG);
+router.delete(
+  "/delete/:id",
+  auth,
+  checkPermission(["SFG"], "delete"),
+  deleteSFG
+);
+
+router.get("/deleted", auth, getAllDeletedSFGs);
+
+router.post("/permanent-delete", auth, deleteSFGPermanently);
+
+router.patch("/restore", auth, restoreSFG);
 
 module.exports = router;

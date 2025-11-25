@@ -68,4 +68,10 @@ router.get(
   bomController.getBomById
 );
 
+router.get("/deleted", auth, bomController.getAllDeletedBoms);
+
+router.post("/permanent-delete", auth, bomController.deleteBOMPermanently);
+
+router.patch("/restore", auth, bomController.restoreBOM);
+
 module.exports = router;

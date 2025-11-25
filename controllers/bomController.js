@@ -439,7 +439,7 @@ exports.getAllBoms = async (req, res) => {
       },
       { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
       { $match: matchStage },
-      { $sort: { createdAt: -1, _id: -1 } },
+      { $sort: { updatedAt: -1, _id: -1 } },
       {
         $facet: {
           data: [{ $skip: skip }, { $limit: limit }],
@@ -449,6 +449,165 @@ exports.getAllBoms = async (req, res) => {
     ];
 
     const result = await BOM.aggregate(aggregationPipeline);
+
+    const enrichedData = await Promise.all(
+      result[0].data.map(async (bom) => {
+        const enrichedDetails = await Promise.all(
+          (bom.productDetails || []).map(async (detail) => {
+            let collectionName;
+            if (detail.type === "RawMaterial") collectionName = "rawmaterials";
+            else if (detail.type === "SFG") collectionName = "sfgs";
+            else if (detail.type === "FG") collectionName = "fgs";
+            else return detail;
+
+            const [item] = await BOM.db
+              .collection(collectionName)
+              .aggregate([
+                { $match: { _id: detail.itemId } },
+                {
+                  $lookup: {
+                    from: "locations", // collection name
+                    localField: "location", // field in RawMaterial/SFG/FG
+                    foreignField: "_id", // field in Location
+                    as: "location",
+                  },
+                },
+                {
+                  $unwind: {
+                    path: "$location",
+                    preserveNullAndEmptyArrays: true,
+                  },
+                },
+                {
+                  $project: {
+                    skuCode: 1,
+                    itemName: 1,
+                    itemCategory: 1,
+                    "location.locationId": 1,
+                    panno: 1,
+                    attachments: 1,
+                    stockQty: 1,
+                  },
+                },
+              ])
+              .toArray();
+
+            return {
+              ...detail,
+              skuCode: item?.skuCode || null,
+              itemName: item?.itemName || null,
+              category: item?.itemCategory || null,
+              location: item?.location || null, // now an object { name, code }
+              panno: item?.panno,
+              attachments: item?.attachments,
+              stockQty: item?.stockQty,
+            };
+          })
+        );
+
+        // 🔹 Find MI by prodNo (assuming BOM has prodNo field)
+        let miStatus = null;
+        if (bom.prodNo) {
+          const mi = await MI.findOne({ prodNo: bom.prodNo }).select("status");
+          bom.status = mi?.status || null;
+        }
+
+        let totalAmountWithGst =
+          bom.totalD2CRate + (bom.totalD2CRate * bom.product?.gst) / 100;
+
+        return {
+          ...bom, // include ALL BOM fields (file, b2b, d2c, etc.)
+          partyName: bom.party?.customerName || null,
+          productName: bom.productName || null,
+          hsnOrSac: bom.product?.hsnOrSac || "",
+          gst: bom.product?.gst || null,
+          createdBy: {
+            _id: bom.createdBy?._id,
+            username: bom.createdBy?.username,
+            fullName: bom.createdBy?.fullName,
+          },
+          totalAmountWithGst: totalAmountWithGst,
+          productDetails: enrichedDetails,
+          consumptionTable: bom.consumptionTable,
+        };
+      })
+    );
+
+    const totalResults = result[0].total[0]?.count || 0;
+
+    res.status(200).json({
+      success: true,
+      totalResults,
+      totalPages: Math.ceil(totalResults / limit),
+      currentPage: page,
+      limit,
+      data: enrichedData,
+    });
+  } catch (err) {
+    console.error("Get All BOMs Error:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch BOMs" });
+  }
+};
+
+exports.getAllDeletedBoms = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10000;
+    const skip = (page - 1) * limit;
+    const { search = "" } = req.query;
+
+    const searchRegex = new RegExp(search, "i");
+
+    const matchStage = search
+      ? {
+          $or: [
+            { bomNo: { $regex: searchRegex } },
+            { sampleNo: { $regex: searchRegex } },
+            { "party.customerName": { $regex: searchRegex } },
+            { "product.itemName": { $regex: searchRegex } },
+          ],
+        }
+      : {};
+
+    const aggregationPipeline = [
+      {
+        $lookup: {
+          from: "customers",
+          localField: "partyName",
+          foreignField: "_id",
+          as: "party",
+        },
+      },
+      { $unwind: { path: "$party", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "fgs",
+          localField: "sampleNo",
+          foreignField: "skuCode",
+          as: "product",
+        },
+      },
+      { $unwind: { path: "$product", preserveNullAndEmptyArrays: true } },
+      {
+        $lookup: {
+          from: "users",
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
+      { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
+      { $match: matchStage },
+      { $sort: { updatedAt: -1, _id: -1 } },
+      {
+        $facet: {
+          data: [{ $skip: skip }, { $limit: limit }],
+          total: [{ $count: "count" }],
+        },
+      },
+    ];
+
+    const result = await BOM.aggregateDeleted(aggregationPipeline);
 
     const enrichedData = await Promise.all(
       result[0].data.map(async (bom) => {
@@ -570,5 +729,54 @@ exports.getBomById = async (req, res) => {
   } catch (err) {
     console.error("Get BOM by ID Error:", err);
     res.status(500).json({ success: false, message: "Failed to fetch BOM" });
+  }
+};
+
+exports.deleteBOMPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await BOM.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await BOM.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} BOM(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreBOM = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+   
+
+    const result = await BOM.restore({
+      _id: { $in: ids },
+    });
+
+    await BOM.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "BOM(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
   }
 };

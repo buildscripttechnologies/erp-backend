@@ -323,6 +323,323 @@ exports.getAllFGs = async (req, res) => {
     });
   }
 };
+exports.getAllDeletedFGs = async (req, res) => {
+  try {
+    const { page = 1, limit = "", search = "" } = req.query;
+    const skip = (Number(page) - 1) * Number(limit);
+
+    const searchFilter = search
+      ? {
+          $or: [
+            { itemName: { $regex: search, $options: "i" } },
+            { skuCode: { $regex: search, $options: "i" } },
+            { description: { $regex: search, $options: "i" } },
+          ],
+        }
+      : {};
+
+    const total = await FG.findDeleted(searchFilter).countDocuments();
+
+    const fgs = await FG.findDeleted(searchFilter)
+      .populate({
+        path: "rm.rmid",
+        select:
+          "skuCode itemName description itemCategory panno type hsnOrSac stockUOM qualityInspectionNeeded location",
+        populate: [
+          {
+            path: "stockUOM",
+            model: "UOM",
+            select: "unitName",
+          },
+          {
+            path: "location",
+            model: "Location",
+            select: "locationId",
+          },
+        ],
+      })
+      .populate({
+        path: "sfg.sfgid",
+        select:
+          "skuCode itemName description hsnOrSac qualityInspectionNeeded location type moq UOM rm sfg location",
+        populate: [
+          {
+            path: "UOM",
+            select: "unitName",
+          },
+          {
+            path: "location",
+            model: "Location",
+            select: "locationId",
+          },
+          {
+            path: "rm.rmid",
+            select:
+              "skuCode itemName description itemCategory  panno hsnOrSac type location qualityInspectionNeeded stockUOM",
+            populate: [
+              {
+                path: "stockUOM",
+                select: "unitName",
+              },
+              {
+                path: "location",
+                model: "Location",
+                select: "locationId",
+              },
+            ],
+          },
+          {
+            path: "sfg.sfgid",
+            select:
+              "skuCode itemName description itemCategory hsnOrSac qualityInspectionNeeded location type moq UOM rm",
+            populate: [
+              {
+                path: "UOM",
+                select: "unitName",
+              },
+              {
+                path: "location",
+                model: "Location",
+                select: "locationId",
+              },
+              {
+                path: "rm.rmid",
+                select:
+                  "skuCode itemName description panno itemCategory hsnOrSac type location qualityInspectionNeeded stockUOM",
+                populate: [
+                  {
+                    path: "stockUOM",
+                    select: "unitName",
+                  },
+                  {
+                    path: "location",
+                    model: "Location",
+                    select: "locationId",
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      })
+      .populate({
+        path: "UOM",
+        select: "unitName",
+      })
+      .populate({
+        path: "location",
+        select: "locationId",
+      })
+      .populate("createdBy", "fullName userType")
+      .sort({ updatedAt: -1, _id: -1 })
+      .skip(skip)
+      .limit(Number(limit));
+
+    // Format for frontend
+    const formatted = fgs.map((fg) => ({
+      id: fg._id,
+      skuCode: fg.skuCode,
+      itemName: fg.itemName,
+      description: fg.description,
+      hsnOrSac: fg.hsnOrSac,
+      qualityInspectionNeeded: fg.qualityInspectionNeeded,
+      location: fg.location?.locationId || null,
+      gst: fg.gst,
+      type: fg.type,
+      status: fg.status,
+      height: fg.height,
+      width: fg.width,
+      depth: fg.depth,
+      createdAt: fg.createdAt,
+      updatedAt: fg.updatedAt,
+      uom: fg.UOM?.unitName || null,
+      stitching: fg.stitching,
+      printing: fg.printing,
+      others: fg.others,
+      B2B: fg.B2B,
+      D2C: fg.D2C,
+      rejection: fg.rejection,
+      QC: fg.QC,
+      machineMaintainance: fg.machineMaintainance,
+      materialHandling: fg.materialHandling,
+      packaging: fg.packaging,
+      shipping: fg.shipping,
+      companyOverHead: fg.companyOverHead,
+      indirectExpense: fg.indirectExpense,
+      unitRate: fg.unitRate,
+      unitB2BRate: fg.unitB2BRate,
+      unitD2CRate: fg.unitD2CRate,
+      createdAt: fg.createdAt,
+      updatedAt: fg.updatedAt,
+      isSample: fg.isSample,
+      createdBy: {
+        id: fg.createdBy?._id,
+        fullName: fg.createdBy?.fullName,
+        userType: fg.createdBy?.userType,
+      },
+      files: fg.file || [],
+      printingFile: fg.printingFile || [],
+      rm: fg.rm.map((r) => ({
+        id: r.rmid?._id || r.rmid,
+        skuCode: r.rmid?.skuCode,
+        itemName: r.rmid?.itemName,
+        description: r.rmid?.description,
+        hsnOrSac: r.rmid?.hsnOrSac,
+        type: r.rmid?.type,
+        location: r.rmid?.location?.locationId || null,
+        qualityInspectionNeeded: r.rmid?.qualityInspectionNeeded,
+        stockUOM: r.rmid?.stockUOM?.unitName || null,
+        partName: r.partName,
+        height: r.height,
+        width: r.width,
+        // depth: r.depth,
+        qty: r.qty,
+        grams: r.grams,
+        rate: r.rate,
+        sqInchRate: r.sqInchRate,
+        category: r.rmid?.itemCategory || r.category,
+        itemRate: r.itemRate,
+        baseQty: r.baseQty,
+        panno: r.rmid?.panno,
+        isPrint: r.isPrint,
+        isPasting: r.isPasting,
+        cuttingType: r.cuttingType,
+        // depth: r.depth,
+      })),
+      sfg: fg.sfg.map((sfgRef) => {
+        const sfg = sfgRef.sfgid || {};
+        return {
+          id: sfg._id,
+          skuCode: sfg.skuCode,
+          itemName: sfg.itemName,
+          description: sfg.description,
+          hsnOrSac: sfg.hsnOrSac,
+          location: sfg.location?.locationId || null,
+          type: sfg.type,
+          moq: sfg.moq,
+          uom: sfg.UOM?.unitName || null,
+          qualityInspectionNeeded: sfg.qualityInspectionNeeded,
+          partName: sfg.partName,
+          height: sfg.height,
+          width: sfg.width,
+          // depth: s.depth,
+          qty: sfg.qty,
+          grams: sfg.grams,
+          rate: sfg.rate,
+          sqInchRate: sfg.sqInchRate,
+          category: sfg.category,
+          itemRate: sfg.itemRate,
+          baseQty: sfg.baseQty,
+          isPrint: sfg.isPrint,
+          isPasting: sfg.isPasting,
+          cuttingType: sfg.cuttingType,
+          // depth: sfgRef.depth,
+          rm: (sfg.rm || []).map((r) => ({
+            id: r.rmid?._id || r.rmid,
+            skuCode: r.rmid?.skuCode,
+            itemName: r.rmid?.itemName,
+            description: r.rmid?.description,
+            hsnOrSac: r.rmid?.hsnOrSac,
+            type: r.rmid?.type,
+            location: r.rmid?.location?.locationId || null,
+            qualityInspectionNeeded: r.rmid?.qualityInspectionNeeded,
+            stockUOM: r.rmid?.stockUOM?.unitName || null,
+            partName: r.partName,
+            height: r.height,
+            width: r.width,
+            // depth: r.depth,
+            qty: r.qty,
+            grams: r.grams,
+            rate: r.rate,
+            sqInchRate: r.sqInchRate,
+            category: r.rmid?.itemCategory || r.category,
+            itemRate: r.itemRate,
+            baseQty: r.baseQty,
+            panno: r.rmid?.panno,
+            isPrint: r.isPrint,
+            isPasting: r.isPasting,
+            cuttingType: r.cuttingType,
+            // depth: r.depth,
+          })),
+          sfg: (sfg.sfg || []).map((nested) => {
+            const nestedSFG = nested.sfgid || {};
+            return {
+              id: nestedSFG._id,
+              skuCode: nestedSFG.skuCode,
+              itemName: nestedSFG.itemName,
+              description: nestedSFG.description,
+              hsnOrSac: nestedSFG.hsnOrSac,
+              location: nestedSFG.location?.locationId || null,
+              type: nestedSFG.type,
+              moq: nestedSFG.moq,
+              uom: nestedSFG.UOM?.unitName || null,
+              qualityInspectionNeeded: nestedSFG.qualityInspectionNeeded,
+              partName: nestedSFG.partName,
+              height: nestedSFG.height,
+              width: nestedSFG.width,
+              // depth: s.depth,
+              qty: nestedSFG.qty,
+              grams: nestedSFG.grams,
+              rate: nestedSFG.rate,
+              sqInchRate: nestedSFG.sqInchRate,
+              category: nestedSFG.category,
+              itemRate: nestedSFG.itemRate,
+              baseQty: nestedSFG.baseQty,
+              isPrint: nestedSFG.isPrint,
+              isPasting: nestedSFG.isPasting,
+              cuttingType: nestedSFG.cuttingType,
+              // depth: nested.depth,
+              rm: (nestedSFG.rm || []).map((r) => ({
+                id: r.rmid?._id || r.rmid,
+                skuCode: r.rmid?.skuCode,
+                itemName: r.rmid?.itemName,
+                description: r.rmid?.description,
+                hsnOrSac: r.rmid?.hsnOrSac,
+                type: r.rmid?.type,
+                location: r.rmid?.location?.locationId || null,
+                qualityInspectionNeeded: r.rmid?.qualityInspectionNeeded,
+                stockUOM: r.rmid?.stockUOM?.unitName || null,
+                partName: r.partName,
+                height: r.height,
+                width: r.width,
+                // depth: r.depth,
+                qty: r.qty,
+                grams: r.grams,
+                rate: r.rate,
+                sqInchRate: r.sqInchRate,
+                category: r.rmid?.itemCategory || r.category,
+                itemRate: r.itemRate,
+                baseQty: r.baseQty,
+                panno: r.rmid?.panno,
+                isPrint: r.isPrint,
+                isPasting: r.isPasting,
+                cuttingType: r.cuttingType,
+                // depth: r.depth,
+              })),
+            };
+          }),
+        };
+      }),
+    }));
+
+    return res.status(200).json({
+      status: 200,
+      message: "Fetched FGs successfully",
+      totalResults: total,
+      totalPages: Math.ceil(total / limit) || 1,
+      currentPage: Number(page),
+      limit: Number(limit),
+      data: formatted,
+    });
+  } catch (err) {
+    console.error("Get FG error:", err);
+    return res.status(500).json({
+      status: 500,
+      message: "Failed to fetch FGs",
+      error: err.message,
+    });
+  }
+};
 
 exports.addMultipleFGs = async (req, res) => {
   try {
@@ -575,5 +892,54 @@ exports.deleteFG = async (req, res) => {
       message: "Delete failed",
       error: err.message,
     });
+  }
+};
+
+exports.deleteFGPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await FG.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await FG.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} FG(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+exports.restoreFG = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+  
+
+    const result = await FG.restore({
+      _id: { $in: ids },
+    });
+
+    await FG.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "FG(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
   }
 };

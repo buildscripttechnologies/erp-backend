@@ -44,4 +44,14 @@ router.delete(
   locationController.deleteLocation
 );
 
+router.get("/deleted", auth, locationController.getAllDeletedLocations);
+
+router.post(
+  "/permanent-delete",
+  auth,
+  locationController.deleteLocationPermanently
+);
+
+router.patch("/restore", auth, locationController.restoreLocation);
+
 module.exports = router;

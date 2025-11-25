@@ -312,6 +312,261 @@ const getAllPOs = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+const getAllDeletedPOs = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
+    const search = req.query.search || "";
+    const skip = (page - 1) * limit;
+
+    let match = {};
+    if (search) {
+      const regex = new RegExp(search, "i");
+      match = {
+        $or: [
+          { poNo: regex },
+          { "vendor.vendorName": regex },
+          { "vendor.venderCode": regex },
+          { "items.item.itemName": regex },
+          { "items.item.skuCode": regex },
+          { "createdBy.fullName": regex }, // ✅ allow search by user fullName
+          { "createdBy.username": regex }, // ✅ allow search by username
+          { status: regex }, // ✅ allow search by username
+        ],
+      };
+    }
+
+    const pipeline = [
+      // --- Vendor join ---
+      {
+        $lookup: {
+          from: "vendors",
+          localField: "vendor",
+          foreignField: "_id",
+          as: "vendor",
+        },
+      },
+      { $unwind: "$vendor" },
+
+      // --- CreatedBy join ---
+      {
+        $lookup: {
+          from: "users", // collection name for users
+          localField: "createdBy",
+          foreignField: "_id",
+          as: "createdBy",
+        },
+      },
+      { $unwind: { path: "$createdBy", preserveNullAndEmptyArrays: true } },
+
+      // --- Items join ---
+      {
+        $lookup: {
+          from: "rawmaterials",
+          localField: "items.item",
+          foreignField: "_id",
+          as: "items_populated",
+        },
+      },
+
+      // --- UOM joins ---
+      {
+        $lookup: {
+          from: "uoms",
+          localField: "items_populated.purchaseUOM",
+          foreignField: "_id",
+          as: "purchaseUOMs",
+        },
+      },
+      {
+        $lookup: {
+          from: "uoms",
+          localField: "items_populated.stockUOM",
+          foreignField: "_id",
+          as: "stockUOMs",
+        },
+      },
+
+      // --- Map items with populated details + UOM ---
+      {
+        $addFields: {
+          items: {
+            $map: {
+              input: "$items",
+              as: "it",
+              in: {
+                _id: "$$it._id",
+                amount: "$$it.amount",
+                orderQty: "$$it.orderQty",
+                rate: "$$it.rate",
+                gst: "$$it.gst",
+                amount: "$$it.amount",
+                gstAmount: "$$it.gstAmount",
+                amountWithGst: "$$it.amountWithGst",
+                rejected: "$$it.rejected",
+                itemStatus: "$$it.itemStatus",
+                rejectionReason: "$$it.rejectionReason",
+                inwardStatus: "$$it.inwardStatus",
+                item: {
+                  $let: {
+                    vars: {
+                      raw: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$items_populated",
+                              as: "ri",
+                              cond: { $eq: ["$$ri._id", "$$it.item"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                    in: {
+                      _id: "$$raw._id",
+                      skuCode: "$$raw.skuCode",
+                      itemName: "$$raw.itemName",
+                      description: "$$raw.description",
+                      hsnOrSac: "$$raw.hsnOrSac",
+                      itemCategory: "$$raw.itemCategory",
+                      itemColor: "$$raw.itemColor",
+                      moq: "$$raw.moq",
+                      gst: "$$raw.gst",
+                      stockQty: "$$raw.stockQty",
+                      qualityInspectionNeeded: "$$raw.qualityInspectionNeeded",
+                      purchaseUOM: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$purchaseUOMs",
+                              as: "pu",
+                              cond: { $eq: ["$$pu._id", "$$raw.purchaseUOM"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                      stockUOM: {
+                        $arrayElemAt: [
+                          {
+                            $filter: {
+                              input: "$stockUOMs",
+                              as: "su",
+                              cond: { $eq: ["$$su._id", "$$raw.stockUOM"] },
+                            },
+                          },
+                          0,
+                        ],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      { $project: { items_populated: 0, purchaseUOMs: 0, stockUOMs: 0 } },
+
+      // --- Final projection (include createdBy) ---
+      {
+        $project: {
+          poNo: 1,
+          date: 1,
+          expiryDate: 1,
+          deliveryDate: 1,
+          address: 1,
+          totalAmount: 1,
+          totalGstAmount: 1,
+          totalAmountWithGst: 1,
+          status: 1,
+          emailSent: 1,
+          deleted: 1,
+          createdAt: 1,
+          updatedAt: 1,
+          vendor: {
+            _id: 1,
+            venderCode: 1,
+            vendorName: 1,
+            natureOfBusiness: 1,
+            address: 1,
+            city: 1,
+            state: 1,
+            country: 1,
+            postalCode: 1,
+            pan: 1,
+            gst: 1,
+            priceTerms: 1,
+            paymentTerms: 1,
+          },
+          createdBy: {
+            _id: 1,
+            fullName: 1,
+            username: 1,
+          },
+          items: {
+            _id: 1,
+            orderQty: 1,
+            rate: 1,
+            gst: 1,
+            amount: 1,
+            gstAmount: 1,
+            amountWithGst: 1,
+            rejected: 1,
+            itemStatus: 1,
+            rejectionReason: 1,
+            inwardStatus: 1,
+            item: {
+              _id: 1,
+              skuCode: 1,
+              itemName: 1,
+              description: 1,
+              hsnOrSac: 1,
+              itemCategory: 1,
+              itemColor: 1,
+              moq: 1,
+              gst: 1,
+              stockQty: 1,
+              qualityInspectionNeeded: 1,
+              purchaseUOM: { _id: 1, unitName: 1 },
+              stockUOM: { _id: 1, unitName: 1 },
+            },
+          },
+        },
+      },
+
+      { $match: match },
+      { $sort: { updatedAt: -1, _id: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+    ];
+
+    const allPOs = await PO.aggregateDeleted(pipeline);
+
+    // --- Count for pagination ---
+    const countPipeline = [...pipeline];
+    countPipeline.splice(
+      countPipeline.findIndex((p) => p.$sort),
+      countPipeline.length
+    );
+    const totalResults =
+      (await PO.aggregateDeleted([...countPipeline, { $count: "count" }]))[0]
+        ?.count || 0;
+    const totalPages = Math.ceil(totalResults / limit);
+
+    res.status(200).json({
+      success: true,
+      totalResults,
+      totalPages,
+      currentPage: page,
+      limit,
+      data: allPOs,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
 
 // Update PO
 const updatePO = async (req, res) => {
@@ -341,9 +596,6 @@ const updatePO = async (req, res) => {
 };
 
 const { sendVendorMail } = require("../utils/sendVendorMail");
-
-const fs = require("fs");
-const path = require("path");
 
 const updatePoAndSendMail = async (req, res) => {
   try {
@@ -439,10 +691,62 @@ const deletePO = async (req, res) => {
   }
 };
 
+const deletePOPermanently = async (req, res) => {
+  try {
+    const ids = req.body.ids || (req.params.id ? [req.params.id] : []);
+
+    if (!ids.length)
+      return res.status(400).json({ status: 400, message: "No IDs provided" });
+
+    // Check if they exist (including soft deleted)
+    const items = await PO.findWithDeleted({ _id: { $in: ids } });
+
+    if (items.length === 0)
+      return res.status(404).json({ status: 404, message: "No items found" });
+
+    // Hard delete
+    await PO.deleteMany({ _id: { $in: ids } });
+
+    res.status(200).json({
+      status: 200,
+      message: `${ids.length} PO(s) permanently deleted`,
+      deletedCount: ids.length,
+    });
+  } catch (err) {
+    res.status(500).json({ status: 500, message: err.message });
+  }
+};
+
+const restorePO = async (req, res) => {
+  try {
+    const ids = req.body.ids;
+    
+
+    const result = await PO.restore({
+      _id: { $in: ids },
+    });
+
+    await PO.updateMany(
+      { _id: { $in: ids } },
+      { $set: { deleted: false, deletedAt: null } }
+    );
+
+    res.json({
+      status: 200,
+      message: "PO(s) restored successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ status: 500, message: error.message });
+  }
+};
+
 module.exports = {
   addPO,
   getAllPOs,
   updatePO,
   deletePO,
   updatePoAndSendMail,
+  getAllDeletedPOs,
+  deletePOPermanently,
+  restorePO,
 };
