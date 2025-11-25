@@ -180,6 +180,7 @@ const getAllPOs = async (req, res) => {
                       gst: "$$raw.gst",
                       stockQty: "$$raw.stockQty",
                       qualityInspectionNeeded: "$$raw.qualityInspectionNeeded",
+                      attachments: "$$raw.attachments",
                       purchaseUOM: {
                         $arrayElemAt: [
                           {
@@ -274,6 +275,7 @@ const getAllPOs = async (req, res) => {
               gst: 1,
               stockQty: 1,
               qualityInspectionNeeded: 1,
+              attachments: 1,
               purchaseUOM: { _id: 1, unitName: 1 },
               stockUOM: { _id: 1, unitName: 1 },
             },
@@ -638,6 +640,7 @@ const updatePoAndSendMail = async (req, res) => {
       try {
         await sendVendorMail({
           to: vendorEmail,
+          // to: "divyeshvariya1692@gmail.com",
           // cc: ccEmail || "mangukianisarg@gmail.com", // optional
           cc: ccEmail || "account@ikhodalbag.com", // optional
           subject,
@@ -720,7 +723,6 @@ const deletePOPermanently = async (req, res) => {
 const restorePO = async (req, res) => {
   try {
     const ids = req.body.ids;
-    
 
     const result = await PO.restore({
       _id: { $in: ids },

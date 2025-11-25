@@ -438,6 +438,8 @@ exports.getAllStocksMerged = async (req, res) => {
       ])
     );
 
+    let overallTotalAmount = 0;
+
     // ✅ Step 3: attach availableQty from RM
     mergedStocks = mergedStocks.map((s) => {
       // 1. Look up the entire RM data object using the correct key: s.skuCode
@@ -445,6 +447,8 @@ exports.getAllStocksMerged = async (req, res) => {
 
       const baseAmount = rmData?.baseRate * rmData?.stockQty;
       const gstAmount = (baseAmount * rmData?.gst) / 100;
+
+      overallTotalAmount += rmData?.totalRate || 0;
 
       return {
         ...s,
@@ -469,6 +473,7 @@ exports.getAllStocksMerged = async (req, res) => {
       totalPages,
       currentPage: page,
       limit,
+      overallTotalAmount: overallTotalAmount.toFixed(4),
       data: paginated,
     });
   } catch (error) {

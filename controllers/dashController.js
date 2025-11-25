@@ -66,11 +66,6 @@ exports.getDashboardData = async (req, res) => {
       // 📦 Purchase Orders
       PO.aggregate([
         {
-          $match: {
-            status: "pending", // only pending orders
-          },
-        },
-        {
           $group: {
             _id: null,
             totalOrders: { $sum: 1 },
@@ -168,7 +163,7 @@ exports.getDashboardData = async (req, res) => {
         })
         .sort({ updatedAt: -1 })
         .limit(3),
-      PO.find({ status: "pending" })
+      PO.find()
         .select("updatedAt date poNo vendor totalAmountWithGst createdBy")
         .populate([
           { path: "vendor", select: "vendorName" },
@@ -176,7 +171,7 @@ exports.getDashboardData = async (req, res) => {
         ])
         .sort({ updatedAt: -1 })
         .limit(3),
-      MI.find({ status: { $ne: "Completed" } })
+      MI.find()
         .select("updatedAt prodNo bomNo bom productName createdBy")
         .populate([
           { path: "createdBy", select: "fullName" },
