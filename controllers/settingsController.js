@@ -1,5 +1,6 @@
 const path = require("path");
 const Settings = require("../models/Settings");
+const { log } = require("console");
 
 // Upload Letterpad
 exports.uploadLetterpad = async (req, res) => {
@@ -432,6 +433,102 @@ exports.deleteCategory = async (req, res) => {
     await settings.save();
 
     res.json({ categories: settings.categories });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Get all categories
+ */
+exports.getGst = async (req, res) => {
+  try {
+    const settings = await Settings.findOne();
+    if (!settings)
+      return res.status(404).json({ message: "Settings not found" });
+    res.json({ gstTable: settings.gstTable || [] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Add a new category
+ */
+exports.addGst = async (req, res) => {
+  try {
+    const { hsn, gst } = req.body;
+    // console.log("hsn,gst", hsn, gst);
+
+    if (!hsn?.trim() || !gst) {
+      return res.status(400).json({ message: "HSN and GST are required" });
+    }
+
+    let settings = await Settings.findOne();
+    if (!settings) settings = new Settings({ categories: [], gstTable: [] });
+
+    if (settings.gstTable.some((g) => g.hsn === hsn && g.gst === gst)) {
+      return res.status(400).json({ message: "GST entry already exists" });
+    }
+
+    settings.gstTable.push({ hsn, gst });
+    await settings.save();
+    res.json({ gstTable: settings.gstTable });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Edit GST entry
+ */
+exports.editGst = async (req, res) => {
+  try {
+    const { oldHsn, newHsn, newGst } = req.body;
+    if (!oldHsn || !newHsn || !newGst) {
+      return res
+        .status(400)
+        .json({ message: "Old HSN, new HSN, and GST are required" });
+    }
+
+    const settings = await Settings.findOne();
+    if (!settings)
+      return res.status(404).json({ message: "Settings not found" });
+
+    const index = settings.gstTable.findIndex((g) => g.hsn === oldHsn);
+    if (index === -1)
+      return res.status(404).json({ message: "GST entry not found" });
+
+    settings.gstTable[index] = { hsn: newHsn, gst: newGst };
+    await settings.save();
+    res.json({ gstTable: settings.gstTable });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Delete category
+ */
+exports.deleteGst = async (req, res) => {
+  try {
+    const { gst, hsn } = req.params; // pass type as query param
+
+    const settings = await Settings.findOne();
+    if (!settings)
+      return res.status(404).json({ message: "Settings not found" });
+
+    log("hsn,gst", hsn, gst);
+    settings.gstTable = settings.gstTable.filter(
+      (g) => !(g.hsn == hsn && g.gst == gst)
+    );
+    await settings.save();
+
+    res.json({ gstTable: settings.gstTable });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
