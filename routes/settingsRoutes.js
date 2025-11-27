@@ -70,4 +70,32 @@ router.delete(
   settingsController.deleteCategory
 );
 
+router.get(
+  "/gst-table/get",
+  auth,
+  checkPermission(["Settings"], "read"),
+  settingsController.getGst
+);
+
+router.post(
+  "/gst-table/add",
+  auth,
+  checkPermission(["Settings"], "write"),
+  settingsController.addGst
+);
+
+router.put(
+  "/gst-table/edit",
+  auth,
+  checkPermission(["Settings"], "write"),
+  settingsController.editGst
+);
+
+router.delete(
+  "/gst-table/delete/:hsn/:gst",
+  auth,
+  checkPermission(["Settings"], "write"),
+  settingsController.deleteGst
+);
+
 module.exports = router;

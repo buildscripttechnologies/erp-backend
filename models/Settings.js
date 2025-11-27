@@ -51,6 +51,15 @@ const settingsSchema = new mongoose.Schema(
         },
       },
     ],
+    gstTable: [
+      {
+        hsn: { type: String, required: true },
+        gst: {
+          type: Number,
+          required: true,
+        },
+      },
+    ],
   },
   {
     timestamps: true,
