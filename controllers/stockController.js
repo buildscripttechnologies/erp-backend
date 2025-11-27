@@ -445,7 +445,7 @@ exports.getAllStocksMerged = async (req, res) => {
       // 1. Look up the entire RM data object using the correct key: s.skuCode
       const rmData = rmMap.get(s.skuCode);
 
-      const baseAmount = rmData?.baseRate * rmData?.stockQty;
+      const baseAmount = rmData?.rate * rmData?.stockQty;
       const gstAmount = (baseAmount * rmData?.gst) / 100;
 
       overallTotalAmount += rmData?.totalRate || 0;
