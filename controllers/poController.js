@@ -317,6 +317,7 @@ const getAllPOs = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
 const getAllDeletedPOs = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;

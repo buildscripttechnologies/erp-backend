@@ -91,7 +91,8 @@ exports.createStockEntry = async (req, res) => {
       if (!item) throw new Error("Item not found");
 
       const newStockQty = item.stockQty + finalStockQty;
-      const totalRate = newStockQty * item.rate;
+      const totalRate =
+        newStockQty * (item.rate + (item.rate * item.gst) / 100);
 
       await RawMaterial.findByIdAndUpdate(
         itemId,
@@ -422,7 +423,15 @@ exports.getAllStocksMerged = async (req, res) => {
     // ✅ Step 2: fetch RM stock qtys
     const rawMaterials = await RawMaterial.find(
       { skuCode: { $in: skuCodes } },
-      { skuCode: 1, stockQty: 1, totalRate: 1, baseRate: 1, gst: 1, rate: 1 }
+      {
+        skuCode: 1,
+        stockQty: 1,
+        totalRate: 1,
+        baseRate: 1,
+        gst: 1,
+        rate: 1,
+        attachments: 1,
+      }
     );
 
     const rmMap = new Map(
@@ -434,6 +443,7 @@ exports.getAllStocksMerged = async (req, res) => {
           baseRate: rm.baseRate,
           gst: rm.gst,
           rate: rm.rate,
+          attachments: rm.attachments,
         },
       ])
     );
@@ -447,8 +457,9 @@ exports.getAllStocksMerged = async (req, res) => {
 
       const baseAmount = rmData?.rate * rmData?.stockQty;
       const gstAmount = (baseAmount * rmData?.gst) / 100;
+      const total = baseAmount + gstAmount;
 
-      overallTotalAmount += rmData?.totalRate || 0;
+      overallTotalAmount += total || 0;
 
       return {
         ...s,
@@ -459,7 +470,8 @@ exports.getAllStocksMerged = async (req, res) => {
         gst: rmData?.gst || 0,
         baseAmount,
         gstAmount,
-        amount: rmData?.totalRate || 0,
+        amount: total || 0,
+        attachments: rmData?.attachments,
       };
     });
 

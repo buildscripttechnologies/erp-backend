@@ -322,7 +322,7 @@ exports.downloadRawMaterialSample = async (req, res) => {
         panno: "",
         sqInchRate: "",
         gst: "",
-        baseRate: "",
+
         rate: "",
         stockQty: "",
         baseQty: "",
@@ -449,8 +449,8 @@ exports.uploadExcelRawMaterials = async (req, res) => {
       const pkgQty = Number(row["pkgQty"] || 0);
       const moq = Number(row["moq"] || 0);
       const gst = Number(row["gst"] || 0);
-      const baseRate = Number(row["rate"] || 0);
-      const rate = baseRate + (gst * baseRate) / 100;
+      const rate = Number(row["rate"] || 0);
+
       const stockQty = Number(row["stockQty"] || 0);
       const itemCategory = row["itemCategory"]?.trim() || "";
       let sqInchRate = 0;
@@ -491,7 +491,7 @@ exports.uploadExcelRawMaterials = async (req, res) => {
         stockUOM: getUomId(row["stockUOM"]),
         qualityInspectionNeeded:
           row["qualityInspectionNeeded"]?.trim().toLowerCase() === "required",
-        totalRate: rate * stockQty,
+        totalRate: (rate + (rate * gst) / 100) * stockQty,
         createdBy: req.user._id,
       };
     });
