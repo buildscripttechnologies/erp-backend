@@ -27,9 +27,96 @@ const generateBulkSkuCodes = async (count) => {
 };
 
 // @desc    Get all raw materials (with optional pagination & search)
+// exports.getAllRawMaterials = async (req, res) => {
+//   try {
+//     const { page = 1, limit = "", search = "" } = req.query;
+//     const query = {
+//       $or: [
+//         { itemName: { $regex: search, $options: "i" } },
+//         { skuCode: { $regex: search, $options: "i" } },
+//         { description: { $regex: search, $options: "i" } },
+//       ],
+//     };
+//     const userWarehouse = req.user?.warehouse;
+//     // const isAdmin = req.user?.userType.toLowerCase() == "admin";
+//     const isAdmin = false;
+//     const total = await RawMaterial.countDocuments(query);
+//     let rawMaterials = await RawMaterial.find(query)
+//       .populate("purchaseUOM stockUOM createdBy location")
+//       .sort({ updatedAt: -1, _id: -1 })
+//       .skip((page - 1) * limit)
+//       .limit(Number(limit));
+
+//     rawMaterials = rawMaterials.map((rm) => {
+//       // Filter stock by warehouse for non-admin
+//       let filteredStock = rm.stockByWarehouse || [];
+
+//       if (!isAdmin && userWarehouse) {
+//         filteredStock = filteredStock.filter(
+//           (w) => w.warehouse == userWarehouse
+//         );
+//       }
+//       const filteredQty = filteredStock.reduce(
+//         (sum, s) => sum + (s.qty || 0),
+//         0
+//       );
+//       const finalStockQty = isAdmin ? rm.stockQty : filteredQty;
+//       // const gstMultiplier = (rm.rate * rm.gst) / 100;
+//       const gstMultiplier = 0;
+//       const finalTotalRate = isAdmin
+//         ? rm.totalRate
+//         : finalStockQty * (rm.rate + gstMultiplier);
+
+//       return {
+//         id: rm._id,
+//         skuCode: rm.skuCode,
+//         itemName: rm.itemName,
+//         description: rm.description,
+//         hsnOrSac: rm.hsnOrSac,
+//         type: rm.type,
+//         itemCategory: rm.itemCategory,
+//         itemColor: rm.itemColor,
+//         qualityInspectionNeeded: rm.qualityInspectionNeeded,
+//         location: rm.location?.locationId || null,
+//         baseQty: rm.baseQty,
+//         pkgQty: rm.pkgQty,
+//         moq: rm.moq,
+//         panno: rm.panno,
+//         sqInchRate: rm.sqInchRate,
+//         baseRate: rm.baseRate,
+//         rate: rm.rate,
+//         purchaseUOM: rm.purchaseUOM ? rm.purchaseUOM.unitName : null,
+//         gst: rm.gst,
+//         stockQty: rm.stockQty,
+//         stockByWarehouse: rm.stockByWarehouse,
+//         stockUOM: rm.stockUOM ? rm.stockUOM.unitName : null,
+//         totalRate: finalTotalRate,
+//         attachments: rm.attachments,
+//         status: rm.status,
+//         createdBy: rm.createdBy?.userType ? rm.createdBy.userType : "",
+//         createdByName: rm.createdBy?.fullName || "",
+//         createdAt: rm.createdAt,
+//         updatedAt: rm.updatedAt,
+//       };
+//     });
+
+//     res.status(200).json({
+//       status: 200,
+//       totalResults: total,
+//       totalPages: Math.ceil(total / limit) || 1,
+//       currentPage: Number(page),
+//       limit: Number(limit),
+//       rawMaterials,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ status: 500, message: err.message });
+//   }
+// };
+
 exports.getAllRawMaterials = async (req, res) => {
   try {
     const { page = 1, limit = "", search = "" } = req.query;
+
     const query = {
       $or: [
         { itemName: { $regex: search, $options: "i" } },
@@ -38,43 +125,117 @@ exports.getAllRawMaterials = async (req, res) => {
       ],
     };
 
+    const userWarehouse = req.user?.warehouse;
+    // const isAdmin = req.user?.userType?.toLowerCase() === "admin";
+    const isAdmin = false;
+
     const total = await RawMaterial.countDocuments(query);
+
     let rawMaterials = await RawMaterial.find(query)
-      .populate("purchaseUOM stockUOM createdBy location")
+      .populate("purchaseUOM stockUOM createdBy locationByWarehouse.location")
       .sort({ updatedAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
-    rawMaterials = rawMaterials.map((rm) => ({
-      id: rm._id,
-      skuCode: rm.skuCode,
-      itemName: rm.itemName,
-      description: rm.description,
-      hsnOrSac: rm.hsnOrSac,
-      type: rm.type,
-      itemCategory: rm.itemCategory,
-      itemColor: rm.itemColor,
-      qualityInspectionNeeded: rm.qualityInspectionNeeded,
-      location: rm.location?.locationId || null,
-      baseQty: rm.baseQty,
-      pkgQty: rm.pkgQty,
-      moq: rm.moq,
-      panno: rm.panno,
-      sqInchRate: rm.sqInchRate,
-      baseRate: rm.baseRate,
-      rate: rm.rate,
-      purchaseUOM: rm.purchaseUOM ? rm.purchaseUOM.unitName : null,
-      gst: rm.gst,
-      stockQty: rm.stockQty,
-      stockUOM: rm.stockUOM ? rm.stockUOM.unitName : null,
-      totalRate: rm.totalRate,
-      attachments: rm.attachments,
-      status: rm.status,
-      createdBy: rm.createdBy?.userType ? rm.createdBy.userType : "",
-      createdByName: rm.createdBy?.fullName || "",
-      createdAt: rm.createdAt,
-      updatedAt: rm.updatedAt,
-    }));
+    rawMaterials = rawMaterials.map((rm) => {
+      // ------------------------------
+      // 1️⃣ FILTER LOCATION BY USER ROLE
+      // ------------------------------
+      let finalLocations = rm.locationByWarehouse || [];
+
+      if (!isAdmin && userWarehouse) {
+        finalLocations = finalLocations.filter(
+          (l) => l.warehouse == userWarehouse
+        );
+      }
+
+      // Pick the right "location" key (single value)
+      let singleLocation = null;
+
+      if (isAdmin) {
+        // admin → first warehouse location
+        if (rm.locationByWarehouse?.length > 0) {
+          singleLocation =
+            rm.locationByWarehouse[0].location?.locationId || null;
+        }
+      } else {
+        // normal user → only user's warehouse location
+        const match = rm.locationByWarehouse.find(
+          (l) => l.warehouse == userWarehouse
+        );
+        if (match) {
+          singleLocation = match.location?.locationId || null;
+        }
+      }
+
+      // ------------------------------
+      // 2️⃣ FILTER STOCK BY WAREHOUSE FOR NORMAL USER
+      // ------------------------------
+      let filteredStock = rm.stockByWarehouse || [];
+
+      if (!isAdmin && userWarehouse) {
+        filteredStock = filteredStock.filter(
+          (w) => w.warehouse == userWarehouse
+        );
+      }
+
+      const filteredQty = filteredStock.reduce(
+        (sum, s) => sum + (s.qty || 0),
+        0
+      );
+
+      const finalStockQty = isAdmin ? rm.stockQty : filteredQty;
+
+      const gstMultiplier = 0; // your logic
+      const finalTotalRate = isAdmin
+        ? rm.totalRate
+        : finalStockQty * (rm.rate + gstMultiplier);
+
+      return {
+        id: rm._id,
+        skuCode: rm.skuCode,
+        itemName: rm.itemName,
+        description: rm.description,
+        hsnOrSac: rm.hsnOrSac,
+        type: rm.type,
+        itemCategory: rm.itemCategory,
+        itemColor: rm.itemColor,
+        qualityInspectionNeeded: rm.qualityInspectionNeeded,
+
+        // NEW SINGLE LOCATION KEY
+        location: singleLocation,
+
+        // MULTIPLE LOCATIONS (role filtered)
+        locationByWarehouse: finalLocations.map((l) => ({
+          warehouse: l.warehouse,
+          location: l.location?._id || null,
+          locationName: l.location?.locationName || null,
+        })),
+
+        baseQty: rm.baseQty,
+        pkgQty: rm.pkgQty,
+        moq: rm.moq,
+        panno: rm.panno,
+        sqInchRate: rm.sqInchRate,
+        baseRate: rm.baseRate,
+        rate: rm.rate,
+
+        purchaseUOM: rm.purchaseUOM ? rm.purchaseUOM.unitName : null,
+        gst: rm.gst,
+
+        stockQty: rm.stockQty,
+        stockByWarehouse: rm.stockByWarehouse,
+        stockUOM: rm.stockUOM ? rm.stockUOM.unitName : null,
+        totalRate: finalTotalRate,
+
+        attachments: rm.attachments,
+        status: rm.status,
+        createdBy: rm.createdBy?.userType || "",
+        createdByName: rm.createdBy?.fullName || "",
+        createdAt: rm.createdAt,
+        updatedAt: rm.updatedAt,
+      };
+    });
 
     res.status(200).json({
       status: 200,
@@ -144,14 +305,43 @@ exports.addMultipleRawMaterials = async (req, res) => {
         const stockUOM = await resolveUOM(rm.stockUOM);
         const location = await resolveLocation(rm.location);
 
+        // ---------------------------
+        // ⭐ NEW: Enforce user's warehouse
+        // ---------------------------
+        const userWarehouse = req.user.warehouse; // << user's warehouse from token
+
+        let locationByWarehouse = [];
+
+        if (Array.isArray(rm.locationByWarehouse)) {
+          // Filter only the warehouse matching user
+          const match = rm.locationByWarehouse.find(
+            (l) => l.warehouse === userWarehouse
+          );
+
+          if (!match) {
+            return Promise.reject(
+              new Error(
+                `User is allowed to add location only for warehouse: ${userWarehouse}`
+              )
+            );
+          }
+
+          locationByWarehouse = [
+            {
+              warehouse: userWarehouse,
+              location: await resolveLocation(match.location),
+            },
+          ];
+        }
+
         return {
           ...rm,
           qualityInspectionNeeded: rm.qualityInspectionNeeded === "Required",
-          // skuCode: skuCodes[index],
           createdBy: req.user._id,
           purchaseUOM,
           stockUOM,
           location,
+          locationByWarehouse, // ONLY user-allowed warehouse stored
           attachments: fileMap[index] || [],
         };
       })
@@ -205,6 +395,111 @@ exports.addMultipleRawMaterials = async (req, res) => {
   }
 };
 
+// exports.addMultipleRawMaterials = async (req, res) => {
+//   try {
+//     let rawMaterials = JSON.parse(req.body.rawMaterials);
+//     console.log("rawmaterials", rawMaterials);
+
+//     if (!Array.isArray(rawMaterials) || rawMaterials.length === 0) {
+//       return res.status(400).json({
+//         status: 400,
+//         message: "Request body must be a non-empty array.",
+//       });
+//     }
+
+//     // Group files by index
+//     const fileMap = {};
+//     req.files.forEach((file) => {
+//       const match = file.originalname.match(/__index_(\d+)__/);
+//       if (!match) return;
+
+//       const index = parseInt(match[1], 10);
+//       const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
+//       const protocol =
+//         process.env.NODE_ENV === "production" ? "https" : req.protocol;
+//       const fileUrl = `${protocol}://${req.get("host")}/uploads/${
+//         req.uploadType
+//       }/${file.filename}`;
+
+//       if (!fileMap[index]) fileMap[index] = [];
+
+//       fileMap[index].push({
+//         fileName: cleanedFileName,
+//         fileUrl,
+//       });
+//     });
+
+//     // Generate SKU codes
+//     // const skuCodes = await generateBulkSkuCodes(rawMaterials.length);
+
+//     // Normalize data and resolve UOM
+//     const mappedRMs = await Promise.all(
+//       rawMaterials.map(async (rm, index) => {
+//         const purchaseUOM = await resolveUOM(rm.purchaseUOM);
+//         const stockUOM = await resolveUOM(rm.stockUOM);
+//         const location = await resolveLocation(rm.location);
+
+//         return {
+//           ...rm,
+//           qualityInspectionNeeded: rm.qualityInspectionNeeded === "Required",
+//           // skuCode: skuCodes[index],
+//           createdBy: req.user._id,
+//           purchaseUOM,
+//           stockUOM,
+//           location,
+//           attachments: fileMap[index] || [],
+//         };
+//       })
+//     );
+
+//     // STEP 2: Check for existing SKUs in DB
+//     const skuCodes = mappedRMs.map((rm) => rm.skuCode);
+//     const regexSKUs = mappedRMs.map((rm) => new RegExp(`^${rm.skuCode}$`, "i"));
+//     const existingRMs = await RawMaterial.find(
+//       { skuCode: { $in: regexSKUs } },
+//       { skuCode: 1 }
+//     );
+
+//     if (existingRMs.length > 0) {
+//       const duplicates = existingRMs.map((rm) => rm.skuCode);
+//       return res.status(409).json({
+//         status: 409,
+//         message: `Duplicate SKU(s) found: ${duplicates.join(", ")}`,
+//       });
+//     }
+
+//     // STEP 3: Check for duplicates within the same upload
+//     const seen = new Set();
+//     const hasInBatchDuplicates = skuCodes.some(
+//       (code) => seen.size === seen.add(code).size
+//     );
+//     if (hasInBatchDuplicates) {
+//       return res.status(409).json({
+//         status: 409,
+//         message: "Duplicate SKU(s) found in the same upload batch.",
+//       });
+//     }
+
+//     const inserted = await RawMaterial.insertMany(mappedRMs, {
+//       ordered: false,
+//     });
+
+//     res.status(201).json({
+//       status: 201,
+//       message: "Raw materials added successfully.",
+//       insertedCount: inserted.length,
+//       data: inserted,
+//     });
+//   } catch (err) {
+//     console.error("Bulk upload error:", err);
+//     res.status(500).json({
+//       status: 500,
+//       message: "Bulk insert failed.",
+//       error: err.message,
+//     });
+//   }
+// };
+
 exports.updateRawMaterial = async (req, res) => {
   try {
     const { id } = req.params;
@@ -223,24 +518,52 @@ exports.editRawMaterial = async (req, res) => {
     const parsed = JSON.parse(req.body.data);
     const { deletedAttachments = [], ...updateFields } = parsed;
 
+    const userWarehouse = req.user.warehouse;
+
     const rm = await RawMaterial.findById(req.params.id);
     if (!rm) return res.status(404).json({ message: "Raw material not found" });
 
-    // ✅ Remove deleted attachments
+    // -------------------------------
+    // 1️⃣ REMOVE ATTACHMENTS
+    // -------------------------------
     rm.attachments = rm.attachments.filter(
       (att) => !deletedAttachments.includes(att._id?.toString())
     );
 
-    // ✅ Resolve UOMs and location
-    const purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
-    const stockUOM = await resolveUOM(updateFields.stockUOM);
-    const location = await resolveLocation(updateFields.location);
-    updateFields.purchaseUOM = purchaseUOM;
-    updateFields.stockUOM = stockUOM;
-    updateFields.location = location;
-    updateFields.createdBy = req.user._id;
+    // -------------------------------
+    // 2️⃣ RESOLVE UOMs
+    // -------------------------------
+    updateFields.purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
+    updateFields.stockUOM = await resolveUOM(updateFields.stockUOM);
 
-    // ✅ Handle new file uploads (from Multer)
+    // -------------------------------
+    // 3️⃣ WAREHOUSE-WISE LOCATION UPDATE
+    // -------------------------------
+    if (updateFields.location) {
+      const resolvedLoc = await resolveLocation(updateFields.location);
+
+      // find if warehouse entry exists
+      const index = rm.locationByWarehouse.findIndex(
+        (l) => l.warehouse === userWarehouse
+      );
+
+      if (index >= 0) {
+        // update location for this warehouse
+        rm.locationByWarehouse[index].location = resolvedLoc;
+      } else {
+        // push new warehouse–location mapping
+        rm.locationByWarehouse.push({
+          warehouse: userWarehouse,
+          location: resolvedLoc,
+        });
+      }
+
+      delete updateFields.location; // prevent overwriting single-field location
+    }
+
+    // -------------------------------
+    // 4️⃣ ADD NEW FILES (uploads)
+    // -------------------------------
     if (req.files?.length) {
       const uploadedFiles = req.files.map((file) => {
         const protocol =
@@ -248,9 +571,8 @@ exports.editRawMaterial = async (req, res) => {
         const fileUrl = `${protocol}://${req.get("host")}/uploads/${
           req.uploadType
         }/${file.filename}`;
-        const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
 
-        console.log("fileurl", fileUrl);
+        const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
 
         return {
           fileName: cleanedFileName,
@@ -261,8 +583,13 @@ exports.editRawMaterial = async (req, res) => {
       rm.attachments.push(...uploadedFiles);
     }
 
-    // ✅ Apply other field updates
+    // -------------------------------
+    // 5️⃣ APPLY OTHER SIMPLE FIELDS
+    // -------------------------------
     Object.assign(rm, updateFields);
+
+    rm.createdBy = req.user._id;
+
     await rm.save();
 
     res.status(200).json({
@@ -270,12 +597,70 @@ exports.editRawMaterial = async (req, res) => {
       data: rm,
     });
   } catch (err) {
-    console.error(err);
+    console.error("EDIT RM ERROR", err);
     res.status(500).json({ message: err.message });
   }
 };
 
+// exports.editRawMaterial = async (req, res) => {
+//   try {
+//     const parsed = JSON.parse(req.body.data);
+//     const { deletedAttachments = [], ...updateFields } = parsed;
+
+//     const rm = await RawMaterial.findById(req.params.id);
+//     if (!rm) return res.status(404).json({ message: "Raw material not found" });
+
+//     // ✅ Remove deleted attachments
+//     rm.attachments = rm.attachments.filter(
+//       (att) => !deletedAttachments.includes(att._id?.toString())
+//     );
+
+//     // ✅ Resolve UOMs and location
+//     const purchaseUOM = await resolveUOM(updateFields.purchaseUOM);
+//     const stockUOM = await resolveUOM(updateFields.stockUOM);
+//     const location = await resolveLocation(updateFields.location);
+//     updateFields.purchaseUOM = purchaseUOM;
+//     updateFields.stockUOM = stockUOM;
+//     updateFields.location = location;
+//     updateFields.createdBy = req.user._id;
+
+//     // ✅ Handle new file uploads (from Multer)
+//     if (req.files?.length) {
+//       const uploadedFiles = req.files.map((file) => {
+//         const protocol =
+//           process.env.NODE_ENV === "production" ? "https" : req.protocol;
+//         const fileUrl = `${protocol}://${req.get("host")}/uploads/${
+//           req.uploadType
+//         }/${file.filename}`;
+//         const cleanedFileName = file.originalname.replace(/__index_\d+__/, "");
+
+//         console.log("fileurl", fileUrl);
+
+//         return {
+//           fileName: cleanedFileName,
+//           fileUrl,
+//         };
+//       });
+
+//       rm.attachments.push(...uploadedFiles);
+//     }
+
+//     // ✅ Apply other field updates
+//     Object.assign(rm, updateFields);
+//     await rm.save();
+
+//     res.status(200).json({
+//       message: "Raw material updated",
+//       data: rm,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ message: err.message });
+//   }
+// };
+
 // @desc    Delete raw material by ID
+
 exports.deleteRawMaterial = async (req, res) => {
   try {
     const { id } = req.params;

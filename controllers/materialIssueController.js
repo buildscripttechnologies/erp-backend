@@ -7,6 +7,7 @@ const {
   generateNextProdNo,
   generateNextInvoiceNo,
 } = require("../utils/codeGenerator");
+const { updateStock } = require("../utils/stockService");
 
 const modelMap = {
   RawMaterial,
@@ -25,44 +26,58 @@ exports.createMI = async (req, res) => {
       status,
       consumptionTable = [],
     } = req.body;
-    let prodNo = await generateNextProdNo();
 
-    // Loop through consumptionTable to update stock
+    let prodNo = await generateNextProdNo();
+    const warehouse = req.user.warehouse; // user’s warehouse
+
     for (const item of consumptionTable) {
       const { skuCode, type, qty, weight } = item;
 
-      // Parse numbers from qty/weight
       const issueQty = qty && qty !== "N/A" ? parseFloat(qty) : 0;
       const issueWeight = weight && weight !== "N/A" ? parseFloat(weight) : 0;
 
-      // Decide which collection to query
-      let Model;
-      if (type === "RawMaterial") Model = RawMaterial;
-      else if (type === "SFG") Model = SFG;
-      else if (type === "FG") Model = FG;
-      else continue; // skip unknown type
+      const deduction = item.isChecked ? issueQty || issueWeight : 0;
+      if (deduction <= 0) continue;
 
-      // Find the item by skuCode
-      const dbItem = await Model.findOne({ skuCode });
-      if (!dbItem) continue;
+      // ------------------------------
+      // USE YOUR HELPER HERE
+      // ------------------------------
+      let updated;
 
-      // Deduct issued quantity/weight from stock
-      let deduction = 0; // pick the applicable value
-      if (item.isChecked) {
-        deduction = issueQty || issueWeight;
+      if (type === "RawMaterial") {
+        let mat = await RawMaterial.findOne({ skuCode });
+        updated = await updateStock(mat._id, deduction, warehouse, "REMOVE");
       }
-      dbItem.stockQty = Math.max(0, (dbItem.stockQty || 0) - deduction);
-      await dbItem.save();
 
-      // Update stockQty in the consumptionTable
-      item.stockQty = dbItem.stockQty;
+      if (type === "SFG") {
+        // SFG model = SFG collection
+        const sfgItem = await SFG.findById(materialId);
+        if (!sfgItem) continue;
+
+        sfgItem.stockQty -= deduction;
+        await sfgItem.save();
+        updated = sfgItem;
+      }
+
+      if (type === "FG") {
+        const fgItem = await FG.findById(materialId);
+        if (!fgItem) continue;
+
+        fgItem.stockQty -= deduction;
+        await fgItem.save();
+        updated = fgItem;
+      }
+
+      // attach updated values back to table
+      item.stockQty = updated.stockQty;
+      item.stockByWarehouse = updated.stockByWarehouse;
     }
 
-    // Create Material Issue
     const mi = await MI.create({
       prodNo,
       bom,
       bomNo,
+      warehouse,
       productName,
       itemDetails,
       consumptionTable,
@@ -70,10 +85,10 @@ exports.createMI = async (req, res) => {
       status,
     });
 
-    let b = await BOM.findOne({ bomNo: bomNo });
-    (b.prodNo = mi.prodNo), (b.productionDate = mi.createdAt);
+    let b = await BOM.findOne({ bomNo });
+    b.prodNo = mi.prodNo;
+    b.productionDate = mi.createdAt;
     b.status = "In Progress";
-
     await b.save();
 
     res.status(201).json({ status: 201, data: mi });
@@ -94,6 +109,15 @@ exports.getAllMI = async (req, res) => {
     // Search and Filters
     const search = req.query.search || "";
     const filters = {};
+
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+
+    // Non-admin users see only their warehouse data
+    if (!isAdmin) {
+      filters.warehouse = warehouse;
+    }
 
     if (req.query.type) filters.type = req.query.type;
     if (req.query.bom) filters.bom = req.query.bom;
@@ -211,57 +235,65 @@ exports.updateMI = async (req, res) => {
     const { id } = req.params;
     const updateData = req.body;
 
-    // Fetch existing MI
     const existingMI = await MI.findById(id);
     if (!existingMI) {
       return res.status(404).json({ message: "Material Issue not found" });
     }
 
-    if (
-      updateData.consumptionTable &&
-      Array.isArray(updateData.consumptionTable)
-    ) {
+    if (Array.isArray(updateData.consumptionTable)) {
       for (const updatedItem of updateData.consumptionTable) {
         const oldItem = existingMI.consumptionTable.find(
           (ci) =>
             ci.skuCode === updatedItem.skuCode && ci.type === updatedItem.type
         );
 
-        // console.log(
-        //   "qty",
-        //   updatedItem.stockQty,
-        //   oldItem.stockQty,
-        //   updatedItem.stockQty - oldItem.stockQty
-        // );
+        if (!oldItem) continue;
 
-        if (oldItem) {
-          const diff = (updatedItem.stockQty || 0) - (oldItem.stockQty || 0);
+        // ----- correct issued qty or weight -----
+        const oldIssued = parseFloat(oldItem.qty || oldItem.weight || 0);
+        const newIssued = parseFloat(
+          updatedItem.qty || updatedItem.weight || 0
+        );
 
-          if (diff != 0) {
-            let Model;
-            if (updatedItem.type === "RawMaterial") Model = RawMaterial;
-            else if (updatedItem.type === "SFG") Model = SFG;
-            else if (updatedItem.type === "FG") Model = FG;
-            else continue;
+        const diff = newIssued - oldIssued; // + = extra issued → remove stock
 
-            await Model.updateOne(
-              { skuCode: updatedItem.skuCode },
-              { $inc: { stockQty: diff } }
-            );
+        if (diff !== 0) {
+          let Model;
+          if (updatedItem.type === "RawMaterial") Model = RawMaterial;
+          else if (updatedItem.type === "SFG") Model = SFG;
+          else if (updatedItem.type === "FG") Model = FG;
+          else continue;
+
+          const dbItem = await Model.findOne({ skuCode: updatedItem.skuCode });
+          if (!dbItem) continue;
+
+          // RAW MATERIAL → use helper
+          if (updatedItem.type === "RawMaterial") {
+            if (diff > 0) {
+              // extra issue → REMOVE stock
+              await updateStock(dbItem._id, diff, req.user.warehouse, "REMOVE");
+            } else {
+              // reduced issue → ADD back
+              await updateStock(
+                dbItem._id,
+                Math.abs(diff),
+                req.user.warehouse,
+                "ADD"
+              );
+            }
           }
-        } else {
-          // Optional: handle new item addition if needed
-          // You could also initialize its stock if required
-        }
 
-        // Update stockQty in updateData to match DB after update
-        updatedItem.stockQty = oldItem
-          ? oldItem.stockQty + (updatedItem.stockQty - oldItem.stockQty)
-          : updatedItem.stockQty;
+          // SFG / FG → normal stock update
+          else {
+            dbItem.stockQty -= diff; // issued more → reduce stock
+            await dbItem.save();
+          }
+
+          updatedItem.stockQty = dbItem.stockQty;
+        }
       }
     }
 
-    // Update MI
     const updatedMI = await MI.findByIdAndUpdate(id, updateData, { new: true });
 
     res.status(200).json({
@@ -275,7 +307,76 @@ exports.updateMI = async (req, res) => {
   }
 };
 
+// exports.updateMI = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const updateData = req.body;
+
+//     // Fetch existing MI
+//     const existingMI = await MI.findById(id);
+//     if (!existingMI) {
+//       return res.status(404).json({ message: "Material Issue not found" });
+//     }
+
+//     if (
+//       updateData.consumptionTable &&
+//       Array.isArray(updateData.consumptionTable)
+//     ) {
+//       for (const updatedItem of updateData.consumptionTable) {
+//         const oldItem = existingMI.consumptionTable.find(
+//           (ci) =>
+//             ci.skuCode === updatedItem.skuCode && ci.type === updatedItem.type
+//         );
+
+//         // console.log(
+//         //   "qty",
+//         //   updatedItem.stockQty,
+//         //   oldItem.stockQty,
+//         //   updatedItem.stockQty - oldItem.stockQty
+//         // );
+
+//         if (oldItem) {
+//           const diff = (updatedItem.stockQty || 0) - (oldItem.stockQty || 0);
+
+//           if (diff != 0) {
+//             let Model;
+//             if (updatedItem.type === "RawMaterial") Model = RawMaterial;
+//             else if (updatedItem.type === "SFG") Model = SFG;
+//             else if (updatedItem.type === "FG") Model = FG;
+//             else continue;
+
+//             await Model.updateOne(
+//               { skuCode: updatedItem.skuCode },
+//               { $inc: { stockQty: diff } }
+//             );
+//           }
+//         } else {
+//           // Optional: handle new item addition if needed
+//           // You could also initialize its stock if required
+//         }
+
+//         // Update stockQty in updateData to match DB after update
+//         updatedItem.stockQty = oldItem
+//           ? oldItem.stockQty + (updatedItem.stockQty - oldItem.stockQty)
+//           : updatedItem.stockQty;
+//       }
+//     }
+
+//     // Update MI
+//     const updatedMI = await MI.findByIdAndUpdate(id, updateData, { new: true });
+
+//     res.status(200).json({
+//       status: 200,
+//       message: "Material Issue updated successfully",
+//       data: updatedMI,
+//     });
+//   } catch (err) {
+//     console.error("Error updating Material Issue:", err);
+//     res.status(400).json({ message: err.message });
+//   }
+// };
 // Soft Delete Material Issue
+
 exports.deleteMI = async (req, res) => {
   try {
     const mi = await MI.findById(req.params.id);
@@ -378,6 +479,14 @@ exports.getInCutting = async (req, res) => {
     const search = req.query.search || "";
     const filters = {};
 
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+    // Non-admin users see only their warehouse data
+    if (!isAdmin) {
+      filters.warehouse = warehouse;
+    }
+
     if (search) {
       const regex = new RegExp(search, "i");
       filters.$or = [
@@ -450,6 +559,13 @@ exports.getInPrinting = async (req, res) => {
     // Search
     const search = req.query.search || "";
     const filters = {};
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+    // Non-admin users see only their warehouse data
+    if (!isAdmin) {
+      filters.warehouse = warehouse;
+    }
 
     if (search) {
       const regex = new RegExp(search, "i");
@@ -519,6 +635,13 @@ exports.getInPasting = async (req, res) => {
     // Search
     const search = req.query.search || "";
     const filters = {};
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+    // Non-admin users see only their warehouse data
+    if (!isAdmin) {
+      filters.warehouse = warehouse;
+    }
 
     if (search) {
       const regex = new RegExp(search, "i");
@@ -589,6 +712,13 @@ exports.getOutsideCompany = async (req, res) => {
     // Search
     const search = req.query.search || "";
     const filters = {};
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+    // Non-admin users see only their warehouse data
+    if (!isAdmin) {
+      filters.warehouse = warehouse;
+    }
 
     if (search) {
       const regex = new RegExp(search, "i");
@@ -657,6 +787,13 @@ exports.getInStitching = async (req, res) => {
     // Search
     const search = req.query.search || "";
     const filters = {};
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+    // Non-admin users see only their warehouse data
+    if (!isAdmin) {
+      filters.warehouse = warehouse;
+    }
 
     if (search) {
       const regex = new RegExp(search, "i");
@@ -733,6 +870,13 @@ exports.getInQualityCheck = async (req, res) => {
     // 🔍 Search
     const search = req.query.search || "";
     const filters = {};
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+    // Non-admin users see only their warehouse data
+    if (!isAdmin) {
+      filters.warehouse = warehouse;
+    }
 
     if (search) {
       const regex = new RegExp(search, "i");

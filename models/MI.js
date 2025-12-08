@@ -9,6 +9,7 @@ const miSchema = new mongoose.Schema(
     bom: { type: mongoose.Schema.Types.ObjectId, ref: "BOM" },
     bomNo: String,
     productName: String,
+    warehouse: { type: String },
     type: { type: String, enum: ["SFG", "FG"] },
     description: String,
     status: {

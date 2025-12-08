@@ -38,6 +38,7 @@ const stockSchema = new mongoose.Schema(
     ],
 
     location: { type: mongoose.Schema.Types.ObjectId, ref: "Location" },
+    warehouse: { type: String },
     status: { type: String, enum: ["Active", "Inactive"], default: "Active" },
     qualityApproved: { type: Boolean, default: false },
     qualityNote: String,

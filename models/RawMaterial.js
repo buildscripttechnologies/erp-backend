@@ -42,6 +42,15 @@ const rawMaterialSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Location",
     },
+    locationByWarehouse: [
+      {
+        warehouse: String, // refers to warehouse inside Settings
+        location: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Location",
+        },
+      },
+    ],
     baseQty: {
       type: Number,
       default: 0,
@@ -87,6 +96,12 @@ const rawMaterialSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    stockByWarehouse: [
+      {
+        warehouse: String, // refers to warehouse inside Settings
+        qty: Number,
+      },
+    ],
     stockUOM: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "UOM",
