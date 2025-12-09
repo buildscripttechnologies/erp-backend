@@ -3,6 +3,7 @@ const MI = require("../models/MI");
 const MR = require("../models/MR");
 const RawMaterial = require("../models/RawMaterial");
 const SFG = require("../models/SFG");
+const { updateStock } = require("../utils/stockService");
 
 const modelMap = {
   RawMaterial,
@@ -13,8 +14,9 @@ const modelMap = {
 exports.createMR = async (req, res) => {
   try {
     let { prodNo, bomNo, bom, consumptionTable = [] } = req.body;
+    const warehouse = req.user.warehouse; // user’s warehouse
 
-    // Find the corresponding MI using prodNo + bomNo (adjust if your relation is different)
+    // Find MI
     const mi = await MI.findOne({ prodNo, bomNo });
     if (!mi) {
       return res
@@ -22,13 +24,15 @@ exports.createMR = async (req, res) => {
         .json({ message: "Related Material Issue not found" });
     }
 
-    // Loop through consumptionTable to update stock and also MI consumptionTable
     for (const item of consumptionTable) {
-      const { skuCode, type, qty, weight, receiveQty } = item;
+      const { skuCode, type, receiveQty } = item;
 
       const addQty = receiveQty ? parseFloat(receiveQty) : 0;
+      if (!addQty || addQty <= 0) continue;
 
-      // --- Update Stock ---
+      // ---------------------------------------
+      // 1️⃣ Update Stock
+      // ---------------------------------------
       let Model;
       if (type === "RawMaterial") Model = RawMaterial;
       else if (type === "SFG") Model = SFG;
@@ -38,16 +42,26 @@ exports.createMR = async (req, res) => {
       const dbItem = await Model.findOne({ skuCode });
       if (!dbItem) continue;
 
-      dbItem.stockQty = ((dbItem.stockQty || 0) + addQty).toFixed(2);
-      await dbItem.save();
+      // --- Raw Material → use helper ---
+      if (type === "RawMaterial") {
+        await updateStock(dbItem._id, addQty, req.user.warehouse, "ADD");
+        await dbItem.save(); // refresh updated data
+      }
+      // --- SFG / FG → normal update ---
+      else {
+        dbItem.stockQty = ((dbItem.stockQty || 0) + addQty).toFixed(2);
+        await dbItem.save();
+      }
 
       item.stockQty = dbItem.stockQty;
 
-      // --- Update MI consumptionTable ---
+      // ---------------------------------------
+      // 2️⃣ Update MI consumptionTable
+      // ---------------------------------------
       const miItem = mi.consumptionTable.find((ci) => ci.skuCode === skuCode);
       if (miItem) {
         if (miItem.qty && miItem.qty !== "N/A") {
-          miItem.qty = Math.max(0, parseFloat(miItem.qty) - addQty); // prevent negative
+          miItem.qty = Math.max(0, parseFloat(miItem.qty) - addQty);
         } else if (miItem.weight && miItem.weight !== "N/A") {
           miItem.weight = Math.max(0, parseFloat(miItem.weight) - addQty);
         }
@@ -57,11 +71,12 @@ exports.createMR = async (req, res) => {
     // Save updated MI
     await mi.save();
 
-    // Create MR record
+    // Create MR
     const mr = await MR.create({
       prodNo,
       bom,
       bomNo,
+      warehouse,
       consumptionTable,
       createdBy: req.user._id,
     });
@@ -84,6 +99,12 @@ exports.getAllMR = async (req, res) => {
     const search = req.query.search || "";
     const filters = {};
 
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+    if (!isAdmin) {
+      filters.warehouse = warehouse;
+    }
     if (req.query.type) filters.type = req.query.type;
     if (req.query.bom) filters.bom = req.query.bom;
 
@@ -139,6 +160,69 @@ exports.getAllMR = async (req, res) => {
   }
 };
 
+// exports.updateMR = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+//     const updateData = req.body;
+
+//     // Fetch existing MR
+//     const existingMR = await MR.findById(id);
+//     if (!existingMR) {
+//       return res.status(404).json({ message: "Material Receive not found" });
+//     }
+
+//     if (
+//       updateData.consumptionTable &&
+//       Array.isArray(updateData.consumptionTable)
+//     ) {
+//       for (const updatedItem of updateData.consumptionTable) {
+//         const oldItem = existingMR.consumptionTable.find(
+//           (ci) =>
+//             ci.skuCode === updatedItem.skuCode && ci.type === updatedItem.type
+//         );
+
+//         if (oldItem) {
+//           const oldReceive = oldItem.receiveQty || 0;
+//           const newReceive = updatedItem.receiveQty || 0;
+
+//           const diff = newReceive - oldReceive; // difference to apply to stock
+
+//           if (diff !== 0) {
+//             let Model;
+//             if (updatedItem.type === "RawMaterial") Model = RawMaterial;
+//             else if (updatedItem.type === "SFG") Model = SFG;
+//             else if (updatedItem.type === "FG") Model = FG;
+//             else continue;
+
+//             await Model.updateOne(
+//               { skuCode: updatedItem.skuCode },
+//               { $inc: { stockQty: diff } }
+//             );
+
+//             // Update stockQty in consumptionTable to reflect latest value
+//             updatedItem.stockQty = (oldItem.stockQty || 0) + diff;
+//           }
+//         } else {
+//           // Optional: handle newly added items in MR if needed
+//           updatedItem.stockQty = updatedItem.receiveQty || 0;
+//         }
+//       }
+//     }
+
+//     // Update MR document
+//     const updatedMR = await MR.findByIdAndUpdate(id, updateData, { new: true });
+
+//     res.status(200).json({
+//       status: 200,
+//       message: "Material Receive updated successfully",
+//       data: updatedMR,
+//     });
+//   } catch (err) {
+//     console.error("Error updating Material Receive:", err);
+//     res.status(400).json({ message: err.message });
+//   }
+// };
+
 exports.updateMR = async (req, res) => {
   try {
     const { id } = req.params;
@@ -150,45 +234,85 @@ exports.updateMR = async (req, res) => {
       return res.status(404).json({ message: "Material Receive not found" });
     }
 
-    if (
-      updateData.consumptionTable &&
-      Array.isArray(updateData.consumptionTable)
-    ) {
+    if (Array.isArray(updateData.consumptionTable)) {
       for (const updatedItem of updateData.consumptionTable) {
         const oldItem = existingMR.consumptionTable.find(
           (ci) =>
             ci.skuCode === updatedItem.skuCode && ci.type === updatedItem.type
         );
 
-        if (oldItem) {
-          const oldReceive = oldItem.receiveQty || 0;
-          const newReceive = updatedItem.receiveQty || 0;
+        if (!oldItem) {
+          // NEWLY ADDED ITEM IN MR
+          const receiveQty = parseFloat(updatedItem.receiveQty || 0);
 
-          const diff = newReceive - oldReceive; // difference to apply to stock
+          let Model;
+          if (updatedItem.type === "RawMaterial") Model = RawMaterial;
+          else if (updatedItem.type === "SFG") Model = SFG;
+          else if (updatedItem.type === "FG") Model = FG;
+          else continue;
 
-          if (diff !== 0) {
-            let Model;
-            if (updatedItem.type === "RawMaterial") Model = RawMaterial;
-            else if (updatedItem.type === "SFG") Model = SFG;
-            else if (updatedItem.type === "FG") Model = FG;
-            else continue;
+          const dbItem = await Model.findOne({ skuCode: updatedItem.skuCode });
+          if (!dbItem) continue;
 
-            await Model.updateOne(
-              { skuCode: updatedItem.skuCode },
-              { $inc: { stockQty: diff } }
+          // RAW MATERIAL CASE — USE HELPER
+          if (updatedItem.type === "RawMaterial") {
+            await updateStock(
+              dbItem._id,
+              receiveQty,
+              req.user.warehouse,
+              "ADD"
             );
-
-            // Update stockQty in consumptionTable to reflect latest value
-            updatedItem.stockQty = (oldItem.stockQty || 0) + diff;
+          } else {
+            dbItem.stockQty += receiveQty;
+            await dbItem.save();
           }
-        } else {
-          // Optional: handle newly added items in MR if needed
-          updatedItem.stockQty = updatedItem.receiveQty || 0;
+
+          updatedItem.stockQty = dbItem.stockQty;
+          continue;
+        }
+
+        // Existing item — calculate diff
+        const oldReceive = parseFloat(oldItem.receiveQty || 0);
+        const newReceive = parseFloat(updatedItem.receiveQty || 0);
+
+        const diff = newReceive - oldReceive; // + = more received → ADD stock
+
+        if (diff !== 0) {
+          let Model;
+          if (updatedItem.type === "RawMaterial") Model = RawMaterial;
+          else if (updatedItem.type === "SFG") Model = SFG;
+          else if (updatedItem.type === "FG") Model = FG;
+          else continue;
+
+          const dbItem = await Model.findOne({ skuCode: updatedItem.skuCode });
+          if (!dbItem) continue;
+
+          if (updatedItem.type === "RawMaterial") {
+            if (diff > 0) {
+              // Extra quantity received → add
+              await updateStock(dbItem._id, diff, req.user.warehouse, "ADD");
+            } else {
+              // Reduced received qty → remove from stock
+              await updateStock(
+                dbItem._id,
+                Math.abs(diff),
+                req.user.warehouse,
+                "REMOVE"
+              );
+            }
+          } else {
+            // SFG / FG direct qty
+            dbItem.stockQty += diff;
+            await dbItem.save();
+          }
+
+          // Update local returned stockQty
+          updatedItem.stockQty = dbItem.stockQty;
         }
       }
     }
 
-    // Update MR document
+    // Save updated MR
     const updatedMR = await MR.findByIdAndUpdate(id, updateData, { new: true });
 
     res.status(200).json({

@@ -27,6 +27,9 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "UserGrp",
     },
+
+    warehouse: { type: String, default: "Warehouse 1" },
+
     isVerified: { type: Boolean, default: false },
     twoStepEnabled: { type: Boolean, default: false },
 

@@ -80,7 +80,9 @@ exports.login = async (req, res) => {
         user: {
           id: user._id,
           username: user.username,
-          email: user.email,
+          userType: user.userType,
+          fullName: user.fullName,
+          warehouse: user.warehouse,
           permissions: user.permissions,
         },
       });
@@ -95,7 +97,9 @@ exports.login = async (req, res) => {
         user: {
           id: user._id,
           username: user.username,
-          email: user.email,
+          userType: user.userType,
+          fullName: user.fullName,
+          warehouse: user.warehouse,
           permissions: user.permissions,
         },
       });
@@ -110,6 +114,7 @@ exports.login = async (req, res) => {
         username: user.username,
         userType: user.userType,
         fullName: user.fullName,
+        warehouse: user.warehouse,
         permissions: user.permissions,
       },
     });

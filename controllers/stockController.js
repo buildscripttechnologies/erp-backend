@@ -5,6 +5,7 @@ const Barcode = require("../models/Barcode");
 const Stock = require("../models/Stock");
 const dayjs = require("dayjs");
 const PO = require("../models/PO");
+const { updateStock } = require("../utils/stockService");
 
 exports.createStockEntry = async (req, res) => {
   try {
@@ -19,7 +20,7 @@ exports.createStockEntry = async (req, res) => {
       manualEntries = [], // ✅ NEW
       poId,
     } = req.body;
-
+    const warehouse = req.user.warehouse;
     const modelMap = { RM: RawMaterial, SFG: SFG, FG: FG };
     const Model = modelMap[itemType];
     if (!Model) return res.status(400).json({ message: "Invalid itemType" });
@@ -57,6 +58,7 @@ exports.createStockEntry = async (req, res) => {
       baseQty: isManualMode ? undefined : baseQty,
       moq,
       location: item.location?._id,
+      warehouse: warehouse,
       barcodeTracked: true,
       barcodes: [],
       qualityApproved,
@@ -87,21 +89,12 @@ exports.createStockEntry = async (req, res) => {
     // }
 
     if (itemType == "RM") {
-      let item = await RawMaterial.findById(itemId);
-      if (!item) throw new Error("Item not found");
-
-      const newStockQty = item.stockQty + finalStockQty;
-      const totalRate =
-        newStockQty * (item.rate + (item.rate * item.gst) / 100);
-
-      await RawMaterial.findByIdAndUpdate(
-        itemId,
-        {
-          stockQty: newStockQty,
-          totalRate,
-        },
-        { new: true }
-      );
+      if (!warehouse) {
+        return res
+          .status(400)
+          .json({ message: "User has no assigned warehouse" });
+      }
+      await updateStock(itemId, finalStockQty, warehouse, "ADD");
     }
 
     if (poId) {
@@ -126,6 +119,126 @@ exports.createStockEntry = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+// exports.createStockEntry = async (req, res) => {
+//   try {
+//     const {
+//       itemId,
+//       itemType,
+//       stockQty,
+//       baseQty,
+//       damagedQty,
+//       qualityApproved = false,
+//       qualityNote = "",
+//       manualEntries = [], // ✅ NEW
+//       poId,
+//     } = req.body;
+
+//     const modelMap = { RM: RawMaterial, SFG: SFG, FG: FG };
+//     const Model = modelMap[itemType];
+//     if (!Model) return res.status(400).json({ message: "Invalid itemType" });
+
+//     let query = Model.findById(itemId).populate("baseUOM location");
+//     if (itemType === "RM") query = query.populate("purchaseUOM");
+
+//     const item = await query;
+//     if (!item) return res.status(404).json({ message: "Item not found" });
+
+//     // Prepare UOMs
+//     const baseUOM = itemType === "RM" ? item.baseUOM?._id : item.UOM?._id;
+//     const purchaseUOM = itemType === "RM" ? item.purchaseUOM?._id : undefined;
+//     const stockUOM = itemType === "RM" ? item.stockUOM?._id : item.UOM?._id;
+//     const moq = item.moq;
+
+//     // ✅ Manual Mode Handling
+//     let finalStockQty = stockQty;
+//     let finalDamagedQty = damagedQty;
+//     let isManualMode = Array.isArray(manualEntries) && manualEntries.length > 0;
+
+//     // Step 1: Create stock
+//     const stockDoc = await Stock.create({
+//       skuCode: item.skuCode,
+//       itemName: item.itemName,
+//       type: itemType,
+//       description: item.description,
+//       itemCategory: item.itemCategory,
+//       itemColor: item.itemColor,
+//       baseUOM,
+//       purchaseUOM,
+//       stockUOM,
+//       stockQty: finalStockQty,
+//       damagedQty: finalDamagedQty,
+//       baseQty: isManualMode ? undefined : baseQty,
+//       moq,
+//       location: item.location?._id,
+//       barcodeTracked: true,
+//       barcodes: [],
+//       qualityApproved,
+//       qualityNote,
+//       // manualEntries: isManualMode ? manualEntries : undefined, // Optional: Store the manual entries
+//       createdBy: req.user._id,
+//     });
+
+//     // Step 2: Generate barcodes
+//     const barcodes = await generateBarcodes(stockDoc, manualEntries);
+
+//     // Step 3: Store only {_id, barcode, qty} in Stock
+//     const minimal = barcodes.map((b) => ({
+//       _id: b._id,
+//       barcode: b.barcode,
+//       qty: b.qty,
+//     }));
+//     stockDoc.barcodes = minimal;
+//     await stockDoc.save();
+
+//     // Step 3.5: Update RM's stockQty
+//     // if (itemType === "RM") {
+//     //   await RawMaterial.findByIdAndUpdate(
+//     //     itemId,
+//     //     { $inc: { stockQty: finalStockQty }, },
+//     //     { new: true }
+//     //   );
+//     // }
+
+//     if (itemType == "RM") {
+//       let item = await RawMaterial.findById(itemId);
+//       if (!item) throw new Error("Item not found");
+
+//       const newStockQty = item.stockQty + finalStockQty;
+//       const totalRate =
+//         newStockQty * (item.rate + (item.rate * item.gst) / 100);
+
+//       await RawMaterial.findByIdAndUpdate(
+//         itemId,
+//         {
+//           stockQty: newStockQty,
+//           totalRate,
+//         },
+//         { new: true }
+//       );
+//     }
+
+//     if (poId) {
+//       let po = await PO.findById(poId);
+//       if (po) {
+//         let poItems = po.items;
+//         poItems.forEach((i) => {
+//           if (i.item == itemId) i.inwardStatus = true;
+//         });
+//         await po.save();
+//         // console.log("status updated");
+//       }
+//     }
+
+//     // Step 4: Send response
+//     return res.status(200).json({
+//       message: "Stock and barcodes added successfully.",
+//       stock: stockDoc,
+//     });
+//   } catch (error) {
+//     console.error("❌ Error creating stock and barcodes:", error);
+//     return res.status(500).json({ message: "Internal server error" });
+//   }
+// };
 
 async function generateBarcodes(stock, manualEntries = []) {
   const {
@@ -269,7 +382,8 @@ exports.getAllStocks = async (req, res) => {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || "";
     const skip = (page - 1) * limit;
-
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() == "admin";
     const { search = "", type, uom, fromDate, toDate } = req.query;
 
     const query = {};
@@ -285,6 +399,9 @@ exports.getAllStocks = async (req, res) => {
     // Type filter
     if (type) {
       query.type = type;
+    }
+    if (warehouse && !isAdmin) {
+      query.warehouse = warehouse;
     }
 
     // Date range filter
@@ -349,16 +466,23 @@ exports.getAllStocks = async (req, res) => {
 
 //For Material Inward
 
+// IMPORTANT CHANGE: stockQty now ALWAYS comes from RawMaterial
+
 exports.getAllStocksMerged = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
     const skip = (page - 1) * limit;
 
+    const warehouse = req.user.warehouse;
+    const isAdmin = req.user.userType.toLowerCase() === "admin";
+    // const isAdmin = false;
+
     const { search = "", type, uom, fromDate, toDate } = req.query;
 
     const query = {};
 
+    // Search
     if (search) {
       query.$or = [
         { itemName: { $regex: search, $options: "i" } },
@@ -366,10 +490,14 @@ exports.getAllStocksMerged = async (req, res) => {
       ];
     }
 
-    if (type) {
-      query.type = type;
+    if (type) query.type = type;
+
+    // Non-admin → restrict warehouse
+    if (!isAdmin) {
+      query.warehouse = warehouse;
     }
 
+    // Date filter
     if (fromDate || toDate) {
       query.createdAt = {};
       if (fromDate) query.createdAt.$gte = new Date(fromDate);
@@ -380,120 +508,115 @@ exports.getAllStocksMerged = async (req, res) => {
       }
     }
 
+    // Fetch stock entries
     let stocks = await Stock.find(query)
-      .populate({ path: "baseUOM", select: "_id unitName" })
-      .populate({ path: "purchaseUOM", select: "_id unitName" })
-      .populate({ path: "stockUOM", select: "_id unitName" })
-      .populate({ path: "location", select: "_id locationId" })
-      .populate({ path: "createdBy", select: "_id username fullName" })
+      .populate("baseUOM purchaseUOM stockUOM location createdBy")
       .sort({ updatedAt: -1, _id: -1 });
 
+    // Filter UOM
     if (uom) {
-      stocks = stocks.filter((stock) =>
-        [stock.stockUOM?.unitName]
-          .filter(Boolean)
-          .some((unit) => unit.toLowerCase() === uom.toLowerCase())
+      stocks = stocks.filter(
+        (s) => s.stockUOM?.unitName?.toLowerCase() === uom.toLowerCase()
       );
     }
 
+    // Prepare merging
     const mergedMap = new Map();
 
     for (const stock of stocks) {
-      const key = stock.skuCode;
+      // Admin → merge only by SKU
+      // User  → merge by SKU + warehouse
+      let key = isAdmin ? stock.skuCode : `${stock.skuCode}_${stock.warehouse}`;
 
       if (!mergedMap.has(key)) {
         mergedMap.set(key, {
           ...stock.toObject(),
-          stockQty: stock.stockQty || 0,
           damagedQty: stock.damagedQty || 0,
-          moq: stock.moq || 0,
         });
       } else {
         const existing = mergedMap.get(key);
-        existing.stockQty += stock.stockQty || 0;
         existing.damagedQty += stock.damagedQty || 0;
       }
     }
 
     let mergedStocks = Array.from(mergedMap.values());
 
-    // ✅ Step 1: collect all skuCodes
-    const skuCodes = mergedStocks.map((s) => s.skuCode);
+    // Fetch RawMaterial for TRUE UPDATED STOCK
+    const skuCodes = mergedStocks.map((m) => m.skuCode);
 
-    // ✅ Step 2: fetch RM stock qtys
     const rawMaterials = await RawMaterial.find(
       { skuCode: { $in: skuCodes } },
       {
         skuCode: 1,
         stockQty: 1,
-        totalRate: 1,
+        stockByWarehouse: 1,
         baseRate: 1,
-        gst: 1,
         rate: 1,
+        gst: 1,
         attachments: 1,
       }
     );
 
-    const rmMap = new Map(
-      rawMaterials.map((rm) => [
-        rm.skuCode,
-        {
-          stockQty: rm.stockQty,
-          totalRate: rm.totalRate,
-          baseRate: rm.baseRate,
-          gst: rm.gst,
-          rate: rm.rate,
-          attachments: rm.attachments,
-        },
-      ])
-    );
+    // Create RM Map
+    const rmMap = new Map(rawMaterials.map((rm) => [rm.skuCode, rm]));
 
     let overallTotalAmount = 0;
 
-    // ✅ Step 3: attach availableQty from RM
     mergedStocks = mergedStocks.map((s) => {
-      // 1. Look up the entire RM data object using the correct key: s.skuCode
-      const rmData = rmMap.get(s.skuCode);
+      const rm = rmMap.get(s.skuCode);
 
-      const baseAmount = rmData?.rate * rmData?.stockQty;
-      const gstAmount = (baseAmount * rmData?.gst) / 100;
-      const total = baseAmount + gstAmount;
+      // FINAL STOCK QTY ALWAYS FROM RAWMATERIAL
+      let stockQty = 0;
 
-      overallTotalAmount += total || 0;
+      if (isAdmin) {
+        stockQty = rm?.stockQty || 0;
+      } else {
+        stockQty =
+          rm?.stockByWarehouse?.find(
+            (w) => String(w.warehouse) === String(warehouse)
+          )?.qty || 0;
+      }
+
+      const damagedQty = s.damagedQty || 0;
+      const availableQty = Math.max(stockQty - damagedQty, 0);
+
+      const rate = rm?.rate || 0;
+      const gst = rm?.gst || 0;
+
+      const baseAmount = availableQty * rate;
+      const gstAmount = (baseAmount * gst) / 100;
+      const totalAmount = baseAmount + gstAmount;
+
+      overallTotalAmount += totalAmount;
 
       return {
         ...s,
-
-        availableQty: rmData?.stockQty || 0,
-        baseRate: rmData?.baseRate || 0,
-        rate: rmData?.rate || 0,
-        gst: rmData?.gst || 0,
+        stockQty,
+        damagedQty,
+        availableQty,
+        rate,
+        gst,
         baseAmount,
         gstAmount,
-        amount: total || 0,
-        attachments: rmData?.attachments,
+        totalAmount,
+        attachments: rm?.attachments || [],
       };
     });
 
-    const totalResults = mergedStocks.length;
-    const totalPages = Math.ceil(totalResults / limit);
-    const paginated = mergedStocks.slice(skip, skip + limit);
-
     return res.status(200).json({
       status: 200,
-      totalResults,
-      totalPages,
+      totalResults: mergedStocks.length,
+      totalPages: Math.ceil(mergedStocks.length / limit),
       currentPage: page,
       limit,
       overallTotalAmount: overallTotalAmount.toFixed(4),
-      data: paginated,
+      data: mergedStocks.slice(skip, skip + limit),
     });
   } catch (error) {
-    console.error("Error fetching stocks:", error);
-    return res.status(500).json({
-      status: 500,
-      message: "Internal server error",
-    });
+    console.error("Error fetching merged stocks:", error);
+    return res
+      .status(500)
+      .json({ status: 500, message: "Internal server error" });
   }
 };
 
@@ -598,6 +721,88 @@ exports.deleteStock = async (req, res) => {
     return res.status(500).json({
       status: 500,
       message: "Internal server error",
+    });
+  }
+};
+
+exports.transferStock = async (req, res) => {
+  try {
+    const { sku, qty, fromWarehouse, toWarehouse } = req.body;
+    // console.log("Transfer request:", req.body);
+
+    if (!sku || !qty || !fromWarehouse || !toWarehouse) {
+      return res.status(400).json({
+        status: 400,
+        message: "skuCode, qty, fromWarehouse, toWarehouse are required",
+      });
+    }
+
+    const rawMaterial = await RawMaterial.findOne({ skuCode: sku });
+    if (!rawMaterial) {
+      return res
+        .status(404)
+        .json({ status: 404, message: "Raw material not found" });
+    }
+
+    const quantity = Number(qty);
+    if (quantity <= 0) {
+      return res.status(400).json({
+        status: 400,
+        message: "Quantity must be greater than 0",
+      });
+    }
+
+    // --------------------------
+    // FIND FROM WAREHOUSE STOCK
+    // --------------------------
+    const fromWh = rawMaterial.stockByWarehouse.find(
+      (s) => s.warehouse == fromWarehouse
+    );
+
+    if (!fromWh || fromWh.qty < quantity) {
+      return res.status(400).json({
+        status: 400,
+        message: "Insufficient stock in source warehouse",
+      });
+    }
+
+    // --------------------------
+    // FIND OR CREATE DESTINATION
+    // --------------------------
+    let toWh = rawMaterial.stockByWarehouse.find(
+      (s) => s.warehouse == toWarehouse
+    );
+
+    if (!toWh) {
+      toWh = { warehouse: toWarehouse, qty: 0 };
+      rawMaterial.stockByWarehouse.push(toWh);
+    }
+
+    // --------------------------
+    // APPLY TRANSFER
+    // --------------------------
+    fromWh.qty -= quantity;
+    toWh.qty += quantity;
+
+    // Update totalQty
+    rawMaterial.stockQty = rawMaterial.stockByWarehouse.reduce(
+      (sum, s) => sum + (s.qty || 0),
+      0
+    );
+
+    await rawMaterial.save();
+
+    res.status(200).json({
+      status: 200,
+      message: "Stock transferred successfully",
+      data: rawMaterial,
+    });
+  } catch (err) {
+    console.error("Stock transfer error:", err);
+    res.status(500).json({
+      status: 500,
+      message: "Stock transfer failed",
+      error: err.message,
     });
   }
 };

@@ -5,6 +5,7 @@ const {
   getBarcodesByStockId,
   deleteStock,
   getAllStocksMerged,
+  transferStock,
 } = require("../controllers/stockController");
 const auth = require("../middlewares/authMiddleware");
 const checkPermission = require("../middlewares/checkPermission");
@@ -49,5 +50,7 @@ router.delete(
   checkPermission(["Material Inward"], "delete"),
   deleteStock
 );
+
+router.post("/transfer", auth, transferStock);
 
 module.exports = router;

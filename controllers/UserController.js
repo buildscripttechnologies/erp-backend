@@ -127,6 +127,7 @@ const getAllUsers = async (req, res) => {
         userGroup: user.userGroup,
         isVerified: user.isVerified,
         twoStepEnabled: user.twoStepEnabled,
+        warehouse: user.warehouse,
         status: user.status,
         permissions: user.permissions,
       })),
@@ -189,6 +190,7 @@ const getAllDeletedUsers = async (req, res) => {
         userGroup: user.userGroup,
         isVerified: user.isVerified,
         twoStepEnabled: user.twoStepEnabled,
+        warehouse: user.warehouse,
         status: user.status,
         permissions: user.permissions,
       })),
@@ -272,7 +274,6 @@ const deleteUserPermanently = async (req, res) => {
 const restoreUser = async (req, res) => {
   try {
     const ids = req.body.ids;
-    
 
     const result = await User.restore({
       _id: { $in: ids },

@@ -13,7 +13,7 @@ const mrSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-
+    warehouse: { type: String },
     consumptionTable: [
       {
         skuCode: String,
