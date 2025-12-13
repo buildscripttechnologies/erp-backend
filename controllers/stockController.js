@@ -694,27 +694,53 @@ exports.deleteStock = async (req, res) => {
       });
     }
 
-    // Adjust RM stockQty before deleting
+    // ---------------------------
+    // UPDATE RAW MATERIAL STOCK
+    // ---------------------------
     if (stock.type === "RM" && stock.skuCode) {
       const rm = await RawMaterial.findOne({ skuCode: stock.skuCode });
       if (rm) {
-        rm.stockQty = Math.max(0, rm.stockQty - stock.stockQty); // prevent negative qty
+        const deductQty = stock.stockQty || 0;
+
+        // 1️⃣ Deduct from total stock
+        rm.stockQty = Math.max(0, (rm.stockQty || 0) - deductQty);
+
+        // 2️⃣ Deduct from warehouse stock
+        const warehouseEntry = rm.stockByWarehouse.find(
+          (w) => String(w.warehouse) === String(stock.warehouse)
+        );
+
+        if (warehouseEntry) {
+          warehouseEntry.qty = Math.max(0, warehouseEntry.qty - deductQty);
+        }
+
+        // 3️⃣ Recalculate total from warehouse entries (truth source)
+        rm.stockQty = rm.stockByWarehouse.reduce(
+          (sum, w) => sum + (w.qty || 0),
+          0
+        );
+
+        // 4️⃣ Update totalRate if you use GST or not
         rm.totalRate = rm.stockQty * rm.rate;
+
         await rm.save();
       }
     }
 
-    // Delete all barcodes linked to this stock
-    console.log(stock._id);
-
+    // ---------------------------
+    // DELETE BARCODE ENTRIES
+    // ---------------------------
     await Barcode.deleteMany({ itemId: stock._id });
 
-    // Soft delete the stock entry
+    // ---------------------------
+    // SOFT DELETE STOCK ENTRY
+    // ---------------------------
     await stock.delete();
 
     return res.status(200).json({
       status: 200,
-      message: "Stock soft deleted, barcodes deleted, and RM quantity updated",
+      message:
+        "Stock deleted successfully, warehouse qty updated, and barcodes removed.",
     });
   } catch (error) {
     console.error("❌ Error deleting stock:", error);
