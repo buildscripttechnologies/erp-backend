@@ -384,43 +384,87 @@ exports.deleteMI = async (req, res) => {
       return res.status(404).json({ message: "Material Issue not found" });
 
     const consumptionTable = mi.consumptionTable;
+    const warehouse = req.user?.warehouse; // warehouse of user who issued material
 
     for (const item of consumptionTable) {
-      if (item.isChecked) {
-        let Model;
-        if (item.type === "RawMaterial") Model = RawMaterial;
-        else if (item.type === "SFG") Model = SFG;
-        else if (item.type === "FG") Model = FG;
-        else continue;
+      if (!item.isChecked) continue;
 
-        let diff = 0;
+      let Model;
+      if (item.type === "RawMaterial") Model = RawMaterial;
+      else if (item.type === "SFG") Model = SFG;
+      else if (item.type === "FG") Model = FG;
+      else continue;
 
-        // handle qty first
-        if (item.qty && item.qty !== "N/A") {
-          // remove "m" and spaces, then parse as float
-          const numericQty = parseFloat(item.qty.replace(/[^\d.-]/g, ""));
-          if (!isNaN(numericQty)) diff = numericQty;
-        }
+      // -------------------------------------
+      // 1️⃣ Calculate return qty or weight
+      // -------------------------------------
+      let diff = 0;
 
-        // if you also want to handle weight
-        if (item.weight && item.weight !== "N/A") {
-          const numericWeight = parseFloat(item.weight.replace(/[^\d.-]/g, ""));
-          if (!isNaN(numericWeight)) diff = numericWeight;
-        }
-
-        await Model.updateOne(
-          { skuCode: item.skuCode },
-          { $inc: { stockQty: diff } }
+      if (item.qty && item.qty !== "N/A") {
+        const numericQty = parseFloat(
+          item.qty.toString().replace(/[^\d.-]/g, "")
         );
+        if (!isNaN(numericQty)) diff = numericQty;
       }
+
+      if (item.weight && item.weight !== "N/A") {
+        const numericWeight = parseFloat(
+          item.weight.toString().replace(/[^\d.-]/g, "")
+        );
+        if (!isNaN(numericWeight)) diff = numericWeight;
+      }
+
+      if (!diff || diff <= 0) continue;
+
+      // -------------------------------------
+      // 2️⃣ Fetch DB item for warehouse update
+      // -------------------------------------
+      const dbItem = await Model.findOne({ skuCode: item.skuCode });
+      if (!dbItem) continue;
+
+      // -------------------------------------
+      // 3️⃣ Update warehouse stock
+      // -------------------------------------
+      if (item.type === "RawMaterial") {
+        // RAW MATERIAL → track warehouse stocks
+        let wEntry = dbItem.stockByWarehouse.find(
+          (w) => String(w.warehouse) === String(warehouse)
+        );
+
+        if (!wEntry) {
+          // warehouse entry doesn't exist → create
+          dbItem.stockByWarehouse.push({
+            warehouse,
+            qty: diff,
+          });
+        } else {
+          wEntry.qty = Math.max(0, (wEntry.qty || 0) + diff);
+        }
+
+        // Recalculate true total qty
+        dbItem.stockQty = dbItem.stockByWarehouse.reduce(
+          (sum, w) => sum + (w.qty || 0),
+          0
+        );
+      } else {
+        // SFG / FG (if no warehouse-level tracking)
+        dbItem.stockQty = (dbItem.stockQty || 0) + diff;
+      }
+
+      await dbItem.save();
     }
 
-    await mi.delete({ _id: req.params.id }); // uses your soft delete plugin
-    res
-      .status(200)
-      .json({ status: 200, message: "Material Issue deleted successfully" });
+    // -------------------------------------
+    // 4️⃣ Soft delete the Material Issue
+    // -------------------------------------
+    await mi.delete({ _id: req.params.id });
+
+    res.status(200).json({
+      status: 200,
+      message: "Material Issue deleted successfully and stock restored",
+    });
   } catch (err) {
-    console.error("Error deleting Material Issue:", err);
+    console.error("❌ Error deleting Material Issue:", err);
     res.status(500).json({ message: err.message });
   }
 };

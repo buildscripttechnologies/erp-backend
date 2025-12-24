@@ -326,18 +326,65 @@ exports.updateMR = async (req, res) => {
   }
 };
 
+// exports.deleteMR = async (req, res) => {
+//   try {
+//     const mr = await MR.findById(req.params.id);
+//     if (!mr)
+//       return res.status(404).json({ message: "Material Receive not found" });
+
+//     await mr.delete({ _id: req.params.id }); // uses your soft delete plugin
+//     res
+//       .status(200)
+//       .json({ status: 200, message: "Material Receive deleted successfully" });
+//   } catch (err) {
+//     console.error("Error deleting Material Issue:", err);
+//     res.status(500).json({ message: err.message });
+//   }
+// };
+
 exports.deleteMR = async (req, res) => {
   try {
     const mr = await MR.findById(req.params.id);
     if (!mr)
       return res.status(404).json({ message: "Material Receive not found" });
 
-    await mr.delete({ _id: req.params.id }); // uses your soft delete plugin
-    res
-      .status(200)
-      .json({ status: 200, message: "Material Receive deleted successfully" });
+    // take only checked rows
+    const checkedItems = mr.consumptionTable.filter((item) => item.isChecked);
+
+    // Reverse stock for each checked item
+    for (const item of checkedItems) {
+      let Model;
+
+      if (item.type === "RawMaterial") Model = RawMaterial;
+      else if (item.type === "SFG") Model = SFG;
+      else if (item.type === "FG") Model = FG;
+      else continue;
+
+      const diff = Number(item.receiveQty) || 0; // MR increases by receiveQty → reverse it
+
+      // Decrease stock from correct warehouse
+      await Model.updateOne(
+        { skuCode: item.skuCode },
+        { $inc: { stockQty: -diff } }
+      );
+    }
+
+    // Remove checked items from MR
+    mr.consumptionTable = mr.consumptionTable.filter((item) => !item.isChecked);
+
+    // If empty → soft delete the MR completely
+    if (mr.consumptionTable.length === 0) {
+      await mr.delete();
+    } else {
+      await mr.save(); // partial delete only selected rows
+    }
+
+    res.status(200).json({
+      status: 200,
+      message: "Selected MR rows deleted & stock reversed successfully",
+    });
   } catch (err) {
-    console.error("Error deleting Material Issue:", err);
+    console.error("Error deleting Material Receive:", err);
     res.status(500).json({ message: err.message });
   }
 };
