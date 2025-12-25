@@ -238,12 +238,145 @@ const fs = require("fs");
 const path = require("path");
 const SFG = require("../models/SFG");
 
+// exports.updateSampleWithFiles = async (req, res) => {
+//   try {
+//     const { id } = req.params;
+
+//     // Parse JSON from multipart/form-data
+//     const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
+//     const {
+//       partyName,
+//       orderQty,
+//       productName,
+//       sampleNo,
+//       gst,
+//       hsnOrSac,
+//       date,
+//       height,
+//       width,
+//       depth,
+//       B2B,
+//       D2C,
+//       rejection,
+//       QC,
+//       machineMaintainance,
+//       materialHandling,
+//       packaging,
+//       shipping,
+//       companyOverHead,
+//       indirectExpense,
+//       stitching,
+//       printing,
+//       others,
+//       unitRate,
+//       unitB2BRate,
+//       unitD2CRate,
+//       productDetails = [],
+//       consumptionTable = [],
+//       deletedFiles = [],
+//       deletedPrintingFiles = [],
+//     } = parsed;
+
+//     console.log("deletedFiles", deletedFiles);
+
+//     const sample = await Sample.findById(id);
+//     if (!sample)
+//       return res
+//         .status(404)
+//         .json({ success: false, message: "Sample not found" });
+
+//     // 🧹 Remove files marked for deletion by _id
+//     const deletedIds = deletedFiles.map((f) => f._id.toString());
+//     const deletedPrintingIds = deletedPrintingFiles.map((f) =>
+//       f._id.toString()
+//     );
+
+//     sample.file = sample.file.filter(
+//       (file) => !deletedIds.includes(file._id.toString())
+//     );
+//     sample.printingFile = sample.printingFile.filter(
+//       (file) => !deletedPrintingIds.includes(file._id.toString())
+//     );
+
+//     // console.log("files", sample.file);
+
+//     // 🔎 Resolve customer and FG references
+//     const customer = await Customer.findOne({ customerName: partyName });
+//     const fg = await FG.findOne({ itemName: productName });
+
+//     const protocol =
+//       process.env.NODE_ENV === "production" ? "https" : req.protocol;
+//     // 📂 Handle new file uploads if any
+//     if (req.files?.files?.length) {
+//       const uploadedFiles = req.files?.files?.map((file) => ({
+//         fileName: file.originalname,
+//         fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+//           file.filename
+//         }`,
+//       }));
+//       sample.file.push(...uploadedFiles);
+//     }
+//     if (req.files?.printingFiles?.length) {
+//       const uploadedFiles = req.files?.printingFiles?.map((file) => ({
+//         fileName: file.originalname,
+//         fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+//           file.filename
+//         }`,
+//       }));
+//       sample.printingFile.push(...uploadedFiles);
+//     }
+
+//     // 📝 Update fields
+//     sample.partyName = customer?._id || sample.partyName;
+//     sample.orderQty = orderQty;
+//     sample.sampleNo = sampleNo;
+//     sample.gst = gst;
+//     sample.hsnOrSac = hsnOrSac;
+//     sample.product = { pId: fg?._id || null, name: productName };
+//     sample.productDetails = productDetails;
+//     sample.consumptionTable = consumptionTable;
+//     sample.date = date;
+//     sample.height = height;
+//     sample.width = width;
+//     sample.depth = depth;
+//     sample.B2B = B2B;
+//     sample.D2C = D2C;
+//     sample.rejection = rejection;
+//     sample.QC = QC;
+//     sample.machineMaintainance = machineMaintainance;
+//     sample.materialHandling = materialHandling;
+//     sample.packaging = packaging;
+//     sample.shipping = shipping;
+//     sample.companyOverHead = companyOverHead;
+//     sample.indirectExpense = indirectExpense;
+//     sample.stitching = stitching;
+//     sample.printing = printing;
+//     sample.others = others;
+//     sample.unitRate = unitRate;
+//     sample.unitB2BRate = unitB2BRate;
+//     sample.unitD2CRate = unitD2CRate;
+//     await sample.save();
+
+//     res.status(200).json({
+//       success: true,
+//       message: "Sample updated successfully",
+//       data: sample,
+//     });
+//   } catch (err) {
+//     console.error("Update Sample Error:", err);
+//     res
+//       .status(500)
+//       .json({ success: false, message: "Failed to update Sample" });
+//   }
+// };
+
 exports.updateSampleWithFiles = async (req, res) => {
   try {
     const { id } = req.params;
 
     // Parse JSON from multipart/form-data
     const parsed = req.body.data ? JSON.parse(req.body.data) : req.body;
+
     const {
       partyName,
       orderQty,
@@ -277,56 +410,63 @@ exports.updateSampleWithFiles = async (req, res) => {
       deletedPrintingFiles = [],
     } = parsed;
 
-    console.log("deletedFiles", deletedFiles);
-
     const sample = await Sample.findById(id);
-    if (!sample)
+    if (!sample) {
       return res
         .status(404)
         .json({ success: false, message: "Sample not found" });
+    }
 
-    // 🧹 Remove files marked for deletion by _id
-    const deletedIds = deletedFiles.map((f) => f._id.toString());
+    /* -------------------- FILE DELETE -------------------- */
+    const deletedFileIds = deletedFiles.map((f) => f._id?.toString());
     const deletedPrintingIds = deletedPrintingFiles.map((f) =>
-      f._id.toString()
+      f._id?.toString()
     );
 
     sample.file = sample.file.filter(
-      (file) => !deletedIds.includes(file._id.toString())
+      (f) => !deletedFileIds.includes(f._id.toString())
     );
     sample.printingFile = sample.printingFile.filter(
-      (file) => !deletedPrintingIds.includes(file._id.toString())
+      (f) => !deletedPrintingIds.includes(f._id.toString())
     );
 
-    // console.log("files", sample.file);
-
-    // 🔎 Resolve customer and FG references
-    const customer = await Customer.findOne({ customerName: partyName });
-    const fg = await FG.findOne({ itemName: productName });
-
+    /* -------------------- FILE UPLOAD -------------------- */
     const protocol =
       process.env.NODE_ENV === "production" ? "https" : req.protocol;
-    // 📂 Handle new file uploads if any
+
     if (req.files?.files?.length) {
-      const uploadedFiles = req.files?.files?.map((file) => ({
+      const uploaded = req.files.files.map((file) => ({
         fileName: file.originalname,
         fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
           file.filename
         }`,
       }));
-      sample.file.push(...uploadedFiles);
-    }
-    if (req.files?.printingFiles?.length) {
-      const uploadedFiles = req.files?.printingFiles?.map((file) => ({
-        fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
-      }));
-      sample.printingFile.push(...uploadedFiles);
+      sample.file.push(...uploaded);
     }
 
-    // 📝 Update fields
+    if (req.files?.printingFiles?.length) {
+      const uploaded = req.files.printingFiles.map((file) => ({
+        fileName: file.originalname,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
+          file.filename
+        }`,
+      }));
+      sample.printingFile.push(...uploaded);
+    }
+
+    /* -------------------- RELATIONS -------------------- */
+    const customer = await Customer.findOne({ customerName: partyName });
+
+    // Prefer FG ID stored in sample
+    let fg = null;
+    if (sample.product?.pId) {
+      fg = await FG.findById(sample.product.pId);
+    }
+    if (!fg && productName) {
+      fg = await FG.findOne({ itemName: productName });
+    }
+
+    /* -------------------- UPDATE SAMPLE -------------------- */
     sample.partyName = customer?._id || sample.partyName;
     sample.orderQty = orderQty;
     sample.sampleNo = sampleNo;
@@ -355,8 +495,85 @@ exports.updateSampleWithFiles = async (req, res) => {
     sample.unitRate = unitRate;
     sample.unitB2BRate = unitB2BRate;
     sample.unitD2CRate = unitD2CRate;
+
     await sample.save();
 
+    /* -------------------- SYNC FG (ONLY IF SAMPLE FG) -------------------- */
+    if (fg && fg.isSample === true) {
+      fg.itemName = productName;
+      fg.description = sample.description;
+      fg.gst = sample.gst;
+      fg.hsnOrSac = sample.hsnOrSac;
+
+      fg.height = sample.height;
+      fg.width = sample.width;
+      fg.depth = sample.depth;
+      fg.qty = sample.qty;
+
+      fg.stitching = sample.stitching;
+      fg.printing = sample.printing;
+      fg.others = sample.others;
+
+      fg.unitRate = sample.unitRate;
+      fg.unitB2BRate = sample.unitB2BRate;
+      fg.unitD2CRate = sample.unitD2CRate;
+
+      fg.B2B = sample.B2B;
+      fg.D2C = sample.D2C;
+      fg.rejection = sample.rejection;
+      fg.QC = sample.QC;
+      fg.machineMaintainance = sample.machineMaintainance;
+      fg.materialHandling = sample.materialHandling;
+      fg.packaging = sample.packaging;
+      fg.shipping = sample.shipping;
+      fg.companyOverHead = sample.companyOverHead;
+      fg.indirectExpense = sample.indirectExpense;
+
+      fg.rm = productDetails
+        .filter((p) => p.type === "RawMaterial")
+        .map((p) => ({
+          rmid: p.itemId,
+          partName: p.partName,
+          qty: p.qty,
+          grams: p.grams,
+          height: p.height,
+          width: p.width,
+          rate: p.rate,
+          category: p.category,
+          sqInchRate: p.sqInchRate,
+          baseQty: p.baseQty,
+          itemRate: p.itemRate,
+          cuttingType: p.cuttingType,
+          isPrint: p.isPrint,
+          isPasting: p.isPasting,
+        }));
+
+      fg.sfg = productDetails
+        .filter((p) => p.type === "SFG")
+        .map((p) => ({
+          sfgid: p.itemId,
+          partName: p.partName,
+          qty: p.qty,
+          grams: p.grams,
+          height: p.height,
+          width: p.width,
+          rate: p.rate,
+          category: p.category,
+          sqInchRate: p.sqInchRate,
+          baseQty: p.baseQty,
+          itemRate: p.itemRate,
+          cuttingType: p.cuttingType,
+          isPrint: p.isPrint,
+          isPasting: p.isPasting,
+        }));
+
+      fg.file = sample.file;
+      fg.printingFile = sample.printingFile;
+
+      await fg.save();
+    }
+
+    /* -------------------- RESPONSE -------------------- */
     res.status(200).json({
       success: true,
       message: "Sample updated successfully",
@@ -553,6 +770,7 @@ exports.getAllSamples = async (req, res) => {
       .json({ success: false, message: "Failed to fetch Samples" });
   }
 };
+
 exports.getAllDeletedSamples = async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -786,7 +1004,6 @@ exports.deleteSamplePermanently = async (req, res) => {
 exports.restoreSample = async (req, res) => {
   try {
     const ids = req.body.ids;
-  
 
     const result = await Sample.restore({
       _id: { $in: ids },
