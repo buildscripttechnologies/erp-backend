@@ -2,6 +2,8 @@ const Customer = require("../models/Customer");
 const FG = require("../models/FG");
 const RawMaterial = require("../models/RawMaterial");
 const Sample = require("../models/Sample");
+const Settings = require("../models/Settings");
+
 const {
   generateNextSampleNo,
   generateBulkCustomerCodes,
@@ -59,17 +61,15 @@ exports.addSample = async (req, res) => {
     const attachments =
       req.files?.files?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       })) || [];
 
     const printingAttachments =
       req.files?.printingFiles?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       })) || [];
 
     // Step 2: Get FG by product name
@@ -437,9 +437,8 @@ exports.updateSampleWithFiles = async (req, res) => {
     if (req.files?.files?.length) {
       const uploaded = req.files.files.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       }));
       sample.file.push(...uploaded);
     }
@@ -447,9 +446,8 @@ exports.updateSampleWithFiles = async (req, res) => {
     if (req.files?.printingFiles?.length) {
       const uploaded = req.files.printingFiles.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       }));
       sample.printingFile.push(...uploaded);
     }
@@ -598,13 +596,13 @@ exports.getAllSamples = async (req, res) => {
 
     const matchStage = search
       ? {
-          $or: [
-            { sampleNo: { $regex: searchRegex } },
-            { bomNo: { $regex: searchRegex } },
-            { "party.customerName": { $regex: searchRegex } },
-            { "product.name": { $regex: searchRegex } },
-          ],
-        }
+        $or: [
+          { sampleNo: { $regex: searchRegex } },
+          { bomNo: { $regex: searchRegex } },
+          { "party.customerName": { $regex: searchRegex } },
+          { "product.name": { $regex: searchRegex } },
+        ],
+      }
       : {};
 
     const aggregationPipeline = [
@@ -738,13 +736,26 @@ exports.getAllSamples = async (req, res) => {
             );
           }
 
+          const settings = await Settings.findOne().select("categories");
+          const categoryMaster = settings?.categories || [];
+
+
           if (item) {
             detail.skuCode = item.skuCode;
             detail.itemName = item.itemName;
             detail.category = item.itemCategory;
-            (detail.panno = item.panno),
-              (detail.attachments = item.attachments || item.file);
-          } else {
+            detail.panno = item.panno;
+            detail.attachments = item.attachments || item.file;
+
+            // 🔥 REAL FIX FOR YOUR SYSTEM
+            const cat = categoryMaster.find(
+              c => c.name.toLowerCase() === item.itemCategory?.toLowerCase()
+            );
+
+            detail.categoryType = cat?.type || null;
+          }
+
+          else {
             detail.skuCode = null;
             detail.itemName = null;
             detail.category = null;
@@ -782,13 +793,13 @@ exports.getAllDeletedSamples = async (req, res) => {
 
     const matchStage = search
       ? {
-          $or: [
-            { sampleNo: { $regex: searchRegex } },
-            { bomNo: { $regex: searchRegex } },
-            { "party.customerName": { $regex: searchRegex } },
-            { "product.name": { $regex: searchRegex } },
-          ],
-        }
+        $or: [
+          { sampleNo: { $regex: searchRegex } },
+          { bomNo: { $regex: searchRegex } },
+          { "party.customerName": { $regex: searchRegex } },
+          { "product.name": { $regex: searchRegex } },
+        ],
+      }
       : {};
 
     const aggregationPipeline = [
@@ -922,13 +933,26 @@ exports.getAllDeletedSamples = async (req, res) => {
             );
           }
 
+          const settings = await Settings.findOne().select("categories");
+          const categoryMaster = settings?.categories || [];
+
+
           if (item) {
             detail.skuCode = item.skuCode;
             detail.itemName = item.itemName;
             detail.category = item.itemCategory;
-            (detail.panno = item.panno),
-              (detail.attachments = item.attachments || item.file);
-          } else {
+            detail.panno = item.panno;
+            detail.attachments = item.attachments || item.file;
+
+            // 🔥 REAL FIX FOR YOUR SYSTEM
+            const cat = categoryMaster.find(
+              c => c.name.toLowerCase() === item.itemCategory?.toLowerCase()
+            );
+
+            detail.categoryType = cat?.type || null;
+          }
+
+          else {
             detail.skuCode = null;
             detail.itemName = null;
             detail.category = null;
