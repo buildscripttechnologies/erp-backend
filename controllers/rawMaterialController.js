@@ -1,6 +1,8 @@
 const RawMaterial = require("../models/RawMaterial");
 const XLSX = require("xlsx");
 const UOM = require("../models/UOM");
+const StockLedger = require("../models/StockLedger");
+
 
 const fs = require("fs");
 const { resolveUOM, resolveLocation } = require("../utils/resolve");
@@ -113,6 +115,143 @@ const generateBulkSkuCodes = async (count) => {
 //   }
 // };
 
+// exports.getAllRawMaterials = async (req, res) => {
+//   try {
+//     const { page = 1, limit = "", search = "" } = req.query;
+
+//     const query = {
+//       $or: [
+//         { itemName: { $regex: search, $options: "i" } },
+//         { skuCode: { $regex: search, $options: "i" } },
+//         { description: { $regex: search, $options: "i" } },
+//       ],
+//     };
+
+//     const userWarehouse = req.user?.warehouse;
+//     // const isAdmin = req.user?.userType?.toLowerCase() === "admin";
+//     const isAdmin = false;
+
+//     const total = await RawMaterial.countDocuments(query);
+
+//     let rawMaterials = await RawMaterial.find(query)
+//       .populate("purchaseUOM stockUOM createdBy locationByWarehouse.location")
+//       .sort({ updatedAt: -1, _id: -1 })
+//       .skip((page - 1) * limit)
+//       .limit(Number(limit));
+
+//     rawMaterials = rawMaterials.map((rm) => {
+//       // ------------------------------
+//       // 1️⃣ FILTER LOCATION BY USER ROLE
+//       // ------------------------------
+//       let finalLocations = rm.locationByWarehouse || [];
+
+//       if (!isAdmin && userWarehouse) {
+//         finalLocations = finalLocations.filter(
+//           (l) => l.warehouse == userWarehouse
+//         );
+//       }
+
+//       // Pick the right "location" key (single value)
+//       let singleLocation = null;
+
+//       if (isAdmin) {
+//         // admin → first warehouse location
+//         if (rm.locationByWarehouse?.length > 0) {
+//           singleLocation =
+//             rm.locationByWarehouse[0].location?.locationId || null;
+//         }
+//       } else {
+//         // normal user → only user's warehouse location
+//         const match = rm.locationByWarehouse.find(
+//           (l) => l.warehouse == userWarehouse
+//         );
+//         if (match) {
+//           singleLocation = match.location?.locationId || null;
+//         }
+//       }
+
+//       // ------------------------------
+//       // 2️⃣ FILTER STOCK BY WAREHOUSE FOR NORMAL USER
+//       // ------------------------------
+//       let filteredStock = rm.stockByWarehouse || [];
+
+//       if (!isAdmin && userWarehouse) {
+//         filteredStock = filteredStock.filter(
+//           (w) => w.warehouse == userWarehouse
+//         );
+//       }
+
+//       const filteredQty = filteredStock.reduce(
+//         (sum, s) => sum + (s.qty || 0),
+//         0
+//       );
+
+//       const finalStockQty = isAdmin ? rm.stockQty : filteredQty;
+
+//       const gstMultiplier = 0; // your logic
+//       const finalTotalRate = isAdmin
+//         ? rm.totalRate
+//         : finalStockQty * (rm.rate + gstMultiplier);
+
+//       return {
+//         id: rm._id,
+//         skuCode: rm.skuCode,
+//         itemName: rm.itemName,
+//         description: rm.description,
+//         hsnOrSac: rm.hsnOrSac,
+//         type: rm.type,
+//         itemCategory: rm.itemCategory,
+//         itemColor: rm.itemColor,
+//         qualityInspectionNeeded: rm.qualityInspectionNeeded,
+
+//         // NEW SINGLE LOCATION KEY
+//         location: singleLocation,
+
+//         // MULTIPLE LOCATIONS (role filtered)
+//         locationByWarehouse: finalLocations.map((l) => ({
+//           warehouse: l.warehouse,
+//           location: l.location?._id || null,
+//           locationName: l.location?.locationName || null,
+//         })),
+
+//         baseQty: rm.baseQty,
+//         pkgQty: rm.pkgQty,
+//         moq: rm.moq,
+//         panno: rm.panno,
+//         sqInchRate: rm.sqInchRate,
+//         baseRate: rm.baseRate,
+//         rate: rm.rate,
+
+//         purchaseUOM: rm.purchaseUOM ? rm.purchaseUOM.unitName : null,
+//         gst: rm.gst,
+
+//         stockQty: rm.stockQty,
+//         stockByWarehouse: rm.stockByWarehouse,
+//         stockUOM: rm.stockUOM ? rm.stockUOM.unitName : null,
+//         totalRate: finalTotalRate,
+
+//         attachments: rm.attachments,
+//         status: rm.status,
+//         createdBy: rm.createdBy?.userType || "",
+//         createdByName: rm.createdBy?.fullName || "",
+//         createdAt: rm.createdAt,
+//         updatedAt: rm.updatedAt,
+//       };
+//     });
+
+//     res.status(200).json({
+//       status: 200,
+//       totalResults: total,
+//       totalPages: Math.ceil(total / limit) || 1,
+//       currentPage: Number(page),
+//       limit: Number(limit),
+//       rawMaterials,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ status: 500, message: err.message });
+//   }
+// };
+
 exports.getAllRawMaterials = async (req, res) => {
   try {
     const { page = 1, limit = "", search = "" } = req.query;
@@ -126,21 +265,43 @@ exports.getAllRawMaterials = async (req, res) => {
     };
 
     const userWarehouse = req.user?.warehouse;
-    // const isAdmin = req.user?.userType?.toLowerCase() === "admin";
-    const isAdmin = false;
+    const isAdmin = req.user?.userType?.toLowerCase() === "admin";
 
     const total = await RawMaterial.countDocuments(query);
 
-    let rawMaterials = await RawMaterial.find(query)
+    const rawMaterials = await RawMaterial.find(query)
       .populate("purchaseUOM stockUOM createdBy locationByWarehouse.location")
       .sort({ updatedAt: -1, _id: -1 })
       .skip((page - 1) * limit)
       .limit(Number(limit));
 
-    rawMaterials = rawMaterials.map((rm) => {
-      // ------------------------------
-      // 1️⃣ FILTER LOCATION BY USER ROLE
-      // ------------------------------
+    const result = [];
+
+    for (const rm of rawMaterials) {
+
+      // ============================
+      // LEDGER STOCK (ONLY TRUTH)
+      // ============================
+      const ledgerAgg = await StockLedger.aggregate([
+        {
+          $match: {
+            itemId: rm._id,
+            ...(isAdmin ? {} : { warehouse: userWarehouse })
+          }
+        },
+        {
+          $group: {
+            _id: null,
+            qty: { $sum: "$qty" }
+          }
+        }
+      ]);
+
+      const finalStockQty = ledgerAgg[0]?.qty || 0;
+
+      // ============================
+      // LOCATION LOGIC (UNCHANGED)
+      // ============================
       let finalLocations = rm.locationByWarehouse || [];
 
       if (!isAdmin && userWarehouse) {
@@ -149,17 +310,14 @@ exports.getAllRawMaterials = async (req, res) => {
         );
       }
 
-      // Pick the right "location" key (single value)
       let singleLocation = null;
 
       if (isAdmin) {
-        // admin → first warehouse location
         if (rm.locationByWarehouse?.length > 0) {
           singleLocation =
             rm.locationByWarehouse[0].location?.locationId || null;
         }
       } else {
-        // normal user → only user's warehouse location
         const match = rm.locationByWarehouse.find(
           (l) => l.warehouse == userWarehouse
         );
@@ -168,30 +326,10 @@ exports.getAllRawMaterials = async (req, res) => {
         }
       }
 
-      // ------------------------------
-      // 2️⃣ FILTER STOCK BY WAREHOUSE FOR NORMAL USER
-      // ------------------------------
-      let filteredStock = rm.stockByWarehouse || [];
-
-      if (!isAdmin && userWarehouse) {
-        filteredStock = filteredStock.filter(
-          (w) => w.warehouse == userWarehouse
-        );
-      }
-
-      const filteredQty = filteredStock.reduce(
-        (sum, s) => sum + (s.qty || 0),
-        0
-      );
-
-      const finalStockQty = isAdmin ? rm.stockQty : filteredQty;
-
-      const gstMultiplier = 0; // your logic
-      const finalTotalRate = isAdmin
-        ? rm.totalRate
-        : finalStockQty * (rm.rate + gstMultiplier);
-
-      return {
+      // ============================
+      // FINAL OBJECT
+      // ============================
+      result.push({
         id: rm._id,
         skuCode: rm.skuCode,
         itemName: rm.itemName,
@@ -202,10 +340,7 @@ exports.getAllRawMaterials = async (req, res) => {
         itemColor: rm.itemColor,
         qualityInspectionNeeded: rm.qualityInspectionNeeded,
 
-        // NEW SINGLE LOCATION KEY
         location: singleLocation,
-
-        // MULTIPLE LOCATIONS (role filtered)
         locationByWarehouse: finalLocations.map((l) => ({
           warehouse: l.warehouse,
           location: l.location?._id || null,
@@ -220,13 +355,14 @@ exports.getAllRawMaterials = async (req, res) => {
         baseRate: rm.baseRate,
         rate: rm.rate,
 
-        purchaseUOM: rm.purchaseUOM ? rm.purchaseUOM.unitName : null,
+        purchaseUOM: rm.purchaseUOM?.unitName || null,
         gst: rm.gst,
 
-        stockQty: rm.stockQty,
-        stockByWarehouse: rm.stockByWarehouse,
-        stockUOM: rm.stockUOM ? rm.stockUOM.unitName : null,
-        totalRate: finalTotalRate,
+        // 🔥 ONLY FROM LEDGER
+        stockQty: finalStockQty,
+        stockUOM: rm.stockUOM?.unitName || null,
+
+        totalRate: finalStockQty * rm.rate,
 
         attachments: rm.attachments,
         status: rm.status,
@@ -234,8 +370,8 @@ exports.getAllRawMaterials = async (req, res) => {
         createdByName: rm.createdBy?.fullName || "",
         createdAt: rm.createdAt,
         updatedAt: rm.updatedAt,
-      };
-    });
+      });
+    }
 
     res.status(200).json({
       status: 200,
@@ -243,9 +379,11 @@ exports.getAllRawMaterials = async (req, res) => {
       totalPages: Math.ceil(total / limit) || 1,
       currentPage: Number(page),
       limit: Number(limit),
-      rawMaterials,
+      rawMaterials: result,
     });
+
   } catch (err) {
+    console.error(err);
     res.status(500).json({ status: 500, message: err.message });
   }
 };

@@ -4,6 +4,7 @@ const {
   getAllStocks,
   getBarcodesByStockId,
   deleteStock,
+  getStockBySku,
   getAllStocksMerged,
   transferStock,
 } = require("../controllers/stockController");
@@ -28,6 +29,14 @@ router.get(
   getAllStocks
 );
 
+router.post(
+  "/stock-by-sku",
+  auth,
+  checkPermission(["Material Inward"], "read"),
+  getStockBySku
+);
+
+
 router.get(
   "/get-all-merged",
   auth,
@@ -36,12 +45,12 @@ router.get(
 );
 
 // Get barcodes for a given stock
-router.get(
-  "/barcodes/:id",
-  auth,
-  checkPermission(["Material Inward"], "read"),
-  getBarcodesByStockId
-);
+// router.get(
+//   "/barcodes/:id",
+//   auth,
+//   checkPermission(["Material Inward"], "read"),
+//   getBarcodesByStockId
+// );
 
 // Soft delete stock
 router.delete(
