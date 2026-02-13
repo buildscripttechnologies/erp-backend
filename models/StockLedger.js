@@ -57,6 +57,10 @@ const stockLedgerSchema = new mongoose.Schema(
       type: String,
     },
 
+     batchNo: {
+      type: String, // PO number / GRN number
+    },
+
     // StockLedger schema
     stockUOM: { type: mongoose.Schema.Types.ObjectId, ref: "UOM" }
     ,
