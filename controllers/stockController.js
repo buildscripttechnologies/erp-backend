@@ -841,6 +841,8 @@ const StockLedger = require("../models/StockLedger");
 const dayjs = require("dayjs");
 const PO = require("../models/PO");
 
+
+
 /*
 |--------------------------------------------------------------------------
 | CREATE STOCK (GRN)
@@ -940,6 +942,48 @@ const PO = require("../models/PO");
 //   }
 // };
 
+const getFinancialYear = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  if (month >= 4) {
+    // April to Dec
+    const start = year.toString().slice(-2);
+    const end = (year + 1).toString().slice(-2);
+    return `${start}${end}`;
+  } else {
+    // Jan to Mar
+    const start = (year - 1).toString().slice(-2);
+    const end = year.toString().slice(-2);
+    return `${start}${end}`;
+  }
+};
+const generateGRNNumber = async () => {
+
+  const fy = getFinancialYear();
+
+  const prefix = `GRNIKB${fy}`;
+
+  const lastGRN = await StockLedger.findOne({
+    grnNumber: { $regex: `^${prefix}` }
+  })
+    .sort({ grnNumber: -1 })
+    .select("grnNumber");
+
+  let sequence = 1;
+
+  if (lastGRN?.grnNumber) {
+    const lastSeq = parseInt(lastGRN.grnNumber.slice(-3));
+    sequence = lastSeq + 1;
+  }
+
+  const seqFormatted = String(sequence).padStart(3, "0");
+
+  return `${prefix}${seqFormatted}`;
+};
+
+
 
 exports.createStockEntry = async (req, res) => {
   try {
@@ -994,6 +1038,19 @@ exports.createStockEntry = async (req, res) => {
     // 2️⃣ Extract batch AFTER generation
     const batchNo = barcodes[0].batchNo;
 
+    const grnNumber = await generateGRNNumber();
+
+    console.log("Generated GRN Number:", grnNumber);
+
+    let referenceModelValue = "MANUAL-INWARD";
+
+    if (poId) {
+      const po = await PO.findById(poId).select("poNo");
+
+      if (po) {
+        referenceModelValue = po.poNo;
+      }
+    }
     // 3️⃣ GRN ledger
     const grnLedger = await StockLedger.create({
       itemId,
@@ -1002,13 +1059,14 @@ exports.createStockEntry = async (req, res) => {
       qty: Number(stockQty),
       movementType: "GRN",
       referenceId: poId || null,
-      referenceModel: poId ? "PO" : "MANUAL-INWARD",
+      referenceModel: referenceModelValue,
       batchNo,
       stockUOM: item.stockUOM._id,
       rateAtThatTime: item.rate || 0,
       qualityApproved,
       createdBy: req.user._id,
-      remarks: qualityNote || "Material inward"
+      remarks: qualityNote || "Material inward",
+      grnNumber: grnNumber
     });
 
     // 4️⃣ Damage ledger
@@ -1232,8 +1290,8 @@ exports.getAllStocks = async (req, res) => {
             : d.referenceModel || "-"
         ,
         remarks: d.remarks || "-",
-
-        barcodes: d.barcodes || []      // already filtered correctly
+        grnNumber: d.grnNumber || "-",
+        barcodes: d.barcodes      // already filtered correctly
       }))
     });
 
@@ -1359,9 +1417,9 @@ exports.getAllStocksMerged = async (req, res) => {
         (d.damagedQty || 0) +
         realIssuedQty;
 
-      const grnTotalAmount        = d.stockQty * rate;
-      const damageAmount         = Math.abs(d.damagedQty || 0) * rate;
-      const issuedAmount         = Math.abs(realIssuedQty) * rate;
+      const grnTotalAmount = d.stockQty * rate;
+      const damageAmount = Math.abs(d.damagedQty || 0) * rate;
+      const issuedAmount = Math.abs(realIssuedQty) * rate;
       const inventoryTotalAmount = availableQty * rate;
 
       overallInventoryValue += inventoryTotalAmount;
@@ -1392,7 +1450,7 @@ exports.getAllStocksMerged = async (req, res) => {
       };
     });
 
-      const countAgg = await StockLedger.aggregate([
+    const countAgg = await StockLedger.aggregate([
       { $match: match },
       {
         $group: {
@@ -1409,7 +1467,7 @@ exports.getAllStocksMerged = async (req, res) => {
 
     res.json({
       status: 200,
-       totalResults: count,
+      totalResults: count,
       totalPages,
       currentPage: page,
       limit,

@@ -58,13 +58,19 @@ const stockLedgerSchema = new mongoose.Schema(
     },
 
     // StockLedger schema
-stockUOM: { type: mongoose.Schema.Types.ObjectId, ref: "UOM" }
-,
+    stockUOM: { type: mongoose.Schema.Types.ObjectId, ref: "UOM" }
+    ,
 
     // Cost at that time (VERY IMPORTANT for ERP)
     rateAtThatTime: {
       type: Number,
       default: 0,
+    },
+
+    grnNumber: {
+      type: String,
+      index: true,
+      unique: true
     },
 
     createdBy: {
