@@ -122,6 +122,8 @@ app.use("/api/accessories", accessoryRoutes);
 app.use("/api/accessory-inward", accessoryInwardRoutes);
 app.use("/api/accessory-issue", accessoryIssueRoutes);
 app.use("/api/accessory-receive", accessoryReceiveRoutes);
+app.use("/public", express.static("public"));
+
 
 app.use("/api/health", healthRoutes);
 
