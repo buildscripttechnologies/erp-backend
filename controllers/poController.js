@@ -144,6 +144,8 @@ const getAllPOs = async (req, res) => {
                 _id: "$$it._id",
                 amount: "$$it.amount",
                 orderQty: "$$it.orderQty",
+                inwardQty: "$$it.inwardQty",        // ✅ ADD THIS
+                pendingQty: "$$it.pendingQty",
                 rate: "$$it.rate",
                 gst: "$$it.gst",
                 amount: "$$it.amount",
@@ -256,6 +258,8 @@ const getAllPOs = async (req, res) => {
           items: {
             _id: 1,
             orderQty: 1,
+            inwardQty: 1,
+            pendingQty: 1,
             rate: 1,
             gst: 1,
             amount: 1,
@@ -575,31 +579,220 @@ const getAllDeletedPOs = async (req, res) => {
 };
 
 // Update PO
+// const updatePO = async (req, res) => {
+//   try {
+//     // Just take payload as it is
+//     const updateData = {
+//       ...req.body,
+//       updatedAt: new Date(),
+//     };
+
+//     const updatedPO = await PO.findByIdAndUpdate(req.params.id, updateData, {
+//       new: true,
+//     });
+
+//     if (!updatedPO) {
+//       return res.status(404).json({ success: false, message: "PO not found." });
+//     }
+
+//     res.status(200).json({
+//       success: true,
+//       message: "PO updated successfully.",
+//       data: updatedPO,
+//     });
+//   } catch (err) {
+//     res.status(500).json({ success: false, message: err.message });
+//   }
+// };
+
 const updatePO = async (req, res) => {
   try {
-    // Just take payload as it is
-    const updateData = {
-      ...req.body,
-      updatedAt: new Date(),
-    };
 
-    const updatedPO = await PO.findByIdAndUpdate(req.params.id, updateData, {
-      new: true,
+    const po = await PO.findById(req.params.id);
+
+    if (!po)
+      return res.status(404).json({
+        success: false,
+        message: "PO not found."
+      });
+
+    // Update items properly
+    if (req.body.items) {
+
+      po.items = req.body.items.map(item => ({
+
+        ...item,
+
+        // ensure rejectionReason exists
+        rejectionReason: item.rejectionReason || "",
+
+        // ensure inwardStatus default
+        inwardStatus: item.inwardStatus || "pending",
+
+        // ensure pendingQty default
+        pendingQty:
+          item.pendingQty ??
+          (item.orderQty - (item.inwardQty || 0))
+
+      }));
+
+    }
+
+    // Update other fields
+    Object.keys(req.body).forEach(key => {
+
+      if (key !== "items")
+        po[key] = req.body[key];
+
     });
 
-    if (!updatedPO) {
-      return res.status(404).json({ success: false, message: "PO not found." });
-    }
+    // 🔥 CRITICAL: Auto-calculate PO status
+    const totalItems = po.items.length;
+
+    const approvedCount = po.items.filter(
+      i => i.itemStatus === "approved"
+    ).length;
+
+    const rejectedCount = po.items.filter(
+      i => i.itemStatus === "rejected"
+    ).length;
+
+    if (rejectedCount === totalItems)
+      po.status = "rejected";
+
+    else if (approvedCount === totalItems)
+      po.status = "approved";
+
+    else if (approvedCount > 0 || rejectedCount > 0)
+      po.status = "partially-approved";
+
+    else
+      po.status = "pending";
+
+
+    po.updatedAt = new Date();
+
+    await po.save();
 
     res.status(200).json({
       success: true,
       message: "PO updated successfully.",
-      data: updatedPO,
+      data: po,
     });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
   }
 };
+
+const cancelPO = async (req, res) => {
+
+  try {
+
+    const { cancelReason } = req.body;
+
+    const po = await PO.findById(req.params.id)
+      .populate("vendor");
+
+    if (!po)
+      return res.status(404).json({
+        message: "PO not found"
+      });
+
+    po.status = "cancelled";
+    po.cancelReason = cancelReason;
+    po.cancelledAt = new Date();
+
+    await po.save();
+
+    // send cancel email
+    await sendCancelEmail(po);
+
+    res.json({
+      success: true,
+      message: "PO cancelled successfully"
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      message: err.message
+    });
+
+  }
+
+};
+
+
+const sendCancelEmail = async (po) => {
+
+  const vendorEmail = po.vendor.contactPersons[0]?.email;
+
+  const subject = `Purchase Order ${po.poNo} Cancelled`;
+
+  const html = `
+  <body style="background:#f8f6f2;font-family:Arial;">
+
+  <table width="600" align="center" style="background:white;border-radius:10px;">
+
+  <tr>
+  <td style="text-align:center;padding:20px;">
+  <img src="https://api.smartflow360.com/public/logo.png" height="60"/>
+  </td>
+  </tr>
+
+  <tr>
+  <td style="background:#d6b46b;color:white;padding:15px;text-align:center;">
+  <h2>Purchase Order Cancelled</h2>
+  </td>
+  </tr>
+
+  <tr>
+  <td style="padding:25px;">
+
+  <p>Dear Vendor,</p>
+
+  <p>
+  Please be informed that Purchase Order 
+  <strong>${po.poNo}</strong> has been cancelled.
+  </p>
+
+  <p>
+  Reason:<br>
+  <strong>${po.cancelReason}</strong>
+  </p>
+
+  <p>
+  Please discontinue any processing related to this order.
+  </p>
+
+  <p>
+  Regards,<br>
+  I Khodal Bag Pvt. Ltd.
+  </p>
+
+  </td>
+  </tr>
+
+  </table>
+
+  </body>
+  `;
+
+  await sendVendorMail({
+    to: vendorEmail,
+    subject,
+    html
+  });
+
+};
+
+
 
 const { sendVendorMail } = require("../utils/sendVendorMail");
 
@@ -622,7 +815,11 @@ const updatePoAndSendMail = async (req, res) => {
     }
 
     // ✅ If approved, send email to vendor
-    if (status == "approved" && pdfBase64) {
+    if (
+      (updatedPO.status === "approved" ||
+        updatedPO.status === "partially-approved") &&
+      pdfBase64
+    ) {
       const vendorEmail = updatedPO.vendor.contactPersons[0]?.email;
       const poNumber = updatedPO.poNo || updatedPO._id;
 
@@ -632,21 +829,102 @@ const updatePoAndSendMail = async (req, res) => {
       // Prepare email options
       const subject = `Purchase Order ${poNumber} Approved`;
       const html = `
-        <p>Dear Vendor,</p>
-        <p>We are pleased to inform you that Purchase Order <strong>${poNumber}</strong> has been approved.</p>
-        </br>
-        <p>Please find the attached PDF copy of the Purchase Order for your reference.
-           Kindly review and proceed with the necessary actions as per the terms mentioned.</p>
-        </br><p>If you have any questions or require further clarification, please feel free to contact us.</p>
-        </br><p>Thank you for your cooperation.</p>    
-      `;
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+</head>
+
+<body style="margin:0;padding:0;background-color:#f8f6f2;font-family:Arial,Helvetica,sans-serif;">
+
+<table align="center" width="600" cellpadding="0" cellspacing="0"
+       style="background:#ffffff;border-radius:10px;overflow:hidden;
+       box-shadow:0 4px 12px rgba(0,0,0,0.08);margin-top:30px;">
+
+  <!-- Logo Header -->
+  <tr>
+    <td style="background:#ffffff;padding:25px;text-align:center;border-bottom:1px solid #eee;">
+      <img src="https://api.smartflow360.com/public/logo.png"
+           alt="I Khodal Bag Pvt. Ltd."
+           style="height:100px;">
+    </td>
+  </tr>
+
+  <!-- Gold Title Bar -->
+  <tr>
+    <td style="background:#d6b46b;color:#ffffff;padding:18px;text-align:center;">
+      <h2 style="margin:0;font-weight:600;letter-spacing:0.5px;">
+        Purchase Order Approved
+      </h2>
+    </td>
+  </tr>
+
+  <!-- Body -->
+  <tr>
+    <td style="padding:35px;color:#333;font-size:15px;line-height:1.7;">
+
+      <p>Dear Vendor,</p>
+
+      <p>
+        We are pleased to inform you that the Purchase Order 
+        <strong style="color:#d6b46b;">${poNumber}</strong> 
+        has been successfully approved.
+      </p>
+
+      <p>
+        Please find the attached Purchase Order PDF for your reference.
+        Kindly review and proceed as per the agreed terms.
+      </p>
+
+      <!-- Highlight Box -->
+      <table width="100%" cellpadding="0" cellspacing="0"
+             style="background:#faf6ea;border-left:5px solid #d6b46b;
+             padding:15px;margin:25px 0;border-radius:6px;">
+        <tr>
+          <td>
+            <strong>Purchase Order Number</strong><br>
+            <span style="font-size:18px;font-weight:bold;color:#d6b46b;">
+              ${poNumber}
+            </span>
+          </td>
+        </tr>
+      </table>
+
+      <p>
+        If you need any clarification, please contact our procurement team.
+      </p>
+
+      <p style="margin-top:35px;">
+        Warm regards,<br>
+        <strong style="color:#d6b46b;">I Khodal Bag Pvt. Ltd.</strong><br>
+        Procurement Department
+      </p>
+
+    </td>
+  </tr>
+
+  <!-- Footer -->
+  <tr>
+    <td style="background:#faf6ea;padding:18px;text-align:center;
+               font-size:12px;color:#777;">
+      © ${new Date().getFullYear()} I Khodal Bag Pvt. Ltd. All rights reserved.<br>
+      This is an automated ERP notification.
+    </td>
+  </tr>
+
+</table>
+
+</body>
+</html>
+`;
+
 
       try {
         await sendVendorMail({
           to: vendorEmail,
           // to: "divyeshvariya1692@gmail.com",
-          // cc: ccEmail || "mangukianisarg@gmail.com", // optional
-          cc: ccEmail || "account@ikhodalbag.com", // optional
+          cc: ccEmail || "mangukianisarg@gmail.com", // optional
+          // cc: ccEmail || "account@ikhodalbag.com", // optional
           subject,
           html,
           attachments: [
@@ -755,4 +1033,5 @@ module.exports = {
   getAllDeletedPOs,
   deletePOPermanently,
   restorePO,
+  cancelPO
 };

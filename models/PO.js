@@ -31,24 +31,44 @@ const poSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.ObjectId,
           ref: "RawMaterial",
         },
-        orderQty: { type: Number },
+        orderQty: { type: Number, required: true },
+
+        inwardQty: {
+          type: Number,
+          default: 0, // how much already inwarded
+        },
+
+        // optional but recommended (can also calculate dynamically)
+        pendingQty: {
+          type: Number,
+          default: function () {
+            return this.orderQty;
+          },
+        },
+
         rate: { type: Number },
         gst: Number,
         amount: { type: Number },
         gstAmount: Number,
         amountWithGst: Number,
+
+        inwardStatus: {
+          type: String,
+          enum: ["pending", "partial", "completed"],
+          default: "pending",
+        },
+
         description: { type: String, default: "" },
+        rejectionReason: { type: String, default: "" },
         rejected: { type: Boolean, default: false },
         itemStatus: {
           type: String,
           enum: ["approved", "rejected", "pending"],
           default: "pending",
         },
-        inwardStatus: { type: Boolean, default: false },
-        rejectionReason: { type: String, default: "" },
-        // date: { type: Date, default: Date.now },
       },
     ],
+
 
     totalAmount: Number,
     totalGstAmount: Number,
@@ -56,9 +76,13 @@ const poSchema = new mongoose.Schema(
 
     address: String,
 
+    cancelReason: String,
+    cancelledAt: Date,
+
+
     status: {
       type: String,
-      enum: ["pending", "approved", "partially-approved", "rejected"],
+      enum: ["pending", "approved", "partially-approved", "rejected", "cancelled"],
       default: "pending",
     },
     emailSent: {

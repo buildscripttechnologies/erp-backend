@@ -983,6 +983,49 @@ const generateGRNNumber = async () => {
   return `${prefix}${seqFormatted}`;
 };
 
+const updatePOAfterInward = async (poId, itemId, inwardQty) => {
+
+  const po = await PO.findById(poId);
+
+  if (!po) throw new Error("PO not found");
+
+  const poItem = po.items.find(
+    i => i.item.toString() === itemId.toString()
+  );
+
+  if (!poItem)
+    throw new Error("Item not found in PO");
+
+  const remainingQty = poItem.orderQty - (poItem.inwardQty || 0);
+
+  if (remainingQty <= 0)
+    throw new Error("Item already fully inwarded");
+
+  if (Number(inwardQty) > remainingQty)
+    throw new Error(`Inward qty exceeds pending qty (${remainingQty})`);
+
+  // Update inwardQty
+  poItem.inwardQty = (poItem.inwardQty || 0) + Number(inwardQty);
+
+  // Update pendingQty
+  poItem.pendingQty = poItem.orderQty - poItem.inwardQty;
+
+  // Update inwardStatus
+  if (poItem.pendingQty === 0)
+    poItem.inwardStatus = "completed";
+  else
+    poItem.inwardStatus = "partial";
+
+  // Update overall PO status
+  const allCompleted = po.items.every(
+    item => (item.pendingQty || item.orderQty - (item.inwardQty || 0)) === 0
+  );
+
+  po.status = allCompleted ? "approved" : "partially-approved";
+
+  await po.save();
+
+};
 
 
 exports.createStockEntry = async (req, res) => {
@@ -1046,7 +1089,6 @@ exports.createStockEntry = async (req, res) => {
 
     if (poId) {
       const po = await PO.findById(poId).select("poNo");
-
       if (po) {
         referenceModelValue = po.poNo;
       }
@@ -1088,6 +1130,16 @@ exports.createStockEntry = async (req, res) => {
         remarks: "Damaged during inward"
       });
     }
+
+    if (poId) {
+      const usableQty =
+        Number(stockQty) - Number(damagedQty || 0);
+
+      if (usableQty > 0) {
+        await updatePOAfterInward(poId, itemId, usableQty);
+      }
+    }
+
 
     return res.status(200).json({
       message: "Stock inward completed",

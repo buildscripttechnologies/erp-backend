@@ -12,6 +12,7 @@ const {
   getAllDeletedPOs,
   deletePOPermanently,
   restorePO,
+  cancelPO,
 } = require("../controllers/poController");
 const router = express.Router();
 
@@ -33,6 +34,14 @@ router.patch(
   checkPermission(["Purchase Order", "PO Approval"], "update"),
   updatePO
 );
+
+router.patch(
+  "/cancel/:id",
+  auth,
+  checkPermission(["Purchase Order", "PO Approval"], "update"),
+  cancelPO
+);
+
 router.patch(
   "/update-status/:id",
   auth,
