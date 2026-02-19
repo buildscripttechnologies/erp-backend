@@ -784,11 +784,20 @@ const sendCancelEmail = async (po) => {
   </body>
   `;
 
-  await sendVendorMail({
-    to: vendorEmail,
-    subject,
-    html
-  });
+  // await sendVendorMail({
+  //   to: vendorEmail,
+  //   subject,
+  //   html
+  // });
+
+   await sendVendorMail({
+          to: vendorEmail,
+          // to: "divyeshvariya1692@gmail.com",
+          // cc: ccEmail || "mangukianisarg@gmail.com", // optional
+          cc: ccEmail || "account@ikhodalbag.com", // optional
+          subject,
+          html,
+        });
 
 };
 
@@ -923,8 +932,8 @@ const updatePoAndSendMail = async (req, res) => {
         await sendVendorMail({
           to: vendorEmail,
           // to: "divyeshvariya1692@gmail.com",
-          cc: ccEmail || "mangukianisarg@gmail.com", // optional
-          // cc: ccEmail || "account@ikhodalbag.com", // optional
+          // cc: ccEmail || "mangukianisarg@gmail.com", // optional
+          cc: ccEmail || "account@ikhodalbag.com", // optional
           subject,
           html,
           attachments: [
