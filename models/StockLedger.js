@@ -74,7 +74,8 @@ const stockLedgerSchema = new mongoose.Schema(
     grnNumber: {
       type: String,
       index: true,
-      unique: true
+      unique: true,
+      sparse: true
     },
 
     createdBy: {
