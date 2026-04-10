@@ -47,6 +47,8 @@ exports.addBom = async (req, res) => {
       totalRate,
       totalB2BRate,
       totalD2CRate,
+      manualRate,
+      totalManualRate,
     } = parsed;
 
     // Step 1: Get or create Customer
@@ -69,17 +71,15 @@ exports.addBom = async (req, res) => {
     const attachments =
       req.files?.files?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       })) || [];
 
     const printingAttachments =
       req.files?.printingFiles?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       })) || [];
 
     // Step 2: Get FG by product name
@@ -181,6 +181,8 @@ exports.addBom = async (req, res) => {
       totalRate,
       totalB2BRate,
       totalD2CRate,
+      manualRate,
+      totalManualRate,
       productDetails: resolvedProductDetails,
       consumptionTable: consumptionTable,
       file: attachments,
@@ -256,17 +258,15 @@ exports.updateBom = async (req, res) => {
     const newFiles =
       req.files?.files?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       })) || [];
 
     const newPrintingFiles =
       req.files?.printingFiles?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       })) || [];
 
     // Step 3: Normalize productDetails
@@ -401,13 +401,13 @@ exports.getAllBoms = async (req, res) => {
 
     const matchStage = search
       ? {
-          $or: [
-            { bomNo: { $regex: searchRegex } },
-            { sampleNo: { $regex: searchRegex } },
-            { "party.customerName": { $regex: searchRegex } },
-            { "product.itemName": { $regex: searchRegex } },
-          ],
-        }
+        $or: [
+          { bomNo: { $regex: searchRegex } },
+          { sampleNo: { $regex: searchRegex } },
+          { "party.customerName": { $regex: searchRegex } },
+          { "product.itemName": { $regex: searchRegex } },
+        ],
+      }
       : {};
 
     const aggregationPipeline = [
@@ -515,6 +515,11 @@ exports.getAllBoms = async (req, res) => {
         let totalAmountWithGst =
           bom.totalD2CRate + (bom.totalD2CRate * bom.product?.gst) / 100;
 
+        let totalManualRateWithGst =
+          bom.totalManualRate +
+          (bom.totalManualRate * bom.product?.gst) / 100;
+        
+
         return {
           ...bom, // include ALL BOM fields (file, b2b, d2c, etc.)
           partyName: bom.party?.customerName || null,
@@ -527,6 +532,8 @@ exports.getAllBoms = async (req, res) => {
             fullName: bom.createdBy?.fullName,
           },
           totalAmountWithGst: totalAmountWithGst,
+          totalManualRateWithGst:
+          totalManualRateWithGst,
           productDetails: enrichedDetails,
           consumptionTable: bom.consumptionTable,
         };
@@ -560,13 +567,13 @@ exports.getAllDeletedBoms = async (req, res) => {
 
     const matchStage = search
       ? {
-          $or: [
-            { bomNo: { $regex: searchRegex } },
-            { sampleNo: { $regex: searchRegex } },
-            { "party.customerName": { $regex: searchRegex } },
-            { "product.itemName": { $regex: searchRegex } },
-          ],
-        }
+        $or: [
+          { bomNo: { $regex: searchRegex } },
+          { sampleNo: { $regex: searchRegex } },
+          { "party.customerName": { $regex: searchRegex } },
+          { "product.itemName": { $regex: searchRegex } },
+        ],
+      }
       : {};
 
     const aggregationPipeline = [
@@ -761,7 +768,7 @@ exports.deleteBOMPermanently = async (req, res) => {
 exports.restoreBOM = async (req, res) => {
   try {
     const ids = req.body.ids;
-   
+
 
     const result = await BOM.restore({
       _id: { $in: ids },

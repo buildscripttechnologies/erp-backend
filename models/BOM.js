@@ -91,7 +91,14 @@ const bomSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-
+    manualRate: {
+      type: Number,
+      default: 0,
+    },
+    totalManualRate: {
+      type: Number,
+      default: 0,
+    },
     // Percentages
     B2B: {
       type: Number,

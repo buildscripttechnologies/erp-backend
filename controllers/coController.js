@@ -1,6 +1,7 @@
 const CO = require("../models/CO");
 const Customer = require("../models/Customer");
 const MI = require("../models/MI");
+const BOM = require("../models/BOM");
 const {
   generateNextBomNo,
   generateNextCoNo,
@@ -17,6 +18,14 @@ exports.addCO = async (req, res) => {
       sampleNo = "",
       date,
       deliveryDate,
+
+      // 🔥 ADD THESE
+      manualRate,
+      autoRate,
+      finalRate,
+      useManualRate,
+      amount,
+      gst,
     } = parsed;
 
     // Step 1: Get or create Customer
@@ -39,17 +48,15 @@ exports.addCO = async (req, res) => {
     const attachments =
       req.files?.files?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       })) || [];
 
     const printingAttachments =
       req.files?.printingFiles?.map((file) => ({
         fileName: file.originalname,
-        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${
-          file.filename
-        }`,
+        fileUrl: `${protocol}://${req.get("host")}/uploads/${req.uploadType}/${file.filename
+          }`,
       })) || [];
 
     // const bomNo = await generateNextBomNo();
@@ -66,8 +73,14 @@ exports.addCO = async (req, res) => {
       date,
       deliveryDate,
 
-      //   file: attachments,
-      //   printingFile: printingAttachments,
+      // 🔥 ADD THESE (CRITICAL)
+      manualRate: Number(manualRate || 0),
+      autoRate: Number(autoRate || 0),
+      finalRate: Number(finalRate || 0),
+      useManualRate: Boolean(useManualRate),
+      amount: Number(amount || 0),
+      gst: Number(gst || 0),
+
       createdBy: req.user?._id,
     });
 
@@ -124,14 +137,14 @@ exports.getAllCOs = async (req, res) => {
 
     const matchStage = search
       ? {
-          $or: [
-            { coNo: { $regex: searchRegex } },
-            { bomNo: { $regex: searchRegex } },
-            { sampleNo: { $regex: searchRegex } },
-            { "party.customerName": { $regex: searchRegex } },
-            { "product.itemName": { $regex: searchRegex } },
-          ],
-        }
+        $or: [
+          { coNo: { $regex: searchRegex } },
+          { bomNo: { $regex: searchRegex } },
+          { sampleNo: { $regex: searchRegex } },
+          { "party.customerName": { $regex: searchRegex } },
+          { "product.itemName": { $regex: searchRegex } },
+        ],
+      }
       : {};
 
     const aggregationPipeline = [
