@@ -3,6 +3,7 @@ const FG = require("../models/FG");
 const MI = require("../models/MI");
 const RawMaterial = require("../models/RawMaterial");
 const SFG = require("../models/SFG");
+const { generateTasksFromMI } = require("../services/taskGenerator");
 const {
   generateNextProdNo,
   generateNextInvoiceNo,
@@ -231,6 +232,8 @@ exports.createMI = async (req, res) => {
       b.status = "In Progress";
       await b.save();
     }
+
+    await generateTasksFromMI(mi);
 
     return res.status(201).json({ status: 201, data: mi });
 

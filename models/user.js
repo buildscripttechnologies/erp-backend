@@ -27,6 +27,17 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "UserGrp",
     },
+    skills: [String], // ["Cutting", "Stitching"]
+
+efficiencyScore: {
+  type: Number,
+  default: 1,
+},
+
+currentLoad: {
+  type: Number,
+  default: 0,
+},
 
     warehouse: { type: String, default: "Warehouse 1" },
 

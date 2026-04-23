@@ -1,10 +1,20 @@
 const express = require("express");
 const app = express();
+const http = require("http");
+const { Server } = require("socket.io");
 const cors = require("cors");
 const connectDB = require("./config/db");
 const path = require("path");
 require("dotenv").config();
 const port = process.env.PORT || 5000;
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
+global.io = io;
+server.listen(5200, () => {
+  console.log("Server running");
+});
 
 const authRoutes = require("./routes/authRoutes");
 const otpRoutes = require("./routes/otpRoutes");
@@ -33,7 +43,9 @@ const accessoryRoutes = require("./routes/accessoryRoutes");
 const accessoryInwardRoutes = require("./routes/accessoryInwardRoutes");
 const accessoryIssueRoutes = require("./routes/accessoryIssueRoutes");
 const accessoryReceiveRoutes = require("./routes/accessoryReceiveRoutes");
-
+const productionDashboardRoutes = require("./routes/productionDashboardRoutes");
+const productionTaskRoutes = require("./routes/productionTaskRoutes");
+const productionLogRoutes = require("./routes/producationLogRoutes");
 const healthRoutes = require("./routes/healthRoute");
 
 const syncRawMaterials = require("./syncData/syncRawMaterials");
@@ -122,6 +134,9 @@ app.use("/api/accessories", accessoryRoutes);
 app.use("/api/accessory-inward", accessoryInwardRoutes);
 app.use("/api/accessory-issue", accessoryIssueRoutes);
 app.use("/api/accessory-receive", accessoryReceiveRoutes);
+app.use("/api/production-dashboard", productionDashboardRoutes);
+app.use("/api/production", productionTaskRoutes);
+app.use("/api/production-log", productionLogRoutes);
 app.use("/public", express.static("public"));
 
 
