@@ -1661,42 +1661,77 @@ async function generateBarcodes(stock, manualEntries = []) {
 
   return await Barcode.insertMany(barcodes);
 }
-// controllers/stockLedgerController.js
 exports.getStockBySku = async (req, res) => {
   try {
     const { skuCodes = [] } = req.body;
     const warehouse = req.user.warehouse;
+    const uniqueSkuCodes = [...new Set(skuCodes.filter(Boolean))];
 
-    // 1. Find only needed raw materials
-    const rms = await RawMaterial.find(
-      { skuCode: { $in: skuCodes } },
-      { _id: 1, skuCode: 1 }
-    );
+    if (!uniqueSkuCodes.length) {
+      return res.json({ data: {} });
+    }
 
-    const idMap = {};
-    rms.forEach(r => idMap[r._id] = r.skuCode);
+    const [rawMaterials, sfgs, fgs] = await Promise.all([
+      RawMaterial.find(
+        { skuCode: { $in: uniqueSkuCodes } },
+        { _id: 1, skuCode: 1 }
+      ).lean(),
+      SFG.find(
+        { skuCode: { $in: uniqueSkuCodes } },
+        { skuCode: 1, stockQty: 1 }
+      ).lean(),
+      FG.find(
+        { skuCode: { $in: uniqueSkuCodes } },
+        { skuCode: 1, stockQty: 1 }
+      ).lean(),
+    ]);
 
-    // 2. Aggregate only those IDs
-    const data = await StockLedger.aggregate([
+    const map = {};
+
+    const rmIdToSku = {};
+    rawMaterials.forEach((rm) => {
+      rmIdToSku[String(rm._id)] = rm.skuCode;
+    });
+
+    const rawMaterialStock = await StockLedger.aggregate([
       {
         $match: {
+          itemType: "RM",
           warehouse,
-          itemId: { $in: rms.map(r => r._id) }
-        }
+          itemId: { $in: rawMaterials.map((rm) => rm._id) },
+        },
       },
       {
         $group: {
           _id: "$itemId",
-          totalQty: { $sum: "$qty" }
-        }
-      }
+          qty: { $sum: "$qty" },
+        },
+      },
     ]);
 
-    // 3. Build SKU → Qty map
-    const map = {};
-    data.forEach(d => {
-      const sku = idMap[d._id.toString()];
-      map[sku] = d.totalQty;
+    rawMaterialStock.forEach((stock) => {
+      const skuCode = rmIdToSku[String(stock._id)];
+      if (skuCode) {
+        map[skuCode] = Math.max(0, Number(stock.qty) || 0);
+      }
+    });
+
+    rawMaterials.forEach((rm) => {
+      if (map[rm.skuCode] === undefined) {
+        map[rm.skuCode] = 0;
+      }
+    });
+
+    sfgs.forEach((sfg) => {
+      if (map[sfg.skuCode] === undefined) {
+        map[sfg.skuCode] = Math.max(0, Number(sfg.stockQty) || 0);
+      }
+    });
+
+    fgs.forEach((fg) => {
+      if (map[fg.skuCode] === undefined) {
+        map[fg.skuCode] = Math.max(0, Number(fg.stockQty) || 0);
+      }
     });
 
     res.json({ data: map });
@@ -1704,47 +1739,3 @@ exports.getStockBySku = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
-
-exports.getStockBySku = async (req, res) => {
-  try {
-    const { skuCodes = [] } = req.body;
-    const warehouse = req.user.warehouse;
-
-    // 1. Find only needed raw materials
-    const rms = await RawMaterial.find(
-      { skuCode: { $in: skuCodes } },
-      { _id: 1, skuCode: 1 }
-    );
-
-    const idMap = {};
-    rms.forEach(r => idMap[r._id] = r.skuCode);
-
-    // 2. Aggregate only those IDs
-    const data = await StockLedger.aggregate([
-      {
-        $match: {
-          warehouse,
-          itemId: { $in: rms.map(r => r._id) }
-        }
-      },
-      {
-        $group: {
-          _id: "$itemId",
-          totalQty: { $sum: "$qty" }
-        }
-      }
-    ]);
-
-    // 3. Build SKU → Qty map
-    const map = {};
-    data.forEach(d => {
-      const sku = idMap[d._id.toString()];
-      map[sku] = d.totalQty;
-    });
-
-    res.json({ data: map });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-};
-

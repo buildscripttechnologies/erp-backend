@@ -7,6 +7,7 @@ const {
   createMR,
   getAllMR,
   deleteMR,
+  updateMR,
 } = require("../controllers/materialReceiveController");
 
 const router = express.Router();
@@ -24,7 +25,13 @@ router.post(
   checkPermission(["Material Receive"], "write"),
   createMR
 );
-// router.patch("/update/:id", auth, checkPermission("PMaterial IssueO", "update"), updateMI);
+router.patch(
+  "/update/:id",
+  auth,
+  checkPermission(["Material Receive"], "update"),
+  updateMR
+);
+
 router.delete(
   "/delete/:id",
   auth,

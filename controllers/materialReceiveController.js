@@ -3,12 +3,112 @@ const MI = require("../models/MI");
 const MR = require("../models/MR");
 const RawMaterial = require("../models/RawMaterial");
 const SFG = require("../models/SFG");
+const StockLedger = require("../models/StockLedger");
 const { updateStock } = require("../utils/stockService");
 
 const modelMap = {
   RawMaterial,
   SFG,
   FG,
+};
+
+const getItemType = (type) => {
+  if (type === "RawMaterial") return "RM";
+  if (type === "SFG") return "SFG";
+  if (type === "FG") return "FG";
+  return null;
+};
+
+const getReceiveQty = (item = {}) => {
+  const qty = Number(item.receiveQty);
+  return Number.isFinite(qty) ? qty : 0;
+};
+
+const getIssueQty = (item = {}) => {
+  const value = item.qty && item.qty !== "N/A" ? item.qty : item.weight;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const applyStockMovement = async (dbItem, type, qty, warehouse, direction) => {
+  if (qty <= 0) return dbItem;
+
+  if (type === "RawMaterial") {
+    return updateStock(dbItem._id, qty, warehouse, direction);
+  }
+
+  const currentQty = Number(dbItem.stockQty) || 0;
+  if (direction === "REMOVE" && currentQty < qty) {
+    throw new Error(
+      `Insufficient stock for ${dbItem.skuCode}. Available: ${currentQty}, Required: ${qty}`
+    );
+  }
+
+  dbItem.stockQty =
+    direction === "ADD" ? currentQty + qty : currentQty - qty;
+  await dbItem.save();
+  return dbItem;
+};
+
+const createReceiveLedger = async ({
+  dbItem,
+  itemType,
+  warehouse,
+  qty,
+  referenceId,
+  referenceModel,
+  createdBy,
+  remarks,
+}) => {
+  if (!qty) return;
+
+  await StockLedger.create({
+    itemId: dbItem._id,
+    itemType,
+    warehouse,
+    qty,
+    movementType: "ADJUSTMENT",
+    referenceId,
+    referenceModel,
+    stockUOM: dbItem.stockUOM,
+    rateAtThatTime: dbItem.rate || 0,
+    createdBy,
+    remarks,
+  });
+};
+
+const syncMiReceiveQty = (mi, item, diff, receivedBy) => {
+  const miItem = mi.consumptionTable.find(
+    (ci) => ci.skuCode === item.skuCode && ci.type === item.type
+  );
+
+  if (!miItem) {
+    throw new Error(`Related MI row not found for SKU ${item.skuCode}`);
+  }
+
+  const issuedQty = getIssueQty(miItem);
+  const currentReceived = Number(miItem.receiveQty) || 0;
+  const nextReceived = currentReceived + diff;
+
+  if (nextReceived < 0) {
+    throw new Error(`Receive quantity cannot be negative for ${item.skuCode}`);
+  }
+
+  if (nextReceived > issuedQty) {
+    throw new Error(
+      `Receive quantity exceeds issued quantity for ${item.skuCode}. Issued: ${issuedQty}, Receiving: ${nextReceived}`
+    );
+  }
+
+  miItem.receiveQty = nextReceived;
+  miItem.isReceived = issuedQty > 0 && nextReceived >= issuedQty;
+  if (miItem.isReceived) {
+    miItem.receivedBy = miItem.receivedBy || receivedBy;
+    miItem.receivedAt = miItem.receivedAt || new Date();
+  } else {
+    miItem.receivedBy = undefined;
+    miItem.receivedAt = undefined;
+  }
 };
 
 exports.createMR = async (req, res) => {
@@ -25,9 +125,9 @@ exports.createMR = async (req, res) => {
     }
 
     for (const item of consumptionTable) {
-      const { skuCode, type, receiveQty } = item;
+      const { skuCode, type } = item;
 
-      const addQty = receiveQty ? parseFloat(receiveQty) : 0;
+      const addQty = getReceiveQty(item);
       if (!addQty || addQty <= 0) continue;
 
       // ---------------------------------------
@@ -42,30 +142,17 @@ exports.createMR = async (req, res) => {
       const dbItem = await Model.findOne({ skuCode });
       if (!dbItem) continue;
 
-      // --- Raw Material → use helper ---
-      if (type === "RawMaterial") {
-        await updateStock(dbItem._id, addQty, req.user.warehouse, "ADD");
-        await dbItem.save(); // refresh updated data
-      }
-      // --- SFG / FG → normal update ---
-      else {
-        dbItem.stockQty = ((dbItem.stockQty || 0) + addQty).toFixed(2);
-        await dbItem.save();
-      }
+      syncMiReceiveQty(mi, item, addQty, req.user._id);
 
-      item.stockQty = dbItem.stockQty;
+      const updatedItem = await applyStockMovement(
+        dbItem,
+        type,
+        addQty,
+        warehouse,
+        "ADD"
+      );
 
-      // ---------------------------------------
-      // 2️⃣ Update MI consumptionTable
-      // ---------------------------------------
-      const miItem = mi.consumptionTable.find((ci) => ci.skuCode === skuCode);
-      if (miItem) {
-        if (miItem.qty && miItem.qty !== "N/A") {
-          miItem.qty = Math.max(0, parseFloat(miItem.qty) - addQty);
-        } else if (miItem.weight && miItem.weight !== "N/A") {
-          miItem.weight = Math.max(0, parseFloat(miItem.weight) - addQty);
-        }
-      }
+      item.stockQty = updatedItem.stockQty;
     }
 
     // Save updated MI
@@ -80,6 +167,27 @@ exports.createMR = async (req, res) => {
       consumptionTable,
       createdBy: req.user._id,
     });
+
+    for (const item of consumptionTable) {
+      const addQty = getReceiveQty(item);
+      const itemType = getItemType(item.type);
+      const Model = modelMap[item.type];
+      if (!addQty || !itemType || !Model) continue;
+
+      const dbItem = await Model.findOne({ skuCode: item.skuCode });
+      if (!dbItem) continue;
+
+      await createReceiveLedger({
+        dbItem,
+        itemType,
+        warehouse,
+        qty: addQty,
+        referenceId: mr._id,
+        referenceModel: "MR",
+        createdBy: req.user._id,
+        remarks: `Material Receive | BOM: ${bomNo} | PROD: ${prodNo}`,
+      });
+    }
 
     res.status(201).json({ status: 201, data: mr });
   } catch (err) {
@@ -234,6 +342,18 @@ exports.updateMR = async (req, res) => {
       return res.status(404).json({ message: "Material Receive not found" });
     }
 
+    const warehouse = existingMR.warehouse || req.user.warehouse;
+    const mi = await MI.findOne({
+      prodNo: existingMR.prodNo,
+      bomNo: existingMR.bomNo,
+    });
+
+    if (!mi) {
+      return res
+        .status(404)
+        .json({ message: "Related Material Issue not found" });
+    }
+
     if (Array.isArray(updateData.consumptionTable)) {
       for (const updatedItem of updateData.consumptionTable) {
         const oldItem = existingMR.consumptionTable.find(
@@ -243,7 +363,8 @@ exports.updateMR = async (req, res) => {
 
         if (!oldItem) {
           // NEWLY ADDED ITEM IN MR
-          const receiveQty = parseFloat(updatedItem.receiveQty || 0);
+          const receiveQty = getReceiveQty(updatedItem);
+          if (receiveQty <= 0) continue;
 
           let Model;
           if (updatedItem.type === "RawMaterial") Model = RawMaterial;
@@ -254,26 +375,34 @@ exports.updateMR = async (req, res) => {
           const dbItem = await Model.findOne({ skuCode: updatedItem.skuCode });
           if (!dbItem) continue;
 
-          // RAW MATERIAL CASE — USE HELPER
-          if (updatedItem.type === "RawMaterial") {
-            await updateStock(
-              dbItem._id,
-              receiveQty,
-              req.user.warehouse,
-              "ADD"
-            );
-          } else {
-            dbItem.stockQty += receiveQty;
-            await dbItem.save();
-          }
+          syncMiReceiveQty(mi, updatedItem, receiveQty, req.user._id);
 
-          updatedItem.stockQty = dbItem.stockQty;
+          const adjustedItem = await applyStockMovement(
+            dbItem,
+            updatedItem.type,
+            receiveQty,
+            warehouse,
+            "ADD"
+          );
+
+          await createReceiveLedger({
+            dbItem: adjustedItem,
+            itemType: getItemType(updatedItem.type),
+            warehouse,
+            qty: receiveQty,
+            referenceId: existingMR._id,
+            referenceModel: "MR-UPDATE",
+            createdBy: req.user._id,
+            remarks: `MR Updated | BOM: ${existingMR.bomNo || "-"} | PROD: ${existingMR.prodNo || "-"}`,
+          });
+
+          updatedItem.stockQty = adjustedItem.stockQty;
           continue;
         }
 
         // Existing item — calculate diff
-        const oldReceive = parseFloat(oldItem.receiveQty || 0);
-        const newReceive = parseFloat(updatedItem.receiveQty || 0);
+        const oldReceive = getReceiveQty(oldItem);
+        const newReceive = getReceiveQty(updatedItem);
 
         const diff = newReceive - oldReceive; // + = more received → ADD stock
 
@@ -287,30 +416,34 @@ exports.updateMR = async (req, res) => {
           const dbItem = await Model.findOne({ skuCode: updatedItem.skuCode });
           if (!dbItem) continue;
 
-          if (updatedItem.type === "RawMaterial") {
-            if (diff > 0) {
-              // Extra quantity received → add
-              await updateStock(dbItem._id, diff, req.user.warehouse, "ADD");
-            } else {
-              // Reduced received qty → remove from stock
-              await updateStock(
-                dbItem._id,
-                Math.abs(diff),
-                req.user.warehouse,
-                "REMOVE"
-              );
-            }
-          } else {
-            // SFG / FG direct qty
-            dbItem.stockQty += diff;
-            await dbItem.save();
-          }
+          syncMiReceiveQty(mi, updatedItem, diff, req.user._id);
+
+          const adjustedItem = await applyStockMovement(
+            dbItem,
+            updatedItem.type,
+            Math.abs(diff),
+            warehouse,
+            diff > 0 ? "ADD" : "REMOVE"
+          );
+
+          await createReceiveLedger({
+            dbItem: adjustedItem,
+            itemType: getItemType(updatedItem.type),
+            warehouse,
+            qty: diff,
+            referenceId: existingMR._id,
+            referenceModel: "MR-UPDATE",
+            createdBy: req.user._id,
+            remarks: `MR Updated | BOM: ${existingMR.bomNo || "-"} | PROD: ${existingMR.prodNo || "-"}`,
+          });
 
           // Update local returned stockQty
-          updatedItem.stockQty = dbItem.stockQty;
+          updatedItem.stockQty = adjustedItem.stockQty;
         }
       }
     }
+
+    await mi.save();
 
     // Save updated MR
     const updatedMR = await MR.findByIdAndUpdate(id, updateData, { new: true });
@@ -348,11 +481,20 @@ exports.deleteMR = async (req, res) => {
     if (!mr)
       return res.status(404).json({ message: "Material Receive not found" });
 
-    // take only checked rows
-    const checkedItems = mr.consumptionTable.filter((item) => item.isChecked);
+    const warehouse = mr.warehouse || req.user.warehouse;
+    const mi = await MI.findOne({ prodNo: mr.prodNo, bomNo: mr.bomNo });
+    if (!mi) {
+      return res
+        .status(404)
+        .json({ message: "Related Material Issue not found" });
+    }
 
-    // Reverse stock for each checked item
-    for (const item of checkedItems) {
+    const receivedItems = mr.consumptionTable.filter(
+      (item) => getReceiveQty(item) > 0
+    );
+
+    // Reverse stock for each received item
+    for (const item of receivedItems) {
       let Model;
 
       if (item.type === "RawMaterial") Model = RawMaterial;
@@ -361,23 +503,36 @@ exports.deleteMR = async (req, res) => {
       else continue;
 
       const diff = Number(item.receiveQty) || 0; // MR increases by receiveQty → reverse it
+      if (diff <= 0) continue;
 
-      // Decrease stock from correct warehouse
-      await Model.updateOne(
-        { skuCode: item.skuCode },
-        { $inc: { stockQty: -diff } }
+      const dbItem = await Model.findOne({ skuCode: item.skuCode });
+      if (!dbItem) continue;
+
+      syncMiReceiveQty(mi, item, -diff, req.user._id);
+
+      const adjustedItem = await applyStockMovement(
+        dbItem,
+        item.type,
+        diff,
+        warehouse,
+        "REMOVE"
       );
+
+      await createReceiveLedger({
+        dbItem: adjustedItem,
+        itemType: getItemType(item.type),
+        warehouse,
+        qty: -diff,
+        referenceId: mr._id,
+        referenceModel: "MR-DELETE",
+        createdBy: req.user._id,
+        remarks: `MR Deleted | BOM: ${mr.bomNo || "-"} | PROD: ${mr.prodNo || "-"}`,
+      });
     }
 
-    // Remove checked items from MR
-    mr.consumptionTable = mr.consumptionTable.filter((item) => !item.isChecked);
+    await mr.delete();
 
-    // If empty → soft delete the MR completely
-    if (mr.consumptionTable.length === 0) {
-      await mr.delete();
-    } else {
-      await mr.save(); // partial delete only selected rows
-    }
+    await mi.save();
 
     res.status(200).json({
       status: 200,

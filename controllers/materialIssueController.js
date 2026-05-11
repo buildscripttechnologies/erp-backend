@@ -18,6 +18,142 @@ const modelMap = {
   FG,
 };
 
+const getIssueQty = (item = {}) => {
+  const value = item.qty && item.qty !== "N/A" ? item.qty : item.weight;
+  const parsed = parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getIssuedQty = (item) => {
+  return item?.isChecked ? getIssueQty(item) : 0;
+};
+
+const getConsumptionKey = (item = {}) => {
+  return `${item.type || ""}:${item.skuCode || ""}`;
+};
+
+const syncReceiveStateWithIssue = (item) => {
+  const issuedQty = getIssuedQty(item);
+
+  if (issuedQty <= 0) {
+    item.receiveQty = 0;
+    item.isReceived = false;
+    item.receivedBy = undefined;
+    item.receivedAt = undefined;
+    return;
+  }
+
+  const receiveQty = Number(item.receiveQty) || 0;
+  item.receiveQty = Math.min(receiveQty, issuedQty);
+  item.isReceived = item.receiveQty >= issuedQty;
+
+  if (!item.isReceived) {
+    item.receivedBy = undefined;
+    item.receivedAt = undefined;
+  }
+};
+
+const getItemModel = (type) => {
+  if (type === "RawMaterial") return RawMaterial;
+  if (type === "SFG") return SFG;
+  if (type === "FG") return FG;
+  return null;
+};
+
+const applyStockSnapshot = (item, dbItem) => {
+  if (!item || !dbItem) return;
+  item.stockQty = Number(dbItem.stockQty) || 0;
+  item.stockByWarehouse = dbItem.stockByWarehouse || [];
+};
+
+const getAvailableStock = async (dbItem, type, warehouse) => {
+  if (type === "RawMaterial") {
+    const stock = await StockLedger.aggregate([
+      {
+        $match: {
+          itemId: dbItem._id,
+          itemType: "RM",
+          warehouse,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          qty: { $sum: "$qty" },
+        },
+      },
+    ]);
+
+    return Math.max(0, Number(stock[0]?.qty) || 0);
+  }
+
+  return Math.max(0, Number(dbItem.stockQty) || 0);
+};
+
+const assertIssueStockAvailable = async (dbItem, type, warehouse, requiredQty) => {
+  if (requiredQty <= 0) return;
+
+  const availableQty = await getAvailableStock(dbItem, type, warehouse);
+  if (availableQty < requiredQty) {
+    throw new Error(
+      `Insufficient stock for ${dbItem.skuCode}. Available: ${availableQty}, Required: ${requiredQty}`
+    );
+  }
+};
+
+const refreshConsumptionStockSnapshots = async (consumptionTable = []) => {
+  for (const item of consumptionTable) {
+    const Model = getItemModel(item.type);
+    if (!Model || !item.skuCode) continue;
+
+    const dbItem = await Model.findOne({ skuCode: item.skuCode });
+    applyStockSnapshot(item, dbItem);
+  }
+};
+
+const syncItemDetailsWithIssuedSkus = (itemDetails = [], consumptionTable = []) => {
+  const issuedSkus = new Set(
+    consumptionTable
+      .filter((item) => getIssuedQty(item) > 0)
+      .map((item) => item.skuCode)
+  );
+
+  return itemDetails.map((item) => {
+    const itemSku = item.skuCode || item.itemId?.skuCode;
+    const isIssued = issuedSkus.has(itemSku);
+    const stages = Array.isArray(item.stages) ? [...item.stages] : [];
+    const materialStageIndex = stages.findIndex(
+      (stage) => stage.stage === "Material Issue"
+    );
+
+    if (materialStageIndex >= 0) {
+      stages[materialStageIndex] = {
+        ...stages[materialStageIndex],
+        status: isIssued ? "Completed" : "Pending",
+      };
+    } else {
+      stages.unshift({
+        stage: "Material Issue",
+        status: isIssued ? "Completed" : "Pending",
+      });
+    }
+
+    let nextStages = stages;
+    if (!isIssued) {
+      nextStages = stages.filter((stage) => stage.stage !== "Cutting");
+    }
+
+    return {
+      ...item,
+      currentStatus: isIssued ? item.currentStatus : "Pending",
+      cuttingType: isIssued ? item.cuttingType : "",
+      jobWorkType: isIssued ? item.jobWorkType : "",
+      vendor: isIssued ? item.vendor : "",
+      stages: nextStages,
+    };
+  });
+};
+
 // Create Material Issue
 // exports.createMI = async (req, res) => {
 //   try {
@@ -115,6 +251,21 @@ exports.createMI = async (req, res) => {
     const prodNo = await generateNextProdNo();
     const warehouse = req.user.warehouse;
 
+    for (const item of consumptionTable) {
+      const deduction = getIssuedQty(item);
+      if (deduction <= 0) continue;
+
+      const Model = getItemModel(item.type);
+      if (!Model || !item.skuCode) continue;
+
+      const dbItem = await Model.findOne({ skuCode: item.skuCode });
+      if (!dbItem) {
+        throw new Error(`Material not found for SKU ${item.skuCode}`);
+      }
+
+      await assertIssueStockAvailable(dbItem, item.type, warehouse, deduction);
+    }
+
     // =========================
     // CREATE MI FIRST (so we get _id)
     // =========================
@@ -134,15 +285,13 @@ exports.createMI = async (req, res) => {
     // PROCESS CONSUMPTION
     // =========================
     for (const item of consumptionTable) {
-      const { skuCode, type, qty, weight } = item;
+      const { skuCode, type } = item;
 
-      const issueQty = qty && qty !== "N/A" ? parseFloat(qty) : 0;
-      const issueWeight = weight && weight !== "N/A" ? parseFloat(weight) : 0;
-      const deduction = item.isChecked ? (issueQty || issueWeight) : 0;
-
-      if (deduction <= 0) continue;
+      const deduction = item.isChecked ? getIssueQty(item) : 0;
 
       let updatedItem;
+      let Model = getItemModel(type);
+      if (!Model || !skuCode) continue;
 
       // =========================
       // RAW MATERIAL
@@ -151,21 +300,25 @@ exports.createMI = async (req, res) => {
         const mat = await RawMaterial.findOne({ skuCode });
         if (!mat) continue;
 
-        updatedItem = await updateStock(mat._id, deduction, warehouse, "REMOVE");
+        updatedItem = mat;
 
-        await StockLedger.create({
-          itemId: mat._id,
-          itemType: "RM",
-          warehouse,
-          qty: -deduction,
-          movementType: "ISSUE",
-          stockUOM: mat.stockUOM,
-          referenceId: mi._id,
-          referenceModel: "MI",
-          rateAtThatTime: mat.rate || 0,
-          createdBy: req.user._id,
-          remarks: `MI Issue for BOM: ${bomNo} | Product: ${productName}`
-        });
+        if (deduction > 0) {
+          updatedItem = await updateStock(mat._id, deduction, warehouse, "REMOVE");
+
+          await StockLedger.create({
+            itemId: mat._id,
+            itemType: "RM",
+            warehouse,
+            qty: -deduction,
+            movementType: "ISSUE",
+            stockUOM: mat.stockUOM,
+            referenceId: mi._id,
+            referenceModel: "MI",
+            rateAtThatTime: mat.rate || 0,
+            createdBy: req.user._id,
+            remarks: `MI Issue for BOM: ${bomNo} | Product: ${productName}`
+          });
+        }
 
       }
 
@@ -176,21 +329,30 @@ exports.createMI = async (req, res) => {
         const sfgItem = await SFG.findOne({ skuCode });
         if (!sfgItem) continue;
 
-        sfgItem.stockQty -= deduction;
-        await sfgItem.save();
         updatedItem = sfgItem;
 
-        await StockLedger.create({
-          itemId: sfgItem._id,
-          itemType: "SFG",
-          warehouse,
-          qty: -deduction,
-          movementType: "ISSUE",
-          referenceId: mi._id,        // ✅ FIXED
-          referenceModel: "MI",
-          rateAtThatTime: sfgItem.rate || 0,
-          createdBy: req.user._id,
-        });
+        if (deduction > 0) {
+          if ((Number(sfgItem.stockQty) || 0) < deduction) {
+            throw new Error(
+              `Insufficient stock for ${sfgItem.skuCode}. Available: ${sfgItem.stockQty || 0}, Required: ${deduction}`
+            );
+          }
+
+          sfgItem.stockQty = (Number(sfgItem.stockQty) || 0) - deduction;
+          await sfgItem.save();
+
+          await StockLedger.create({
+            itemId: sfgItem._id,
+            itemType: "SFG",
+            warehouse,
+            qty: -deduction,
+            movementType: "ISSUE",
+            referenceId: mi._id,        // ✅ FIXED
+            referenceModel: "MI",
+            rateAtThatTime: sfgItem.rate || 0,
+            createdBy: req.user._id,
+          });
+        }
       }
 
       // =========================
@@ -200,27 +362,38 @@ exports.createMI = async (req, res) => {
         const fgItem = await FG.findOne({ skuCode });
         if (!fgItem) continue;
 
-        fgItem.stockQty -= deduction;
-        await fgItem.save();
         updatedItem = fgItem;
 
-        await StockLedger.create({
-          itemId: fgItem._id,
-          itemType: "FG",
-          warehouse,
-          qty: -deduction,
-          movementType: "ISSUE",
-          referenceId: mi._id,        // ✅ FIXED
-          referenceModel: "MI",
-          rateAtThatTime: fgItem.rate || 0,
-          createdBy: req.user._id,
-        });
+        if (deduction > 0) {
+          if ((Number(fgItem.stockQty) || 0) < deduction) {
+            throw new Error(
+              `Insufficient stock for ${fgItem.skuCode}. Available: ${fgItem.stockQty || 0}, Required: ${deduction}`
+            );
+          }
+
+          fgItem.stockQty = (Number(fgItem.stockQty) || 0) - deduction;
+          await fgItem.save();
+
+          await StockLedger.create({
+            itemId: fgItem._id,
+            itemType: "FG",
+            warehouse,
+            qty: -deduction,
+            movementType: "ISSUE",
+            referenceId: mi._id,        // ✅ FIXED
+            referenceModel: "MI",
+            rateAtThatTime: fgItem.rate || 0,
+            createdBy: req.user._id,
+          });
+        }
       }
 
       // UI snapshot
-      item.stockQty = updatedItem.stockQty;
-      item.stockByWarehouse = updatedItem.stockByWarehouse || [];
+      applyStockSnapshot(item, updatedItem);
     }
+
+    mi.consumptionTable = consumptionTable;
+    await mi.save();
 
     // =========================
     // UPDATE BOM
@@ -464,69 +637,138 @@ exports.updateMI = async (req, res) => {
     }
 
     const { bomNo, productName } = existingMI;
-    const warehouse = req.user.warehouse;
+    const warehouse = existingMI.warehouse || req.user.warehouse;
 
     if (Array.isArray(updateData.consumptionTable)) {
+      const oldItemsByKey = new Map();
+      const updatedItemsByKey = new Map();
+
+      for (const oldItem of existingMI.consumptionTable || []) {
+        oldItemsByKey.set(getConsumptionKey(oldItem), oldItem);
+      }
+
       for (const updatedItem of updateData.consumptionTable) {
-        const oldItem = existingMI.consumptionTable.find(
-          (ci) =>
-            ci.skuCode === updatedItem.skuCode &&
-            ci.type === updatedItem.type
-        );
+        syncReceiveStateWithIssue(updatedItem);
+        updatedItemsByKey.set(getConsumptionKey(updatedItem), updatedItem);
+      }
 
-        if (!oldItem) continue;
+      const itemKeys = new Set([
+        ...oldItemsByKey.keys(),
+        ...updatedItemsByKey.keys(),
+      ]);
 
-        const oldIssued = parseFloat(oldItem.qty || oldItem.weight || 0);
-        const newIssued = parseFloat(
-          updatedItem.qty || updatedItem.weight || 0
-        );
+      for (const itemKey of itemKeys) {
+        const oldItem = oldItemsByKey.get(itemKey);
+        const updatedItem = updatedItemsByKey.get(itemKey);
+        const stockItem = updatedItem || oldItem;
+
+        if (!stockItem?.skuCode) continue;
+
+        const diff = getIssuedQty(updatedItem) - getIssuedQty(oldItem);
+        if (diff <= 0) continue;
+
+        const Model = getItemModel(stockItem.type);
+        if (!Model) continue;
+
+        const dbItem = await Model.findOne({ skuCode: stockItem.skuCode });
+        if (!dbItem) {
+          throw new Error(`Material not found for SKU ${stockItem.skuCode}`);
+        }
+
+        await assertIssueStockAvailable(dbItem, stockItem.type, warehouse, diff);
+      }
+
+      for (const itemKey of itemKeys) {
+        const oldItem = oldItemsByKey.get(itemKey);
+        const updatedItem = updatedItemsByKey.get(itemKey);
+        const stockItem = updatedItem || oldItem;
+
+        if (!stockItem?.skuCode) continue;
+
+        const oldIssued = getIssuedQty(oldItem);
+        const newIssued = getIssuedQty(updatedItem);
 
         const diff = newIssued - oldIssued;
         if (diff === 0) continue;
 
         let Model;
-        if (updatedItem.type === "RawMaterial") Model = RawMaterial;
-        else if (updatedItem.type === "SFG") Model = SFG;
-        else if (updatedItem.type === "FG") Model = FG;
+        if (stockItem.type === "RawMaterial") Model = RawMaterial;
+        else if (stockItem.type === "SFG") Model = SFG;
+        else if (stockItem.type === "FG") Model = FG;
         else continue;
 
-        const dbItem = await Model.findOne({ skuCode: updatedItem.skuCode });
+        const dbItem = await Model.findOne({ skuCode: stockItem.skuCode });
         if (!dbItem) continue;
 
+        let adjustedItem = dbItem;
+
         // ---------- RAW MATERIAL ----------
-        if (updatedItem.type === "RawMaterial") {
+        if (stockItem.type === "RawMaterial") {
           if (diff > 0) {
-            await updateStock(dbItem._id, diff, warehouse, "REMOVE");
+            adjustedItem = await updateStock(dbItem._id, diff, warehouse, "REMOVE");
           } else {
-            await updateStock(dbItem._id, Math.abs(diff), warehouse, "ADD");
+            adjustedItem = await updateStock(dbItem._id, Math.abs(diff), warehouse, "ADD");
           }
         }
         // ---------- SFG / FG ----------
         else {
-          dbItem.stockQty -= diff;
+          if (diff > 0 && (Number(dbItem.stockQty) || 0) < diff) {
+            throw new Error(
+              `Insufficient stock for ${dbItem.skuCode}. Available: ${dbItem.stockQty || 0}, Required: ${diff}`
+            );
+          }
+
+          dbItem.stockQty = (Number(dbItem.stockQty) || 0) - diff;
           await dbItem.save();
+          adjustedItem = dbItem;
         }
 
         // ---------- CREATE LEDGER ENTRY ----------
         await StockLedger.create({
-          itemId: dbItem._id,
+          itemId: adjustedItem._id,
           itemType:
-            updatedItem.type === "RawMaterial"
+            stockItem.type === "RawMaterial"
               ? "RM"
-              : updatedItem.type,
+              : stockItem.type,
           warehouse,
           qty: -diff, // diff positive = more issue → negative stock
           movementType: "ADJUSTMENT",
           referenceId: existingMI._id,
           referenceModel: "MI-UPDATE",
-          rateAtThatTime: dbItem.rate || 0,
+          stockUOM: adjustedItem.stockUOM,
+          rateAtThatTime: adjustedItem.rate || 0,
           createdBy: req.user._id,
           remarks: `MI Updated | BOM: ${bomNo} | Product: ${productName}`
         });
 
-        updatedItem.stockQty = dbItem.stockQty;
+        if (updatedItem) {
+          applyStockSnapshot(updatedItem, adjustedItem);
+        }
       }
+
+      await refreshConsumptionStockSnapshots(updateData.consumptionTable);
     }
+
+    if (Array.isArray(updateData.itemDetails)) {
+      updateData.itemDetails = syncItemDetailsWithIssuedSkus(
+        updateData.itemDetails,
+        updateData.consumptionTable || existingMI.consumptionTable || []
+      );
+    }
+
+    const finalConsumptionTable =
+      updateData.consumptionTable || existingMI.consumptionTable || [];
+    const issuedCount = finalConsumptionTable.filter(
+      (item) => getIssuedQty(item) > 0
+    ).length;
+    const totalRows = finalConsumptionTable.length;
+
+    updateData.status =
+      issuedCount === 0
+        ? "Pending"
+        : issuedCount === totalRows
+        ? "Completed"
+        : "In Progress";
 
     const updatedMI = await MI.findByIdAndUpdate(id, updateData, { new: true });
 
@@ -736,22 +978,33 @@ exports.deleteMI = async (req, res) => {
         qty = parseFloat(item.weight.toString().replace(/[^\d.]/g, ""));
       }
 
+      qty = Math.max(0, qty - (Number(item.receiveQty) || 0));
+
       if (!qty || qty <= 0) continue;
 
       const dbItem = await Model.findOne({ skuCode: item.skuCode });
       if (!dbItem) continue;
 
+      let adjustedItem = dbItem;
+      if (item.type === "RawMaterial") {
+        adjustedItem = await updateStock(dbItem._id, qty, warehouse, "ADD");
+      } else {
+        dbItem.stockQty = (Number(dbItem.stockQty) || 0) + qty;
+        await dbItem.save();
+        adjustedItem = dbItem;
+      }
+
       // 🔥 REAL RESTORE = ledger reverse
       await StockLedger.create({
-        itemId: dbItem._id,
+        itemId: adjustedItem._id,
         itemType,
         warehouse,
         qty: +qty,                    // POSITIVE restore
         movementType: "ADJUSTMENT",
         referenceId: mi._id,
         referenceModel: "MI-DELETE",
-        stockUOM: dbItem.stockUOM,    // 🔥 CRITICAL
-        rateAtThatTime: dbItem.rate || 0,
+        stockUOM: adjustedItem.stockUOM,    // 🔥 CRITICAL
+        rateAtThatTime: adjustedItem.rate || 0,
         createdBy: req.user._id,
         remarks: `MI Deleted | BOM: ${mi.bomNo || "-"} | Product: ${mi.productName || "-"}`
       });
