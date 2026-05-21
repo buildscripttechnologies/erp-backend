@@ -18,6 +18,9 @@ async function generateTasksFromMI(mi) {
             status: "Pending",
             cuttingType: item.cuttingType,
             isWaiting: false,
+            assignedUser: item.assignee || null,
+            assignmentMode: item.assignee ? "Manual" : "Auto",
+            assignedBy: item.assignee ? mi.createdBy : null,
         });
     }
 

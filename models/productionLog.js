@@ -59,6 +59,11 @@ const productionLogSchema = new mongoose.Schema({
   enum: ["Hourly", "StartEnd"],
 },
 
+  stitchGroupId: {
+    type: String,
+    default: null,
+  },
+
 }, { timestamps: true });
 
 module.exports = mongoose.model("ProductionLog", productionLogSchema);

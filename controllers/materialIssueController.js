@@ -10,12 +10,60 @@ const {
 } = require("../utils/codeGenerator");
 const { updateStock } = require("../utils/stockService");
 const StockLedger = require("../models/StockLedger");
+const ProductionTask = require("../models/productionTask");
 
 
 const modelMap = {
   RawMaterial,
   SFG,
   FG,
+};
+
+const attachProductionTasks = async (mis = []) => {
+  const miIds = mis.map((mi) => mi._id).filter(Boolean);
+  if (!miIds.length) return mis;
+
+  const tasks = await ProductionTask.find({ miId: { $in: miIds } })
+    .populate(
+      "assignedUser",
+      "fullName username userType skills efficiencyScore currentLoad status"
+    )
+    .populate(
+      "assignedMachine",
+      "name code type subType status currentLoad capacityPerHour isActive"
+    )
+    .populate("assignedBy", "fullName username userType")
+    .sort({ createdAt: 1, _id: 1 });
+
+  const tasksByMi = tasks.reduce((acc, task) => {
+    const key = task.miId?.toString();
+    if (!key) return acc;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(task);
+    return acc;
+  }, {});
+
+  return mis.map((mi) => {
+    const productionTasks = tasksByMi[mi._id.toString()] || [];
+    const itemDetails = (mi.itemDetails || []).map((item) => {
+      const itemObj =
+        item && typeof item.toObject === "function" ? item.toObject() : item;
+      const matchedTask = productionTasks.find(
+        (task) => String(task.itemDetailId) === String(itemObj._id)
+      );
+
+      return {
+        ...itemObj,
+        productionTask: matchedTask || null,
+      };
+    });
+
+    return {
+      ...mi,
+      itemDetails,
+      productionTasks,
+    };
+  });
 };
 
 const getIssueQty = (item = {}) => {
@@ -493,6 +541,7 @@ exports.getAllMI = async (req, res) => {
         populate: { path: "location", select: "locationId" },
       })
       .populate("itemDetails.assignee", "_id fullName username")
+      .populate("itemDetails.assignee", "_id fullName username skills currentLoad")
       .populate("createdBy", "_id fullName username")
       .skip(skip)
       .limit(limit)
@@ -515,6 +564,33 @@ exports.getAllMI = async (req, res) => {
       }
     }
 
+    const miIds = mis.map((mi) => mi._id);
+    const tasks = await ProductionTask.find({ miId: { $in: miIds } })
+      .populate(
+        "assignedUser",
+        "fullName username userType skills efficiencyScore currentLoad status"
+      )
+      .populate(
+        "assignedMachine",
+        "name code type subType status currentLoad capacityPerHour isActive"
+      )
+      .populate("assignedBy", "fullName username userType")
+      .sort({ createdAt: 1, _id: 1 });
+
+    const tasksByMi = tasks.reduce((acc, task) => {
+      const key = task.miId?.toString();
+      if (!key) return acc;
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(task);
+      return acc;
+    }, {});
+
+    const responseData = mis.map((mi) => {
+      const obj = mi.toObject();
+      obj.productionTasks = tasksByMi[mi._id.toString()] || [];
+      return obj;
+    });
+
     res.status(200).json({
       success: true,
       status: 200,
@@ -522,7 +598,7 @@ exports.getAllMI = async (req, res) => {
       totalPages: Math.ceil(totalResults / limit),
       currentPage: page,
       limit,
-      data: mis,
+      data: responseData,
     });
   } catch (err) {
     console.error("Error fetching Material Issues:", err);
@@ -1049,6 +1125,7 @@ exports.getMiWithCutting = async (req, res) => {
         populate: { path: "location", select: "locationId" },
       })
       .populate("itemDetails.assignee", "_id fullName username")
+      .populate("itemDetails.assignee", "_id fullName username skills currentLoad")
       .populate("createdBy", "_id fullName username")
       .skip(skip)
       .limit(limit)
@@ -1106,6 +1183,7 @@ exports.getInCutting = async (req, res) => {
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
       })
+      .populate("itemDetails.assignee", "_id fullName username skills currentLoad")
       .populate("createdBy", "_id fullName username")
       .sort({ updatedAt: -1, _id: -1 });
 
@@ -1133,7 +1211,7 @@ exports.getInCutting = async (req, res) => {
     // Pagination
     const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = filteredMIs.slice(skip, skip + limit);
+    const paginatedItems = await attachProductionTasks(filteredMIs.slice(skip, skip + limit));
 
     res.status(200).json({
       success: true,
@@ -1186,6 +1264,7 @@ exports.getInPrinting = async (req, res) => {
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
       })
+      .populate("itemDetails.assignee", "_id fullName username skills currentLoad")
       .populate("createdBy", "_id fullName username")
       .sort({ updatedAt: -1, _id: -1 });
 
@@ -1210,7 +1289,7 @@ exports.getInPrinting = async (req, res) => {
     // Pagination
     const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = filteredMIs.slice(skip, skip + limit);
+    const paginatedItems = await attachProductionTasks(filteredMIs.slice(skip, skip + limit));
 
     res.status(200).json({
       success: true,
@@ -1262,6 +1341,7 @@ exports.getInPasting = async (req, res) => {
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
       })
+      .populate("itemDetails.assignee", "_id fullName username skills currentLoad")
       .populate("createdBy", "_id fullName username")
       .sort({ updatedAt: -1, _id: -1 });
 
@@ -1286,7 +1366,7 @@ exports.getInPasting = async (req, res) => {
     // Pagination
     const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = filteredMIs.slice(skip, skip + limit);
+    const paginatedItems = await attachProductionTasks(filteredMIs.slice(skip, skip + limit));
 
     res.status(200).json({
       success: true,
@@ -1339,6 +1419,7 @@ exports.getOutsideCompany = async (req, res) => {
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
       })
+      .populate("itemDetails.assignee", "_id fullName username skills currentLoad")
       .populate("createdBy", "_id fullName username")
       .sort({ updatedAt: -1, _id: -1 });
 
@@ -1361,7 +1442,7 @@ exports.getOutsideCompany = async (req, res) => {
     // Pagination
     const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = filteredMIs.slice(skip, skip + limit);
+    const paginatedItems = await attachProductionTasks(filteredMIs.slice(skip, skip + limit));
 
     res.status(200).json({
       success: true,
@@ -1414,6 +1495,7 @@ exports.getInStitching = async (req, res) => {
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
       })
+      .populate("itemDetails.assignee", "_id fullName username skills currentLoad")
       .populate("createdBy", "_id fullName username")
       .sort({ updatedAt: -1, _id: -1 });
 
@@ -1444,7 +1526,7 @@ exports.getInStitching = async (req, res) => {
     // Pagination
     const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = filteredMIs.slice(skip, skip + limit);
+    const paginatedItems = await attachProductionTasks(filteredMIs.slice(skip, skip + limit));
 
     res.status(200).json({
       success: true,
@@ -1497,6 +1579,7 @@ exports.getInQualityCheck = async (req, res) => {
         select: "skuCode itemName description location",
         populate: { path: "location", select: "locationId" },
       })
+      .populate("itemDetails.assignee", "_id fullName username skills currentLoad")
       .populate("createdBy", "_id fullName username")
       .sort({ updatedAt: -1, _id: -1 });
 
@@ -1528,7 +1611,7 @@ exports.getInQualityCheck = async (req, res) => {
     // 📄 Pagination
     const totalResults = filteredMIs.length;
     const totalPages = Math.ceil(totalResults / limit);
-    const paginatedItems = filteredMIs.slice(skip, skip + limit);
+    const paginatedItems = await attachProductionTasks(filteredMIs.slice(skip, skip + limit));
 
     res.status(200).json({
       success: true,

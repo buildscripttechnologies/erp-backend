@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const applySoftDelete = require("../plugins/mongooseDeletePlugin");
 
 const machineSchema = new mongoose.Schema({
     name: {
@@ -66,6 +67,19 @@ const machineSchema = new mongoose.Schema({
         }
     ],
 
+    createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        default: null,
+    },
+
+    deletedAt: {
+        type: Date,
+        default: null,
+    },
+
 }, { timestamps: true });
+
+applySoftDelete(machineSchema);
 
 module.exports = mongoose.model("Machine", machineSchema);

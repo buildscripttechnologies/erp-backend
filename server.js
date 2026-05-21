@@ -46,6 +46,7 @@ const accessoryReceiveRoutes = require("./routes/accessoryReceiveRoutes");
 const productionDashboardRoutes = require("./routes/productionDashboardRoutes");
 const productionTaskRoutes = require("./routes/productionTaskRoutes");
 const productionLogRoutes = require("./routes/producationLogRoutes");
+const machineRoutes = require("./routes/machineRoutes");
 const healthRoutes = require("./routes/healthRoute");
 
 const syncRawMaterials = require("./syncData/syncRawMaterials");
@@ -137,6 +138,7 @@ app.use("/api/accessory-receive", accessoryReceiveRoutes);
 app.use("/api/production-dashboard", productionDashboardRoutes);
 app.use("/api/production", productionTaskRoutes);
 app.use("/api/production-log", productionLogRoutes);
+app.use("/api/machines", machineRoutes);
 app.use("/public", express.static("public"));
 
 

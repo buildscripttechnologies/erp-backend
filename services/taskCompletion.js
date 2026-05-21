@@ -130,6 +130,7 @@ async function checkAndComplete(taskId) {
       if (nextQueued) {
 
         nextQueued.status = "Assigned";
+        nextQueued.assignedAt = new Date();
         await nextQueued.save();
 
         // 🔥 RESTORE LOAD

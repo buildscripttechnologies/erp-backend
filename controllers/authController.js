@@ -16,6 +16,10 @@ exports.register = async (req, res) => {
     password,
     userType = "Sales Executive",
     userGroup,
+    warehouse,
+    skills = [],
+    efficiencyScore = 1,
+    currentLoad = 0,
   } = req.body;
   try {
     const existing = await User.findOne({ email });
@@ -31,6 +35,19 @@ exports.register = async (req, res) => {
       password: hash,
       userType,
       userGroup,
+      warehouse,
+      skills: Array.isArray(skills)
+        ? skills.map((skill) => String(skill || "").trim()).filter(Boolean)
+        : String(skills || "")
+            .split(",")
+            .map((skill) => skill.trim())
+            .filter(Boolean),
+      efficiencyScore: Number.isFinite(Number(efficiencyScore))
+        ? Number(efficiencyScore)
+        : 1,
+      currentLoad: Number.isFinite(Number(currentLoad))
+        ? Number(currentLoad)
+        : 0,
     });
 
     await generateAndSendOtp(email, "signup");

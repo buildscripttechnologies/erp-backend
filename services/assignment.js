@@ -7,7 +7,9 @@ async function autoAssign(task) {
   try {
 
     let machine = null;
-    let selectedUser = null;
+    let selectedUser = task.assignmentMode === "Manual" && task.assignedUser
+      ? await User.findById(task.assignedUser)
+      : null;
 
     // =====================================================
     // 🔥 GUARD: only process valid tasks
@@ -36,8 +38,6 @@ async function autoAssign(task) {
 
         if (reusedMachine) {
           machine = reusedMachine;
-          selectedUser = await User.findById(existingTask.assignedUser);
-
           console.log("🔁 Reusing stitching line:", machine?.code);
         }
       }
@@ -57,11 +57,13 @@ async function autoAssign(task) {
 
       // 🔥 STRICT CUTTING
       if (task.stage === "Cutting") {
-        if (!subType) {
+        if (!task.cuttingType) {
           console.log("❌ Missing cuttingType:", task.cuttingType);
           return null;
         }
-        query.subType = subType;
+        if (subType) {
+          query.subType = subType;
+        }
       } else if (subType) {
         query.subType = subType;
       }
@@ -102,68 +104,49 @@ async function autoAssign(task) {
       return null;
     }
 
-    // =====================================================
-    // 🔥 STEP 3: GET OPERATORS
-    // =====================================================
-    let operators = await User.find({
-      status: "Active",
-      deleted: { $ne: true },
-      skills: { $in: [task.stage] },
-    });
-
-    if (!operators.length) {
-      console.log("❌ No skilled operators for stage:", task.stage);
-      return null;
-    }
-
-    // 🔥 machine preferred operators
-    if (machine.assignedOperators?.length) {
-      const mapped = operators.filter(u =>
-        machine.assignedOperators.some(id => id.toString() === u._id.toString())
-      );
-      if (mapped.length) operators = mapped;
-    }
-
-    // =====================================================
-    // 🔥 STEP 4: ACCESSORY SAME USER (ZIP/RUNNER)
-    // =====================================================
-    if (!selectedUser && task.stage === "Stitching") {
-
-      const category = (task.category || "").toLowerCase();
-      const isAccessory = ["zipper", "runner"].includes(category);
-
-      if (isAccessory) {
-
-        const accessoryTask = await ProductionTask.findOne({
-          miId: task.miId,
-          stage: "Stitching",
-          assignedUser: { $ne: null }
-        });
-
-        if (accessoryTask) {
-          selectedUser = await User.findById(accessoryTask.assignedUser);
-          console.log("🔁 Reusing accessory operator:", selectedUser?.fullName);
-        }
-      }
-    }
-
-    // =====================================================
-    // 🔥 STEP 5: SELECT BEST USER
-    // =====================================================
-    if (!selectedUser) {
-      const sorted = operators.sort((a, b) => {
-        if ((b.efficiencyScore || 1) !== (a.efficiencyScore || 1)) {
-          return (b.efficiencyScore || 1) - (a.efficiencyScore || 1);
-        }
-        return (a.currentLoad || 0) - (b.currentLoad || 0);
+    if (task.stage === "Stitching") {
+      selectedUser = null;
+    } else {
+      // =====================================================
+      // 🔥 STEP 3: GET OPERATORS
+      // =====================================================
+      let operators = await User.find({
+        status: "Active",
+        deleted: { $ne: true },
+        skills: { $in: [task.stage] },
       });
 
-      selectedUser = sorted[0];
-    }
+      if (!operators.length) {
+        console.log("❌ No skilled operators for stage:", task.stage);
+        return null;
+      }
 
-    if (!selectedUser) {
-      console.log("❌ No operator selected");
-      return null;
+      // 🔥 machine preferred operators
+      if (machine.assignedOperators?.length) {
+        const mapped = operators.filter(u =>
+          machine.assignedOperators.some(id => id.toString() === u._id.toString())
+        );
+        if (mapped.length) operators = mapped;
+      }
+
+      // =====================================================
+      // 🔥 STEP 4: SELECT BEST USER
+      // =====================================================
+      if (!selectedUser) {
+        const sorted = operators.sort((a, b) => {
+          if ((b.efficiencyScore || 1) !== (a.efficiencyScore || 1)) {
+            return (b.efficiencyScore || 1) - (a.efficiencyScore || 1);
+          }
+          return (a.currentLoad || 0) - (b.currentLoad || 0);
+        });
+
+        selectedUser = sorted[0];
+      }
+
+      if (!selectedUser) {
+        console.log("❌ No operator selected");
+        return null;
+      }
     }
 
     // =====================================================
@@ -174,8 +157,12 @@ async function autoAssign(task) {
       status: { $in: ["Assigned", "In Progress"] }
     });
 
-    task.assignedUser = selectedUser._id;
+    task.assignedUser = selectedUser?._id || null;
     task.assignedMachine = machine._id;
+    task.assignmentMode = selectedUser?._id?.toString() === task.assignedUser?.toString() && task.assignmentMode === "Manual"
+      ? "Manual"
+      : "Auto";
+    task.assignedAt = new Date();
     task.status = isBusy ? "Queued" : "Assigned";
 
     await task.save();
@@ -185,10 +172,12 @@ async function autoAssign(task) {
     // =====================================================
     if (!isBusy) {
 
-      await User.updateOne(
-        { _id: selectedUser._id },
-        { $inc: { currentLoad: task.qty } }
-      );
+      if (selectedUser) {
+        await User.updateOne(
+          { _id: selectedUser._id },
+          { $inc: { currentLoad: task.qty } }
+        );
+      }
 
       await Machine.updateOne(
         { _id: machine._id },
@@ -207,7 +196,7 @@ async function autoAssign(task) {
     }
 
     console.log(
-      `✅ Task assigned → User: ${selectedUser.fullName} | Machine: ${machine.code} | Status: ${task.status}`
+      `✅ Task assigned → User: ${selectedUser?.fullName || "N/A"} | Machine: ${machine.code} | Status: ${task.status}`
     );
 
     return task;

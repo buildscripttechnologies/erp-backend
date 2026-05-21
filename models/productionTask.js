@@ -26,6 +26,28 @@ const productionTaskSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "Machine",
   },
+
+  assignmentMode: {
+    type: String,
+    enum: ["Auto", "Manual"],
+    default: "Auto",
+  },
+
+  assignedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+    default: null,
+  },
+
+  assignedAt: {
+    type: Date,
+    default: null,
+  },
+
+  assignmentNote: {
+    type: String,
+    default: "",
+  },
   cuttingType: {
     type: String
   },

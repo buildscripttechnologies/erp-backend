@@ -27,16 +27,25 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "UserGrp",
     },
-    skills: [String], // ["Cutting", "Stitching"]
+    skills: {
+      type: [String],
+      default: [],
+      set: (skills) =>
+        Array.isArray(skills)
+          ? skills.map((skill) => String(skill || "").trim()).filter(Boolean)
+          : [],
+    }, // ["Cutting", "Stitching"]
 
 efficiencyScore: {
   type: Number,
   default: 1,
+  min: 0,
 },
 
 currentLoad: {
   type: Number,
   default: 0,
+  min: 0,
 },
 
     warehouse: { type: String, default: "Warehouse 1" },
@@ -69,6 +78,7 @@ currentLoad: {
         { module: "BOM", actions: ["read"] },
         { module: "Vendor", actions: ["read"] },
         { module: "Customer", actions: ["read"] },
+        { module: "Machine", actions: ["read"] },
         { module: "Role", actions: ["read"] },
       ],
     },

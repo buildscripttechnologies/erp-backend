@@ -2,6 +2,48 @@ const User = require("../models/user");
 
 const bcrypt = require("bcryptjs");
 
+const normalizeUserPayload = (payload) => {
+  const update = { ...payload };
+
+  if (update.skills !== undefined) {
+    update.skills = Array.isArray(update.skills)
+      ? update.skills
+          .map((skill) => String(skill || "").trim())
+          .filter(Boolean)
+      : String(update.skills || "")
+          .split(",")
+          .map((skill) => skill.trim())
+          .filter(Boolean);
+  }
+
+  ["efficiencyScore", "currentLoad"].forEach((field) => {
+    if (update[field] !== undefined) {
+      const value = Number(update[field]);
+      update[field] = Number.isFinite(value) && value >= 0 ? value : 0;
+    }
+  });
+
+  return update;
+};
+
+const formatUser = (user) => ({
+  id: user._id,
+  fullName: user.fullName,
+  username: user.username,
+  email: user.email,
+  mobile: user.mobile,
+  userType: user.userType,
+  userGroup: user.userGroup,
+  skills: user.skills || [],
+  efficiencyScore: user.efficiencyScore ?? 1,
+  currentLoad: user.currentLoad ?? 0,
+  isVerified: user.isVerified,
+  twoStepEnabled: user.twoStepEnabled,
+  warehouse: user.warehouse,
+  status: user.status,
+  permissions: user.permissions,
+});
+
 const updateUser = async (req, res) => {
   const { userId } = req.params;
 
@@ -16,14 +58,19 @@ const updateUser = async (req, res) => {
       const salt = await bcrypt.genSalt(10);
       const hashedPassword = await bcrypt.hash(req.body.password, salt);
       req.body.password = hashedPassword;
+    } else if (req.body.password === "") {
+      delete req.body.password;
     }
 
-    user = await User.findByIdAndUpdate(userId, req.body, { new: true });
+    user = await User.findByIdAndUpdate(userId, normalizeUserPayload(req.body), {
+      new: true,
+      runValidators: true,
+    });
 
     res.status(200).json({
       status: 200,
       message: "User updated successfully",
-      user, // Optional: you can send selective fields as needed
+      user: formatUser(user),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -69,6 +116,10 @@ const getUser = async (req, res) => {
         mobile: user.mobile,
         userType: user.userType,
         userGroup: user.userGroup,
+        skills: user.skills || [],
+        efficiencyScore: user.efficiencyScore ?? 1,
+        currentLoad: user.currentLoad ?? 0,
+        warehouse: user.warehouse,
         isVerified: user.isVerified,
         twoStepEnabled: user.twoStepEnabled,
         status: user.status,
@@ -103,6 +154,7 @@ const getAllUsers = async (req, res) => {
         { userType: searchRegex },
         { email: searchRegex },
         { mobile: searchRegex },
+        { skills: searchRegex },
       ];
     }
 
@@ -117,20 +169,7 @@ const getAllUsers = async (req, res) => {
 
     res.status(200).json({
       status: 200,
-      users: users.map((user) => ({
-        id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        mobile: user.mobile,
-        userType: user.userType,
-        userGroup: user.userGroup,
-        isVerified: user.isVerified,
-        twoStepEnabled: user.twoStepEnabled,
-        warehouse: user.warehouse,
-        status: user.status,
-        permissions: user.permissions,
-      })),
+      users: users.map(formatUser),
       pagination: {
         currentPage: page,
         totalPages: Math.ceil(totalResults / limit),
@@ -166,6 +205,7 @@ const getAllDeletedUsers = async (req, res) => {
         { userType: searchRegex },
         { email: searchRegex },
         { mobile: searchRegex },
+        { skills: searchRegex },
       ];
     }
 
@@ -180,20 +220,7 @@ const getAllDeletedUsers = async (req, res) => {
 
     res.status(200).json({
       status: 200,
-      users: users.map((user) => ({
-        id: user._id,
-        fullName: user.fullName,
-        username: user.username,
-        email: user.email,
-        mobile: user.mobile,
-        userType: user.userType,
-        userGroup: user.userGroup,
-        isVerified: user.isVerified,
-        twoStepEnabled: user.twoStepEnabled,
-        warehouse: user.warehouse,
-        status: user.status,
-        permissions: user.permissions,
-      })),
+      users: users.map(formatUser),
       pagination: {
         currentPage: page,
         totalPages: Math.ceil(totalResults / limit),
