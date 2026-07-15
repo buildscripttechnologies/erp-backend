@@ -445,7 +445,12 @@ exports.startTask = async (req, res) => {
 exports.scanStitchingMachine = async (req, res) => {
   try {
     const machineCode = String(
-      req.body.machineCode || req.body.code || req.params.machineCode || ""
+      req.body?.machineCode ||
+      req.body?.code ||
+      req.params?.machineCode ||
+      req.query?.machineCode ||
+      req.query?.code ||
+      ""
     ).trim();
 
     if (!machineCode) {
