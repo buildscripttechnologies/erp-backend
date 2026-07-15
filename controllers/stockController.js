@@ -1235,62 +1235,6 @@ exports.getAllStocks = async (req, res) => {
       },
       { $unwind: { path: "$uom", preserveNullAndEmptyArrays: true } },
 
-      // 🔥 JOIN REAL BARCODES
-      // {
-      //   $lookup: {
-      //     from: "barcodes",
-      //     let: { itemId: "$itemId" },
-      //     pipeline: [
-      //       {
-      //         $match: {
-      //           $expr: { $eq: ["$itemId", "$$itemId"] }
-      //         }
-      //       },
-      //       {
-      //         $project: {
-      //           barcode: 1,
-      //           qty: 1,
-      //           status: 1,
-      //           batchNo: 1
-      //         }
-      //       }
-      //     ],
-      //     as: "barcodes"
-      //   }
-      // },
-
-      // 🔥 JOIN ONLY BARCODES OF THIS ENTRY
-      {
-        $lookup: {
-          from: "barcodes",
-          let: {
-            itemId: "$itemId",
-            batchNo: "$batchNo"   // 🔥 critical
-          },
-          pipeline: [
-            {
-              $match: {
-                $expr: {
-                  $and: [
-                    { $eq: ["$itemId", "$$itemId"] },
-                    { $eq: ["$batchNo", "$$batchNo"] } // 🔥 critical
-                  ]
-                }
-              }
-            },
-            {
-              $project: {
-                barcode: 1,
-                qty: 1,
-                status: 1,
-                batchNo: 1
-              }
-            }
-          ],
-          as: "barcodes"
-        }
-      },
-
       // 🔥 JOIN PO (if referenceModel = PO)
       {
         $lookup: {
@@ -1312,6 +1256,26 @@ exports.getAllStocks = async (req, res) => {
     ];
 
     const data = await StockLedger.aggregate(pipeline);
+
+    // Fetch barcodes outside the aggregation. A $lookup can exceed MongoDB's
+    // 100 MB intermediate-document limit, especially when legacy rows have a
+    // missing batch number and all null-batch barcodes are joined together.
+    const barcodePairs = data
+      .filter(d => d.itemId && d.batchNo)
+      .map(d => ({ itemId: d.itemId, batchNo: d.batchNo }));
+
+    const barcodes = barcodePairs.length
+      ? await Barcode.find({ $or: barcodePairs })
+        .select("itemId barcode qty status batchNo")
+        .lean()
+      : [];
+
+    const barcodesByEntry = barcodes.reduce((entries, barcode) => {
+      const key = `${barcode.itemId}:${barcode.batchNo}`;
+      if (!entries[key]) entries[key] = [];
+      entries[key].push(barcode);
+      return entries;
+    }, {});
 
     const countAgg = await StockLedger.aggregate([
       { $match: match },
@@ -1346,7 +1310,9 @@ exports.getAllStocks = async (req, res) => {
         ,
         remarks: d.remarks || "-",
         grnNumber: d.grnNumber || "-",
-        barcodes: d.barcodes      // already filtered correctly
+        barcodes: d.itemId && d.batchNo
+          ? barcodesByEntry[`${d.itemId}:${d.batchNo}`] || []
+          : []
       }))
     });
 
