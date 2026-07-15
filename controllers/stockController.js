@@ -1217,6 +1217,13 @@ exports.getAllStocks = async (req, res) => {
         }
       }] : []),
 
+      // Paginate before the remaining lookups. In production, joining barcodes
+      // for every matching ledger entry can exceed MongoDB's 100 MB $lookup
+      // intermediate-document limit even when the client requests only 10 rows.
+      { $sort: { createdAt: -1 } },
+      { $skip: skip },
+      { $limit: limit },
+
       // Join UOM
       {
         $lookup: {
@@ -1302,10 +1309,6 @@ exports.getAllStocks = async (req, res) => {
           referenceModel: "$referenceModel"
         }
       }
-      ,
-      { $sort: { createdAt: -1 } },
-      { $skip: skip },
-      { $limit: limit }
     ];
 
     const data = await StockLedger.aggregate(pipeline);
