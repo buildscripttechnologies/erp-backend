@@ -355,6 +355,9 @@ exports.getAllRawMaterials = async (req, res) => {
         pvcRollWidthMm: rm.pvcRollWidthMm,
         pvcLengthMtr: rm.pvcLengthMtr,
         pvcTotalWeightKg: rm.pvcTotalWeightKg,
+        nonWovenGsm: rm.nonWovenGsm,
+        nonWovenLengthMtr: rm.nonWovenLengthMtr,
+        nonWovenTotalWeightKg: rm.nonWovenTotalWeightKg,
         sqInchRate: rm.sqInchRate,
         baseRate: rm.baseRate,
         rate: rm.rate,
@@ -1151,20 +1154,36 @@ exports.restoreRawMaterials = async (req, res) => {
   }
 };
 const PVC_WEIGHT_FACTOR = 0.00068;
+const NON_WOVEN_WIDTH_MM = 1600;
+const NON_WOVEN_DIVISOR = 1000000;
 const isPvcCategory = (category = "") =>
   category.trim().toLowerCase().includes("pvc");
+const isNonWovenCategory = (category = "") =>
+  category.trim().toLowerCase().replace(/[-_]/g, " ").includes("non woven");
 const applyPvcWeight = (rawMaterial) => {
-  if (!isPvcCategory(rawMaterial.itemCategory)) {
+  if (isPvcCategory(rawMaterial.itemCategory)) {
+    const rollSize = Number(rawMaterial.pvcRollSizeInch);
+    const rollWidth = Number(rawMaterial.pvcRollWidthMm);
+    const length = Number(rawMaterial.pvcLengthMtr);
+    rawMaterial.pvcTotalWeightKg = [rollSize, rollWidth, length].every(
+      (value) => Number.isFinite(value) && value > 0
+    )
+      ? Number((rollSize * rollWidth * length * PVC_WEIGHT_FACTOR).toFixed(3))
+      : 0;
+  } else {
     rawMaterial.pvcTotalWeightKg = 0;
-    return rawMaterial;
   }
-  const rollSize = Number(rawMaterial.pvcRollSizeInch);
-  const rollWidth = Number(rawMaterial.pvcRollWidthMm);
-  const length = Number(rawMaterial.pvcLengthMtr);
-  rawMaterial.pvcTotalWeightKg = [rollSize, rollWidth, length].every(
-    (value) => Number.isFinite(value) && value > 0
-  )
-    ? Number((rollSize * rollWidth * length * PVC_WEIGHT_FACTOR).toFixed(3))
-    : 0;
+
+  if (isNonWovenCategory(rawMaterial.itemCategory)) {
+    const gsm = Number(rawMaterial.nonWovenGsm);
+    const length = Number(rawMaterial.nonWovenLengthMtr);
+    rawMaterial.nonWovenTotalWeightKg = [gsm, length].every(
+      (value) => Number.isFinite(value) && value > 0
+    )
+      ? Number(((gsm * length * NON_WOVEN_WIDTH_MM) / NON_WOVEN_DIVISOR).toFixed(3))
+      : 0;
+  } else {
+    rawMaterial.nonWovenTotalWeightKg = 0;
+  }
   return rawMaterial;
 };
