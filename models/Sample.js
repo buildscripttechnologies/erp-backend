@@ -149,7 +149,7 @@ const somSchema = new mongoose.Schema(
         partName: String,
         height: Number,
         width: Number,
-        // depth: Number,
+        depth: Number,
         category: String,
         qty: {
           type: Number,

@@ -63,18 +63,18 @@ exports.generateNextBomNo = async () => {
 };
 
 exports.generateNextSampleNo = async () => {
-  const allBOMs = await Sample.findWithDeleted({}, { sampleNo: 1 }).lean();
+  const allSamples = await Sample.findWithDeleted({}, { sampleNo: 1 }).lean();
   let max = 0;
 
-  allBOMs.forEach((bom) => {
-    const match = bom.sampleNo?.toString().match(/SMP-(\d+)/i);
+  allSamples.forEach((sample) => {
+    const match = sample.sampleNo?.toString().match(/^IKBS(\d+)$/i);
     if (match) {
       const num = parseInt(match[1]);
       if (num > max) max = num;
     }
   });
 
-  return `SMP-${(max + 1).toString().padStart(3, "0")}`;
+  return `IKBS${(max + 1).toString().padStart(2, "0")}`;
 };
 
 exports.generateNextPONo = async () => {

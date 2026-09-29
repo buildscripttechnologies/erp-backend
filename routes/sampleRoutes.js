@@ -9,6 +9,13 @@ const {
 } = require("../middlewares/uploadFile");
 const checkPermission = require("../middlewares/checkPermission");
 
+router.get(
+  "/next-number",
+  auth,
+  checkPermission(["Sample"], "read"),
+  sampleController.getNextSampleNo
+);
+
 // Add Sample
 router.post(
   "/add",

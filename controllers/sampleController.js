@@ -16,7 +16,6 @@ exports.addSample = async (req, res) => {
       partyName,
       orderQty,
       productName,
-      sampleNo,
       productDetails,
       consumptionTable,
       description,
@@ -43,6 +42,7 @@ exports.addSample = async (req, res) => {
       unitB2BRate,
       unitD2CRate,
     } = parsed;
+    const sampleNo = await generateNextSampleNo();
 
     // Step 1: Get or create Customer
     let customer = await Customer.findOne({ customerName: partyName });
@@ -115,6 +115,7 @@ exports.addSample = async (req, res) => {
             qty: d.qty,
             height: d.height,
             width: d.width,
+            depth: d.depth,
             rate: d.rate,
             sqInchRate: d.sqInchRate,
             partName: d.partName,
@@ -133,6 +134,7 @@ exports.addSample = async (req, res) => {
             qty: d.qty,
             height: d.height,
             width: d.width,
+            depth: d.depth,
             sqInchRate: d.sqInchRate,
             partName: d.partName,
             grams: d.grams,
@@ -198,6 +200,16 @@ exports.addSample = async (req, res) => {
     return res
       .status(500)
       .json({ success: false, message: "Failed to add Sample" });
+  }
+};
+
+exports.getNextSampleNo = async (req, res) => {
+  try {
+    const sampleNo = await generateNextSampleNo();
+    res.status(200).json({ success: true, sampleNo });
+  } catch (err) {
+    console.error("Generate Sample Number Error:", err);
+    res.status(500).json({ success: false, message: "Failed to generate sample number" });
   }
 };
 
