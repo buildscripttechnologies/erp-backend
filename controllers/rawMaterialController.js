@@ -351,6 +351,10 @@ exports.getAllRawMaterials = async (req, res) => {
         pkgQty: rm.pkgQty,
         moq: rm.moq,
         panno: rm.panno,
+        pvcRollSizeInch: rm.pvcRollSizeInch,
+        pvcRollWidthMm: rm.pvcRollWidthMm,
+        pvcLengthMtr: rm.pvcLengthMtr,
+        pvcTotalWeightKg: rm.pvcTotalWeightKg,
         sqInchRate: rm.sqInchRate,
         baseRate: rm.baseRate,
         rate: rm.rate,
@@ -391,7 +395,7 @@ exports.getAllRawMaterials = async (req, res) => {
 // @desc    Create a new raw material
 exports.createRawMaterial = async (req, res) => {
   try {
-    const newRM = new RawMaterial(req.body);
+    const newRM = new RawMaterial(applyPvcWeight({ ...req.body }));
     const saved = await newRM.save();
     res.status(201).json({ status: 201, data: saved });
   } catch (err) {
@@ -473,7 +477,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
         }
 
         return {
-          ...rm,
+          ...applyPvcWeight({ ...rm }),
           qualityInspectionNeeded: rm.qualityInspectionNeeded === "Required",
           createdBy: req.user._id,
           purchaseUOM,
@@ -641,7 +645,7 @@ exports.addMultipleRawMaterials = async (req, res) => {
 exports.updateRawMaterial = async (req, res) => {
   try {
     const { id } = req.params;
-    const updated = await RawMaterial.findByIdAndUpdate(id, req.body, {
+    const updated = await RawMaterial.findByIdAndUpdate(id, applyPvcWeight({ ...req.body }), {
       new: true,
     });
     if (!updated) return res.status(404).json({ message: "Not found" });
@@ -724,6 +728,7 @@ exports.editRawMaterial = async (req, res) => {
     // -------------------------------
     // 5️⃣ APPLY OTHER SIMPLE FIELDS
     // -------------------------------
+    applyPvcWeight(updateFields);
     Object.assign(rm, updateFields);
 
     rm.createdBy = req.user._id;
@@ -1144,4 +1149,22 @@ exports.restoreRawMaterials = async (req, res) => {
   } catch (error) {
     res.status(500).json({ status: 500, message: error.message });
   }
+};
+const PVC_WEIGHT_FACTOR = 0.00068;
+const isPvcCategory = (category = "") =>
+  category.trim().toLowerCase().includes("pvc");
+const applyPvcWeight = (rawMaterial) => {
+  if (!isPvcCategory(rawMaterial.itemCategory)) {
+    rawMaterial.pvcTotalWeightKg = 0;
+    return rawMaterial;
+  }
+  const rollSize = Number(rawMaterial.pvcRollSizeInch);
+  const rollWidth = Number(rawMaterial.pvcRollWidthMm);
+  const length = Number(rawMaterial.pvcLengthMtr);
+  rawMaterial.pvcTotalWeightKg = [rollSize, rollWidth, length].every(
+    (value) => Number.isFinite(value) && value > 0
+  )
+    ? Number((rollSize * rollWidth * length * PVC_WEIGHT_FACTOR).toFixed(3))
+    : 0;
+  return rawMaterial;
 };

@@ -87,6 +87,10 @@ const rawMaterialSchema = new mongoose.Schema(
       type: Number,
       default: 1,
     },
+    pvcRollSizeInch: { type: Number, default: 0, min: 0 },
+    pvcRollWidthMm: { type: Number, default: 0, min: 0 },
+    pvcLengthMtr: { type: Number, default: 0, min: 0 },
+    pvcTotalWeightKg: { type: Number, default: 0, min: 0 },
     totalRate: { type: Number, default: 0 },
     gst: {
       type: Number,
